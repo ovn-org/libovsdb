@@ -1,0 +1,19 @@
+---
+machine:
+  services:
+    - docker
+  golang:
+    - 1.3
+
+dependencies:
+    pre:
+        - pip install fig
+        - fig up -d
+
+test:
+    override:
+        - make build
+        - make test-all
+    post:
+        - fig stop
+        - fig rm
