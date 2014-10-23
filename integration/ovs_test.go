@@ -1,18 +1,18 @@
 package integration
 
 import (
+	"fmt"
 	"github.com/socketplane/libovsdb/Godeps/_workspace/src/github.com/cenkalti/rpc2"
 	"github.com/socketplane/libovsdb/Godeps/_workspace/src/github.com/cenkalti/rpc2/jsonrpc"
 	"github.com/socketplane/libovsdb/op"
-    "os"
-    "fmt"
 	"log"
 	"net"
+	"os"
 	"testing"
 )
 
 func TestListDbs(t *testing.T) {
-    target := fmt.Sprintf("%s:6640", os.Getenv("DOCKER_IP"))
+	target := fmt.Sprintf("%s:6640", os.Getenv("DOCKER_IP"))
 	conn, err := net.Dial("tcp", target)
 
 	if err != nil {
@@ -45,7 +45,7 @@ func TestListDbs(t *testing.T) {
 
 func TestTransact(t *testing.T) {
 	target := fmt.Sprintf("%s:6640", os.Getenv("DOCKER_IP"))
-    conn, err := net.Dial("tcp", target)
+	conn, err := net.Dial("tcp", target)
 
 	if err != nil {
 		panic(err)
