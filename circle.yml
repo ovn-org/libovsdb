@@ -2,18 +2,23 @@
 machine:
   services:
     - docker
-  golang:
-    - 1.3
+  environment:
+    DOCKER_IP: "127.0.0.1"
+    GOPATH: "/home/ubuntu/.go_workspace"
+    ORG_PATH: "github.com/socketplane"
+    REPO_PATH: "${ORG_PATH}/libovsdb"
 
 dependencies:
     pre:
-        - pip install fig
+        - sudo pip install -qq fig
         - fig up -d
+        - rm -f $GOPATH/src/${REPO_PATH}
+        - mkdir -p $GOPATH/src/${ORG_PATH}
+        - ln -s ${PWD} $GOPATH/src/${REPO_PATH}
 
 test:
     override:
         - make build
-        - make test-all
+        - make test-full
     post:
         - fig stop
-        - fig rm

@@ -4,13 +4,16 @@ import (
 	"github.com/socketplane/libovsdb/Godeps/_workspace/src/github.com/cenkalti/rpc2"
 	"github.com/socketplane/libovsdb/Godeps/_workspace/src/github.com/cenkalti/rpc2/jsonrpc"
 	"github.com/socketplane/libovsdb/op"
+    "os"
+    "fmt"
 	"log"
 	"net"
 	"testing"
 )
 
 func TestListDbs(t *testing.T) {
-	conn, err := net.Dial("tcp", "192.168.59.103:6640")
+    target := fmt.Sprintf("%s:6640", os.Getenv("DOCKER_IP"))
+	conn, err := net.Dial("tcp", target)
 
 	if err != nil {
 		panic(err)
@@ -41,7 +44,8 @@ func TestListDbs(t *testing.T) {
 }
 
 func TestTransact(t *testing.T) {
-	conn, err := net.Dial("tcp", "192.168.59.103:6640")
+	target := fmt.Sprintf("%s:6640", os.Getenv("DOCKER_IP"))
+    conn, err := net.Dial("tcp", target)
 
 	if err != nil {
 		panic(err)
