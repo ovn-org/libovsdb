@@ -9,16 +9,16 @@ machine:
     REPO_PATH: "${ORG_PATH}/libovsdb"
 
 dependencies:
-    pre:
-        - sudo pip install -qq fig
-        - fig up -d
-        - rm -f $GOPATH/src/${REPO_PATH}
-        - mkdir -p $GOPATH/src/${ORG_PATH}
-        - ln -s ${PWD} $GOPATH/src/${REPO_PATH}
+  pre:
+    - sudo pip install -qq fig
+    - fig up -d
+    - rm -f $GOPATH/src/${REPO_PATH}
+    - mkdir -p $GOPATH/src/${ORG_PATH}
+    - ln -s ${PWD} $GOPATH/src/${REPO_PATH}
 
 test:
-    override:
-        - make build
-        - make test-full
-    post:
-        - fig stop
+  override:
+    - make build
+    - make test-full
+  post:
+    - fig stop
