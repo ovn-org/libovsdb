@@ -1,26 +1,31 @@
-package integration
+package libovsdb
 
 import (
 	"fmt"
-	"github.com/socketplane/libovsdb/Godeps/_workspace/src/github.com/cenkalti/rpc2"
-	"github.com/socketplane/libovsdb/Godeps/_workspace/src/github.com/cenkalti/rpc2/jsonrpc"
-	"github.com/socketplane/libovsdb/op"
 	"log"
 	"net"
 	"os"
 	"testing"
+
+	"github.com/socketplane/libovsdb/Godeps/_workspace/src/github.com/cenkalti/rpc2"
+	"github.com/socketplane/libovsdb/Godeps/_workspace/src/github.com/cenkalti/rpc2/jsonrpc"
 )
 
 func TestListDbs(t *testing.T) {
+
+	if testing.Short() {
+		t.Skip()
+	}
+
 	target := fmt.Sprintf("%s:6640", os.Getenv("DOCKER_IP"))
 	conn, err := net.Dial("tcp", target)
 
 	if err != nil {
 		panic(err)
 	}
-	defer conn.Close()
 
 	c := rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
+	defer c.Close()
 
 	go c.Run()
 
@@ -38,6 +43,11 @@ func TestListDbs(t *testing.T) {
 }
 
 func TestTransact(t *testing.T) {
+
+	if testing.Short() {
+		t.Skip()
+	}
+
 	target := fmt.Sprintf("%s:6640", os.Getenv("DOCKER_IP"))
 	conn, err := net.Dial("tcp", target)
 
@@ -45,32 +55,32 @@ func TestTransact(t *testing.T) {
 		panic(err)
 	}
 
-	defer conn.Close()
-
 	c := rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
+	defer c.Close()
 
 	go c.Run()
 
-	var reply []map[string]interface{}
+	var reply []interface{}
 
-	operation := op.Operation{}
-	operation.Op = "insert"
-	operation.Table = "Bridge"
+	bridge := make(map[string]interface{})
+	bridge["name"] = "docker-ovs"
 
-	operation.Row = make(map[string]interface{})
-    operation.Row["name"] = "docker-ovs"
+	operation := Operation{
+		Op:    "insert",
+		Table: "Bridge",
+		Row:   bridge,
+	}
 
-	args := []interface{}{"Open_vSwitch", operation}
+	err = c.Call("transact", NewTransactArgs("Open_vSwitch", operation), &reply)
 
-	err = c.Call("transact", args, &reply)
+	inner := reply[0].(map[string]interface{})
+	uuid := inner["uuid"].([]interface{})
 
 	if err != nil {
 		log.Fatal("transact error:", err)
 	}
 
-	log.Print(reply)
-
-	if reply[0]["map"] != nil {
-		t.Error("No UUID Returned", reply[0]["map"])
+	if uuid[1] == nil {
+		t.Error("No UUID Returned")
 	}
 }
