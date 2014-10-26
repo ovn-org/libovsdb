@@ -3,8 +3,8 @@ package op
 type Operation struct {
 	Op        string        `json:"op"`
 	Table     string        `json:"table"`
-	Row       interface{}   `json:"row,omitempty"`
-	Rows      []interface{} `json:"rows,omitempty"`
+	Row       map[string]interface{} `json:"row,omitempty"`
+	Rows      []map[string]interface{} `json:"rows,omitempty"`
 	Columns   []string      `json:"columns,omitempty"`
 	Mutations []string      `json:"mutations,omitempty"`
 	Timeout   int           `json:"timeout,omitempty"`

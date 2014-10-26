@@ -26,12 +26,6 @@ func TestListDbs(t *testing.T) {
 
 	var reply []interface{}
 
-	operation := op.Operation{}
-
-	operation.Op = "insert"
-	operation.Table = "Bridge"
-	operation.Row = `{"name: "docker0"}`
-
 	err = c.Call("list_dbs", nil, &reply)
 
 	if err != nil {
@@ -59,17 +53,12 @@ func TestTransact(t *testing.T) {
 
 	var reply []map[string]interface{}
 
-	// ToDo: Should make use of constructors here
 	operation := op.Operation{}
 	operation.Op = "insert"
 	operation.Table = "Bridge"
 
-	// W00t! Anonymous struct
-	operation.Row = struct {
-		name string `json:"name"`
-	}{
-		"docker-ovs1",
-	}
+	operation.Row = make(map[string]interface{})
+    operation.Row["name"] = "docker-ovs"
 
 	args := []interface{}{"Open_vSwitch", operation}
 
@@ -78,6 +67,8 @@ func TestTransact(t *testing.T) {
 	if err != nil {
 		log.Fatal("transact error:", err)
 	}
+
+	log.Print(reply)
 
 	if reply[0]["map"] != nil {
 		t.Error("No UUID Returned", reply[0]["map"])
