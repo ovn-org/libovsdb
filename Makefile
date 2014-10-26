@@ -6,8 +6,8 @@ build:
 	go build -v $(GO_PACKAGES)
 
 test:
-	go test -cover -v $(GO_PACKAGES)
+	go test -cover -test.short -v $(GO_PACKAGES)
 
 test-full:
-	go test -cover -v $(GO_PACKAGES) ./integration
+	go test -cover -v $(GO_PACKAGES)
 
