@@ -22,7 +22,7 @@ dependencies:
 test:
   override:
     - make build
-    - make test-full
+    - make test-all
   post:
     - fig stop
     - go tool cover -html=coverage.out -o $CIRCLE_ARTIFACTS/coverage/index.html

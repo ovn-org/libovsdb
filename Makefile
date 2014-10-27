@@ -6,6 +6,6 @@ build:
 test:
 	go test -covermode=count -coverprofile=coverage.out -test.short -v github.com/socketplane/libovsdb
 
-test-full:
+test-all:
 	go test -covermode=count -coverprofile=coverage.out -v github.com/socketplane/libovsdb
 
