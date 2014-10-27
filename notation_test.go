@@ -8,9 +8,9 @@ import (
 
 func TestOpRowSerialization(t *testing.T) {
 	operation := Operation{
-        Op: "insert",
-        Table: "Bridge",
-    }
+		Op:    "insert",
+		Table: "Bridge",
+	}
 
 	operation.Row = make(map[string]interface{})
 	operation.Row["name"] = "docker-ovs"
@@ -30,9 +30,9 @@ func TestOpRowSerialization(t *testing.T) {
 
 func TestOpRowsSerialization(t *testing.T) {
 	operation := Operation{
-        Op: "insert",
-	    Table: "Interface",
-    }
+		Op:    "insert",
+		Table: "Interface",
+	}
 
 	iface1 := make(map[string]interface{})
 	iface1["name"] = "test-iface1"
@@ -91,29 +91,47 @@ func TestValidateUuid(t *testing.T) {
 }
 
 func TestNewUUID(t *testing.T) {
-    uuid, _ := NewUUID("550e8400-e29b-41d4-a716-446655440000")
-    uuidStr, _ := json.Marshal(uuid)
-    expected := `["uuid","550e8400-e29b-41d4-a716-446655440000"]`
-    if string(uuidStr) != expected {
-        t.Error("uuid is not correctly formatted")
-    }
+	uuid, _ := NewUUID("550e8400-e29b-41d4-a716-446655440000")
+	uuidStr, _ := json.Marshal(uuid)
+	expected := `["uuid","550e8400-e29b-41d4-a716-446655440000"]`
+	if string(uuidStr) != expected {
+		t.Error("uuid is not correctly formatted")
+	}
+}
+
+func TestNewUUIDWithError(t *testing.T) {
+	uuid, err := NewUUID("foo")
+	if uuid != nil {
+		t.Error("uuid should not be returned")
+	}
+	if err == nil {
+		t.Error("expected an error for invalid uuid")
+	}
+}
+
+func TestNewNamedUUID(t *testing.T) {
+	uuid := NewNamedUUID("test-uuid")
+	uuidStr, _ := json.Marshal(uuid)
+	expected := `["named-uuid","test-uuid"]`
+	if string(uuidStr) != expected {
+		t.Error("uuid is not correctly formatted")
+	}
 }
 
 func TestNewCondition(t *testing.T) {
-    cond := NewCondition("uuid", "==", "550e8400-e29b-41d4-a716-446655440000")
-    condStr, _ := json.Marshal(cond)
-    expected := `["uuid","==","550e8400-e29b-41d4-a716-446655440000"]`
-    if string(condStr) != expected {
-        t.Error("condition is not correctly formatted")
-    }
+	cond := NewCondition("uuid", "==", "550e8400-e29b-41d4-a716-446655440000")
+	condStr, _ := json.Marshal(cond)
+	expected := `["uuid","==","550e8400-e29b-41d4-a716-446655440000"]`
+	if string(condStr) != expected {
+		t.Error("condition is not correctly formatted")
+	}
 }
 
 func TestNewMutation(t *testing.T) {
-    mutation := NewCondition("column", "+=", 1)
-    mutationStr, _ := json.Marshal(mutation)
-    expected := `["column","+=",1]`
-    if string(mutationStr) != expected {
-        t.Error("mutation is not correctly formatted")
-    }
+	mutation := NewMutation("column", "+=", 1)
+	mutationStr, _ := json.Marshal(mutation)
+	expected := `["column","+=",1]`
+	if string(mutationStr) != expected {
+		t.Error("mutation is not correctly formatted")
+	}
 }
-

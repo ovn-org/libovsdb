@@ -1,7 +1,6 @@
 package libovsdb
 
-import (
-)
+import ()
 
 // NewGetSchemaArgs creates a new set of arguments for a get_schemas RPC
 func NewGetSchemaArgs(schema string) []interface{} {
