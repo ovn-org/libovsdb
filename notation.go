@@ -21,24 +21,23 @@ type Operation struct {
 
 // MonitorRequest represents a monitor request according to RFC7047
 type MonitorRequest struct {
-	Columns []string `json:"columns,omitempty"`
-	Select MonitorSelect `json:"select,omitempty"`
+	Columns []string      `json:"columns,omitempty"`
+	Select  MonitorSelect `json:"select,omitempty"`
 }
 
 // MonitorSelect represents a monitor select according to RFC7047
 type MonitorSelect struct {
 	Initial bool `json:"initial,omitempty"`
-	Insert bool `json:"insert,omitempty"`
-	Delete bool `json:"delete,omitempty"`
-	Modify bool `json:"modify,omitempty"`
+	Insert  bool `json:"insert,omitempty"`
+	Delete  bool `json:"delete,omitempty"`
+	Modify  bool `json:"modify,omitempty"`
 }
 
 // OvsdbError is an OVS Error Condition
 type OvsdbError struct {
-    Error string `json:"error"`
-    Details string `json:"details,omitempty"`
+	Error   string `json:"error"`
+	Details string `json:"details,omitempty"`
 }
-
 
 // NewUUID creates a new uuid as specified in RFC7047
 func NewUUID(uuid string) ([]string, error) {
@@ -51,7 +50,6 @@ func NewUUID(uuid string) ([]string, error) {
 
 // NewNamedUUID creates a new named-uuid as specified in RFC7047
 func NewNamedUUID(uuid string) []string {
-
 	return []string{"named-uuid", uuid}
 }
 
