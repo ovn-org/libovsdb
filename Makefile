@@ -1,13 +1,11 @@
 all: build test
 
-GO_PACKAGES = $(shell find . -not \( -wholename ./Godeps -prune -o -wholename ./integration -prune -o -wholename ./.git -prune \) -name '*.go' -print0 | xargs -0n1 dirname | sort -u)
-
 build:
-	go build -v $(GO_PACKAGES)
+	go build -v github.com/socketplane/libovsdb
 
 test:
-	go test -cover -test.short -v $(GO_PACKAGES)
+	go test -covermode=count -coverprofile=coverage.out -test.short -v github.com/socketplane/libovsdb
 
 test-full:
-	go test -cover -v $(GO_PACKAGES)
+	go test -covermode=count -coverprofile=coverage.out -v github.com/socketplane/libovsdb
 
