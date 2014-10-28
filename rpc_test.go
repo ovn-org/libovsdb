@@ -11,7 +11,7 @@ func TestNewGetSchemaArgs(t *testing.T) {
 	argString, _ := json.Marshal(args)
 	expected := `["Open_vSwitch"]`
 	if string(argString) != expected {
-		t.Error("arguments not properly formatted")
+		t.Error("Expected: ", expected, " Got: ", string(argString))
 	}
 }
 
@@ -22,7 +22,19 @@ func TestNewTransactArgs(t *testing.T) {
 	argString, _ := json.Marshal(args)
 	expected := `["Open_vSwitch",{"op":"insert","table":"Bridge"}]`
 	if string(argString) != expected {
-		t.Error("arguments not properly formatted")
+		t.Error("Expected: ", expected, " Got: ", string(argString))
+	}
+}
+
+func TestNewMultipleTransactArgs(t *testing.T) {
+	database := "Open_vSwitch"
+	operation1 := Operation{Op: "insert", Table: "Bridge"}
+	operation2 := Operation{Op: "delete", Table: "Bridge"}
+	args := NewTransactArgs(database, operation1, operation2)
+	argString, _ := json.Marshal(args)
+	expected := `["Open_vSwitch",{"op":"insert","table":"Bridge"},{"op":"delete","table":"Bridge"}]`
+	if string(argString) != expected {
+		t.Error("Expected: ", expected, " Got: ", string(argString))
 	}
 }
 
@@ -32,7 +44,7 @@ func TestNewCancelArgs(t *testing.T) {
 	argString, _ := json.Marshal(args)
 	expected := `[1]`
 	if string(argString) != expected {
-		t.Error("arguments not properly formatted")
+		t.Error("Expected: ", expected, " Got: ", string(argString))
 	}
 }
 
@@ -53,7 +65,7 @@ func TestNewMonitorArgs(t *testing.T) {
 	argString, _ := json.Marshal(args)
 	expected := `["Open_vSwitch",1,[{"columns":["Bridge","Port","Interface"],"select":{"initial":true,"insert":true,"delete":true,"modify":true}}]]`
 	if string(argString) != expected {
-		t.Error("arguments not properly formatted")
+		t.Error("Expected: ", expected, " Got: ", string(argString))
 	}
 }
 
@@ -63,7 +75,7 @@ func TestNewMonitorCancelArgs(t *testing.T) {
 	argString, _ := json.Marshal(args)
 	expected := `[1]`
 	if string(argString) != expected {
-		t.Error("arguments not properly formatted")
+		t.Error("Expected: ", expected, " Got: ", string(argString))
 	}
 }
 
@@ -73,6 +85,6 @@ func TestNewLockArgs(t *testing.T) {
 	argString, _ := json.Marshal(args)
 	expected := `["testId"]`
 	if string(argString) != expected {
-		t.Error("arguments not properly formatted")
+		t.Error("Expected: ", expected, " Got: ", string(argString))
 	}
 }
