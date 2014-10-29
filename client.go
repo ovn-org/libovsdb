@@ -1,6 +1,7 @@
 package libovsdb
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -26,7 +27,17 @@ func Connect(ipAddr string, port int) (OvsdbClient, error) {
 	c := rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
 
 	go c.Run()
-	return OvsdbClient{c, make(map[string]DatabaseSchema)}, nil
+	ovs := OvsdbClient{c, make(map[string]DatabaseSchema)}
+	dbs, err := ovs.ListDbs()
+	if err == nil {
+		for _, db := range dbs {
+			schema, err := ovs.GetSchema(db)
+			if err == nil {
+				ovs.Schema[db] = *schema
+			}
+		}
+	}
+	return ovs, err
 }
 
 func (ovs OvsdbClient) Disconnect() {
@@ -47,20 +58,29 @@ func (ovs OvsdbClient) GetSchema(dbName string) (*DatabaseSchema, error) {
 }
 
 // RFC 7047 : list_dbs
-func (ovs OvsdbClient) ListDbs() ([]interface{}, error) {
-	var reply []interface{}
-	err := ovs.rpcClient.Call("list_dbs", nil, &reply)
+func (ovs OvsdbClient) ListDbs() ([]string, error) {
+	var dbs []string
+	err := ovs.rpcClient.Call("list_dbs", nil, &dbs)
 	if err != nil {
 		log.Fatal("ListDbs failure", err)
 	}
-	return reply, err
+	return dbs, err
 }
 
 // RFC 7047 : transact
 
 func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]interface{}, error) {
-	args := NewTransactArgs(database, operation...)
 	var reply []interface{}
+	db, ok := ovs.Schema[database]
+	if !ok {
+		return nil, errors.New("invalid Database Schema")
+	}
+
+	if ok := db.validateOperations(operation...); !ok {
+		return nil, errors.New("Validation failed for the operation")
+	}
+
+	args := NewTransactArgs(database, operation...)
 	err := ovs.rpcClient.Call("transact", args, &reply)
 	if err != nil {
 		log.Fatal("transact failure", err)
