@@ -29,3 +29,32 @@ func (schema DatabaseSchema) Print() {
 		}
 	}
 }
+
+// Basic validation for operations against Database Schema
+func (schema DatabaseSchema) validateOperations(operations ...Operation) bool {
+	for _, op := range operations {
+		table, ok := schema.Tables[op.Table]
+		if ok {
+			for column, _ := range op.Row {
+				if _, ok := table.Columns[column]; !ok {
+					return false
+				}
+			}
+			for _, row := range op.Rows {
+				for column, _ := range row {
+					if _, ok := table.Columns[column]; !ok {
+						return false
+					}
+				}
+			}
+			for _, column := range op.Columns {
+				if _, ok := table.Columns[column]; !ok {
+					return false
+				}
+			}
+		} else {
+			return false
+		}
+	}
+	return true
+}
