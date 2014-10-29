@@ -1,6 +1,7 @@
 package libovsdb
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -12,6 +13,7 @@ import (
 
 type OvsdbClient struct {
 	rpcClient *rpc2.Client
+	Schema    map[string]DatabaseSchema
 }
 
 func Connect(ipAddr string, port int) (OvsdbClient, error) {
@@ -25,28 +27,60 @@ func Connect(ipAddr string, port int) (OvsdbClient, error) {
 	c := rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
 
 	go c.Run()
-	return OvsdbClient{c}, nil
+	ovs := OvsdbClient{c, make(map[string]DatabaseSchema)}
+	dbs, err := ovs.ListDbs()
+	if err == nil {
+		for _, db := range dbs {
+			schema, err := ovs.GetSchema(db)
+			if err == nil {
+				ovs.Schema[db] = *schema
+			}
+		}
+	}
+	return ovs, err
 }
 
 func (ovs OvsdbClient) Disconnect() {
 	ovs.rpcClient.Close()
 }
 
+// RFC 7047 : get_schema
+func (ovs OvsdbClient) GetSchema(dbName string) (*DatabaseSchema, error) {
+	args := NewGetSchemaArgs(dbName)
+	var reply DatabaseSchema
+	err := ovs.rpcClient.Call("get_schema", args, &reply)
+	if err != nil {
+		return nil, err
+	} else {
+		ovs.Schema[dbName] = reply
+	}
+	return &reply, err
+}
+
 // RFC 7047 : list_dbs
-func (ovs OvsdbClient) ListDbs() ([]interface{}, error) {
-	var reply []interface{}
-	err := ovs.rpcClient.Call("list_dbs", nil, &reply)
+func (ovs OvsdbClient) ListDbs() ([]string, error) {
+	var dbs []string
+	err := ovs.rpcClient.Call("list_dbs", nil, &dbs)
 	if err != nil {
 		log.Fatal("ListDbs failure", err)
 	}
-	return reply, err
+	return dbs, err
 }
 
 // RFC 7047 : transact
 
-func (ovs OvsdbClient) Transact(database string, operation Operation) ([]interface{}, error) {
-	args := NewTransactArgs(database, operation)
+func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]interface{}, error) {
 	var reply []interface{}
+	db, ok := ovs.Schema[database]
+	if !ok {
+		return nil, errors.New("invalid Database Schema")
+	}
+
+	if ok := db.validateOperations(operation...); !ok {
+		return nil, errors.New("Validation failed for the operation")
+	}
+
+	args := NewTransactArgs(database, operation...)
 	err := ovs.rpcClient.Call("transact", args, &reply)
 	if err != nil {
 		log.Fatal("transact failure", err)
