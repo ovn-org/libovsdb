@@ -1,37 +1,21 @@
 package libovsdb
 
 import (
-	"fmt"
 	"log"
-	"net"
 	"os"
 	"testing"
-
-	"github.com/socketplane/libovsdb/Godeps/_workspace/src/github.com/cenkalti/rpc2"
-	"github.com/socketplane/libovsdb/Godeps/_workspace/src/github.com/cenkalti/rpc2/jsonrpc"
 )
 
 func TestListDbs(t *testing.T) {
-
 	if testing.Short() {
 		t.Skip()
 	}
 
-	target := fmt.Sprintf("%s:6640", os.Getenv("DOCKER_IP"))
-	conn, err := net.Dial("tcp", target)
-
+	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
 	if err != nil {
 		panic(err)
 	}
-
-	c := rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
-	defer c.Close()
-
-	go c.Run()
-
-	var reply []interface{}
-
-	err = c.Call("list_dbs", nil, &reply)
+	reply, err := ovs.ListDbs()
 
 	if err != nil {
 		log.Fatal("transact error:", err)
@@ -48,19 +32,11 @@ func TestTransact(t *testing.T) {
 		t.Skip()
 	}
 
-	target := fmt.Sprintf("%s:6640", os.Getenv("DOCKER_IP"))
-	conn, err := net.Dial("tcp", target)
-
+	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
 	if err != nil {
+		log.Fatal("Failed to Connect. error:", err)
 		panic(err)
 	}
-
-	c := rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
-	defer c.Close()
-
-	go c.Run()
-
-	var reply []interface{}
 
 	bridge := make(map[string]interface{})
 	bridge["name"] = "docker-ovs"
@@ -71,7 +47,7 @@ func TestTransact(t *testing.T) {
 		Row:   bridge,
 	}
 
-	err = c.Call("transact", NewTransactArgs("Open_vSwitch", operation), &reply)
+	reply, err := ovs.Transact("Open_vSwitch", operation)
 
 	inner := reply[0].(map[string]interface{})
 	uuid := inner["uuid"].([]interface{})
