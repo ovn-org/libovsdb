@@ -12,6 +12,7 @@ import (
 
 type OvsdbClient struct {
 	rpcClient *rpc2.Client
+	Schema    map[string]DatabaseSchema
 }
 
 func Connect(ipAddr string, port int) (OvsdbClient, error) {
@@ -25,11 +26,24 @@ func Connect(ipAddr string, port int) (OvsdbClient, error) {
 	c := rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
 
 	go c.Run()
-	return OvsdbClient{c}, nil
+	return OvsdbClient{c, make(map[string]DatabaseSchema)}, nil
 }
 
 func (ovs OvsdbClient) Disconnect() {
 	ovs.rpcClient.Close()
+}
+
+// RFC 7047 : get_schema
+func (ovs OvsdbClient) GetSchema(dbName string) (*DatabaseSchema, error) {
+	args := NewGetSchemaArgs(dbName)
+	var reply DatabaseSchema
+	err := ovs.rpcClient.Call("get_schema", args, &reply)
+	if err != nil {
+		return nil, err
+	} else {
+		ovs.Schema[dbName] = reply
+	}
+	return &reply, err
 }
 
 // RFC 7047 : list_dbs
@@ -44,8 +58,8 @@ func (ovs OvsdbClient) ListDbs() ([]interface{}, error) {
 
 // RFC 7047 : transact
 
-func (ovs OvsdbClient) Transact(database string, operation Operation) ([]interface{}, error) {
-	args := NewTransactArgs(database, operation)
+func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]interface{}, error) {
+	args := NewTransactArgs(database, operation...)
 	var reply []interface{}
 	err := ovs.rpcClient.Call("transact", args, &reply)
 	if err != nil {
