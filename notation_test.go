@@ -75,6 +75,25 @@ func TestValidateOvsSet(t *testing.T) {
 	}
 }
 
+func TestValidateOvsMap(t *testing.T) {
+	myMap := make(map[int]string)
+	myMap[1] = "hello"
+	myMap[2] = "world"
+	oMap, err := newOvsMap(myMap)
+	if err != nil {
+		t.Error("Error creating OvsMap ", err)
+	}
+	data, err := json.Marshal(oMap)
+	if err != nil {
+		t.Error("Error Marshalling OvsMap", err)
+	}
+	expected1 := `["map",[1,"hello"],[2,"world"]]`
+	expected2 := `["map",[2,"world"],[1,"hello"]]`
+	if string(data) != expected1 && string(data) != expected2 {
+		t.Error("Expected: ", expected1, "Got", string(data))
+	}
+}
+
 func TestValidateUuid(t *testing.T) {
 	uuid1 := "this is a bad uuid"                   // Bad
 	uuid2 := "alsoabaduuid"                         // Bad
