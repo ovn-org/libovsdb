@@ -123,6 +123,67 @@ func TestInsertTransact(t *testing.T) {
 	ovs.Disconnect()
 }
 
+func TestDeleteTransact(t *testing.T) {
+
+	if testing.Short() {
+		t.Skip()
+	}
+
+	if bridgeUuid == "" {
+		t.Skip()
+	}
+
+	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
+	if err != nil {
+		log.Fatal("Failed to Connect. error:", err)
+		panic(err)
+	}
+
+	// simple delete operation
+	condition := NewCondition("name", "==", bridgeName)
+	deleteOp := Operation{
+		Op:    "delete",
+		Table: "Bridge",
+		Where: []interface{}{condition},
+	}
+
+	// Deleting a Bridge row in Bridge table requires mutating the open_vswitch table.
+	mutateUuid := []UUID{UUID{bridgeUuid}}
+	mutateSet, _ := newOvsSet(mutateUuid)
+	mutation := NewMutation("bridges", "delete", mutateSet)
+	// hacked Condition till we get Monitor / Select working
+	condition = NewCondition("_uuid", "!=", UUID{"2f77b348-9768-4866-b761-89d5177ecdab"})
+
+	// simple mutate operation
+	mutateOp := Operation{
+		Op:        "mutate",
+		Table:     "Open_vSwitch",
+		Mutations: []interface{}{mutation},
+		Where:     []interface{}{condition},
+	}
+
+	operations := []Operation{deleteOp, mutateOp}
+	reply, err := ovs.Transact("Open_vSwitch", operations...)
+
+	if len(reply) < len(operations) {
+		t.Error("Number of Replies should be atleast equal to number of Operations")
+	}
+	ok := true
+	for i, o := range reply {
+		if o.Error != "" && i < len(operations) {
+			t.Error("Transaction Failed due to an error :", o.Error, " in ", operations[i])
+			ok = false
+		} else if o.Error != "" {
+			t.Error("Transaction Failed due to an error :", o.Error)
+			ok = false
+		}
+	}
+	if ok {
+		fmt.Println("Bridge Delete Successful", reply[0].Count)
+	}
+	ovs.Disconnect()
+}
+
 func TestDBSchemaValidation(t *testing.T) {
 
 	if testing.Short() {
