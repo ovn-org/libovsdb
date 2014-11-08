@@ -2,6 +2,7 @@ package libovsdb
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"os"
 	"testing"
@@ -54,7 +55,10 @@ func TestGetSchemas(t *testing.T) {
 	ovs.Disconnect()
 }
 
-func TestTransact(t *testing.T) {
+var bridgeName string = "gopher-br7"
+var bridgeUuid string
+
+func TestInsertTransact(t *testing.T) {
 
 	if testing.Short() {
 		t.Skip()
@@ -71,7 +75,7 @@ func TestTransact(t *testing.T) {
 
 	// bridge row to insert
 	bridge := make(map[string]interface{})
-	bridge["name"] = "gopher-br"
+	bridge["name"] = bridgeName
 
 	// simple insert operation
 	insertOp := Operation{
@@ -83,7 +87,7 @@ func TestTransact(t *testing.T) {
 
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
 	mutateUuid := []UUID{UUID{namedUuid}}
-	mutateSet, _ := newOvsSet(mutateUuid)
+	mutateSet, _ := NewOvsSet(mutateUuid)
 	mutation := NewMutation("bridges", "insert", mutateSet)
 	// hacked Condition till we get Monitor / Select working
 	condition := NewCondition("_uuid", "!=", UUID{"2f77b348-9768-4866-b761-89d5177ecdab"})
@@ -96,17 +100,86 @@ func TestTransact(t *testing.T) {
 		Where:     []interface{}{condition},
 	}
 
-	reply, err := ovs.Transact("Open_vSwitch", insertOp, mutateOp)
+	operations := []Operation{insertOp, mutateOp}
+	reply, err := ovs.Transact("Open_vSwitch", operations...)
 
-	inner := reply[0].(map[string]interface{})
-	uuid := inner["uuid"].([]interface{})
+	if len(reply) < len(operations) {
+		t.Error("Number of Replies should be atleast equal to number of Operations")
+	}
+	ok := true
+	for i, o := range reply {
+		if o.Error != "" && i < len(operations) {
+			t.Error("Transaction Failed due to an error :", o.Error, " in ", operations[i])
+			ok = false
+		} else if o.Error != "" {
+			t.Error("Transaction Failed due to an error :", o.Error)
+			ok = false
+		}
+	}
+	if ok {
+		fmt.Println("Bridge Addition Successful : ", reply[0].UUID.GoUuid)
+		bridgeUuid = reply[0].UUID.GoUuid
+	}
+	ovs.Disconnect()
+}
 
-	if err != nil {
-		log.Fatal("transact error:", err)
+func TestDeleteTransact(t *testing.T) {
+
+	if testing.Short() {
+		t.Skip()
 	}
 
-	if uuid[1] == nil {
-		t.Error("No UUID Returned")
+	if bridgeUuid == "" {
+		t.Skip()
+	}
+
+	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
+	if err != nil {
+		log.Fatal("Failed to Connect. error:", err)
+		panic(err)
+	}
+
+	// simple delete operation
+	condition := NewCondition("name", "==", bridgeName)
+	deleteOp := Operation{
+		Op:    "delete",
+		Table: "Bridge",
+		Where: []interface{}{condition},
+	}
+
+	// Deleting a Bridge row in Bridge table requires mutating the open_vswitch table.
+	mutateUuid := []UUID{UUID{bridgeUuid}}
+	mutateSet, _ := NewOvsSet(mutateUuid)
+	mutation := NewMutation("bridges", "delete", mutateSet)
+	// hacked Condition till we get Monitor / Select working
+	condition = NewCondition("_uuid", "!=", UUID{"2f77b348-9768-4866-b761-89d5177ecdab"})
+
+	// simple mutate operation
+	mutateOp := Operation{
+		Op:        "mutate",
+		Table:     "Open_vSwitch",
+		Mutations: []interface{}{mutation},
+		Where:     []interface{}{condition},
+	}
+
+	operations := []Operation{deleteOp, mutateOp}
+	reply, err := ovs.Transact("Open_vSwitch", operations...)
+
+	if len(reply) < len(operations) {
+		t.Error("Number of Replies should be atleast equal to number of Operations")
+	}
+	ok := true
+	for i, o := range reply {
+		if o.Error != "" && i < len(operations) {
+			t.Error("Transaction Failed due to an error :", o.Error, " in ", operations[i])
+			ok = false
+		} else if o.Error != "" {
+			t.Error("Transaction Failed due to an error :", o.Error)
+			ok = false
+		}
+	}
+	if ok {
+		fmt.Println("Bridge Delete Successful", reply[0].Count)
 	}
 	ovs.Disconnect()
 }
