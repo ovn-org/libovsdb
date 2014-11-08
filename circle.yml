@@ -7,16 +7,18 @@ machine:
     GOPATH: "/home/ubuntu/.go_workspace"
     ORG_PATH: "github.com/socketplane"
     REPO_PATH: "${ORG_PATH}/libovsdb"
+    HOME: "$GOPATH/src/${ORG_PATH}"
+
+checkout:
+  pre:
+    - rm -f $GOPATH/src/${REPO_PATH}
+    - mkdir -p $GOPATH/src/${ORG_PATH}
+    - mkdir -p ${CIRCLE_ARTIFACTS}/coverage
 
 dependencies:
   pre:
     - sudo pip install -qq fig
     - fig up -d
-  override:
-    - rm -f $GOPATH/src/${REPO_PATH}
-    - mkdir -p $GOPATH/src/${ORG_PATH}
-    - ln -s ${PWD} $GOPATH/src/${REPO_PATH}
-    - mkdir -p ${CIRCLE_ARTIFACTS}/coverage
   post:
     - cd $GOPATH/src/${REPO_PATH}
 test:
