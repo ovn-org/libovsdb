@@ -69,8 +69,8 @@ func (ovs OvsdbClient) ListDbs() ([]string, error) {
 
 // RFC 7047 : transact
 
-func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]interface{}, error) {
-	var reply []interface{}
+func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]OperationResult, error) {
+	var reply []OperationResult
 	db, ok := ovs.Schema[database]
 	if !ok {
 		return nil, errors.New("invalid Database Schema")

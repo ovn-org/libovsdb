@@ -2,6 +2,7 @@ package libovsdb
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"os"
 	"testing"
@@ -54,7 +55,10 @@ func TestGetSchemas(t *testing.T) {
 	ovs.Disconnect()
 }
 
-func TestTransact(t *testing.T) {
+var bridgeName string = "gopher-br"
+var bridgeUuid string
+
+func TestInsertTransact(t *testing.T) {
 
 	if testing.Short() {
 		t.Skip()
@@ -71,7 +75,7 @@ func TestTransact(t *testing.T) {
 
 	// bridge row to insert
 	bridge := make(map[string]interface{})
-	bridge["name"] = "gopher-br"
+	bridge["name"] = bridgeName
 
 	// simple insert operation
 	insertOp := Operation{
@@ -96,17 +100,25 @@ func TestTransact(t *testing.T) {
 		Where:     []interface{}{condition},
 	}
 
-	reply, err := ovs.Transact("Open_vSwitch", insertOp, mutateOp)
+	operations := []Operation{insertOp, mutateOp}
+	reply, err := ovs.Transact("Open_vSwitch", operations...)
 
-	inner := reply[0].(map[string]interface{})
-	uuid := inner["uuid"].([]interface{})
-
-	if err != nil {
-		log.Fatal("transact error:", err)
+	if len(reply) < len(operations) {
+		t.Error("Number of Replies should be atleast equal to number of Operations")
 	}
-
-	if uuid[1] == nil {
-		t.Error("No UUID Returned")
+	ok := true
+	for i, o := range reply {
+		if o.Error != "" && i < len(operations) {
+			t.Error("Transaction Failed due to an error :", o.Error, " in ", operations[i])
+			ok = false
+		} else if o.Error != "" {
+			t.Error("Transaction Failed due to an error :", o.Error)
+			ok = false
+		}
+	}
+	if ok {
+		fmt.Println("Bridge Addition Successful : ", reply[0].UUID.uuid)
+		bridgeUuid = reply[0].UUID.uuid
 	}
 	ovs.Disconnect()
 }

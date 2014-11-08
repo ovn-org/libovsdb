@@ -58,6 +58,14 @@ func (u UUID) MarshalJSON() ([]byte, error) {
 	return json.Marshal(uuidSlice)
 }
 
+func (u *UUID) UnmarshalJSON(b []byte) (err error) {
+	var ovsUuid []string
+	if err := json.Unmarshal(b, &ovsUuid); err == nil {
+		u.uuid = ovsUuid[1]
+	}
+	return err
+}
+
 // NewCondition creates a new condition as specified in RFC7047
 func NewCondition(column string, function string, value interface{}) []interface{} {
 	return []interface{}{column, function, value}
@@ -153,6 +161,19 @@ func newOvsMap(goMap interface{}) (*OvsMap, error) {
 		genMap[key.Interface()] = v.MapIndex(key).Interface()
 	}
 	return &OvsMap{genMap}, nil
+}
+
+type TransactResponse struct {
+	Result []OperationResult `json:"result"`
+	Error  string            `json:"error"`
+}
+
+type OperationResult struct {
+	Count   int                      `json:"count,omitempty"`
+	Error   string                   `json:"error,omitempty"`
+	Details string                   `json:"details,omitempty"`
+	UUID    UUID                     `json:"uuid,omitempty"`
+	Rows    []map[string]interface{} `json:"rows,omitempty"`
 }
 
 // TODO : add Condition, Function, Mutation and Mutator notations
