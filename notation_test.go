@@ -59,6 +59,22 @@ func TestOpRowsSerialization(t *testing.T) {
 	}
 }
 
+func TestValidateOvsSet(t *testing.T) {
+	goSlice := []int{1, 2, 3, 4}
+	oSet, err := newOvsSet(goSlice)
+	if err != nil {
+		t.Error("Error creating OvsSet ", err)
+	}
+	data, err := json.Marshal(oSet)
+	if err != nil {
+		t.Error("Error Marshalling OvsSet", err)
+	}
+	expected := `["set",[1,2,3,4]]`
+	if string(data) != expected {
+		t.Error("Expected: ", expected, "Got", string(data))
+	}
+}
+
 func TestValidateUuid(t *testing.T) {
 	uuid1 := "this is a bad uuid"                   // Bad
 	uuid2 := "alsoabaduuid"                         // Bad
