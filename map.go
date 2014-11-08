@@ -19,14 +19,15 @@ type OvsMap struct {
 
 // <map> notation requires special handling
 func (o OvsMap) MarshalJSON() ([]byte, error) {
-	var ovsMap []interface{}
+	var ovsMap, innerMap []interface{}
 	ovsMap = append(ovsMap, "map")
 	for key, val := range o.GoMap {
 		var mapSeg []interface{}
 		mapSeg = append(mapSeg, key)
 		mapSeg = append(mapSeg, val)
-		ovsMap = append(ovsMap, mapSeg)
+		innerMap = append(innerMap, mapSeg)
 	}
+	ovsMap = append(ovsMap, innerMap)
 	return json.Marshal(ovsMap)
 }
 

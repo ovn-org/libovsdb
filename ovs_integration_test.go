@@ -73,9 +73,14 @@ func TestInsertTransact(t *testing.T) {
 	// NamedUuid is used to add multiple related Operations in a single Transact operation
 	namedUuid := "gopher"
 
+	externalIds := make(map[string]string)
+	externalIds["go"] = "awesome"
+	externalIds["docker"] = "made-for-each-other"
+	oMap, err := NewOvsMap(externalIds)
 	// bridge row to insert
 	bridge := make(map[string]interface{})
 	bridge["name"] = bridgeName
+	bridge["external_ids"] = oMap
 
 	// simple insert operation
 	insertOp := Operation{
@@ -109,7 +114,7 @@ func TestInsertTransact(t *testing.T) {
 	ok := true
 	for i, o := range reply {
 		if o.Error != "" && i < len(operations) {
-			t.Error("Transaction Failed due to an error :", o.Error, " in ", operations[i])
+			t.Error("Transaction Failed due to an error :", o.Error, " details:", o.Details, " in ", operations[i])
 			ok = false
 		} else if o.Error != "" {
 			t.Error("Transaction Failed due to an error :", o.Error)
