@@ -55,7 +55,7 @@ func TestGetSchemas(t *testing.T) {
 	ovs.Disconnect()
 }
 
-var bridgeName string = "gopher-br"
+var bridgeName string = "gopher-br7"
 var bridgeUuid string
 
 func TestInsertTransact(t *testing.T) {
@@ -87,7 +87,7 @@ func TestInsertTransact(t *testing.T) {
 
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
 	mutateUuid := []UUID{UUID{namedUuid}}
-	mutateSet, _ := newOvsSet(mutateUuid)
+	mutateSet, _ := NewOvsSet(mutateUuid)
 	mutation := NewMutation("bridges", "insert", mutateSet)
 	// hacked Condition till we get Monitor / Select working
 	condition := NewCondition("_uuid", "!=", UUID{"2f77b348-9768-4866-b761-89d5177ecdab"})
@@ -117,8 +117,8 @@ func TestInsertTransact(t *testing.T) {
 		}
 	}
 	if ok {
-		fmt.Println("Bridge Addition Successful : ", reply[0].UUID.uuid)
-		bridgeUuid = reply[0].UUID.uuid
+		fmt.Println("Bridge Addition Successful : ", reply[0].UUID.GoUuid)
+		bridgeUuid = reply[0].UUID.GoUuid
 	}
 	ovs.Disconnect()
 }
@@ -149,7 +149,7 @@ func TestDeleteTransact(t *testing.T) {
 
 	// Deleting a Bridge row in Bridge table requires mutating the open_vswitch table.
 	mutateUuid := []UUID{UUID{bridgeUuid}}
-	mutateSet, _ := newOvsSet(mutateUuid)
+	mutateSet, _ := NewOvsSet(mutateUuid)
 	mutation := NewMutation("bridges", "delete", mutateSet)
 	// hacked Condition till we get Monitor / Select working
 	condition = NewCondition("_uuid", "!=", UUID{"2f77b348-9768-4866-b761-89d5177ecdab"})

@@ -61,7 +61,7 @@ func TestOpRowsSerialization(t *testing.T) {
 
 func TestValidateOvsSet(t *testing.T) {
 	goSlice := []int{1, 2, 3, 4}
-	oSet, err := newOvsSet(goSlice)
+	oSet, err := NewOvsSet(goSlice)
 	if err != nil {
 		t.Error("Error creating OvsSet ", err)
 	}
@@ -75,7 +75,7 @@ func TestValidateOvsSet(t *testing.T) {
 	}
 	// Negative condition test
 	integer := 5
-	oSet, err = newOvsSet(integer)
+	oSet, err = NewOvsSet(integer)
 	if err == nil {
 		t.Error("OvsSet must fail for anything other than Slices")
 		t.Error("Expected: ", expected, "Got", string(data))
@@ -86,7 +86,7 @@ func TestValidateOvsMap(t *testing.T) {
 	myMap := make(map[int]string)
 	myMap[1] = "hello"
 	myMap[2] = "world"
-	oMap, err := newOvsMap(myMap)
+	oMap, err := NewOvsMap(myMap)
 	if err != nil {
 		t.Error("Error creating OvsMap ", err)
 	}
@@ -101,37 +101,37 @@ func TestValidateOvsMap(t *testing.T) {
 	}
 	// Negative condition test
 	integer := 5
-	oMap, err = newOvsMap(integer)
+	oMap, err = NewOvsMap(integer)
 	if err == nil {
 		t.Error("OvsMap must fail for anything other than Maps")
 	}
 }
 
 func TestValidateUuid(t *testing.T) {
-	uuid1 := "this is a bad uuid"                   // Bad
-	uuid2 := "alsoabaduuid"                         // Bad
-	uuid3 := "550e8400-e29b-41d4-a716-446655440000" // Good
-	uuid4 := "thishoul-dnot-pass-vali-dationchecks" // Bad
+	uuid1 := UUID{"this is a bad uuid"}                   // Bad
+	uuid2 := UUID{"alsoabaduuid"}                         // Bad
+	uuid3 := UUID{"550e8400-e29b-41d4-a716-446655440000"} // Good
+	uuid4 := UUID{"thishoul-dnot-pass-vali-dationchecks"} // Bad
 
-	err := validateUUID(uuid1)
+	err := uuid1.validateUUID()
 
 	if err == nil {
 		t.Error(uuid1, " is not a valid UUID")
 	}
 
-	err = validateUUID(uuid2)
+	err = uuid2.validateUUID()
 
 	if err == nil {
 		t.Error(uuid2, " is not a valid UUID")
 	}
 
-	err = validateUUID(uuid3)
+	err = uuid3.validateUUID()
 
 	if err != nil {
 		t.Error(uuid3, " is a valid UUID")
 	}
 
-	err = validateUUID(uuid4)
+	err = uuid4.validateUUID()
 
 	if err == nil {
 		t.Error(uuid4, " is not a valid UUID")
