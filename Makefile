@@ -1,11 +1,11 @@
 all: build test
 
 build:
-	go build -v github.com/socketplane/libovsdb
+	go build -v
 
 test:
-	go test -covermode=count -coverprofile=coverage.out -test.short -v github.com/socketplane/libovsdb
+	go test -covermode=count -coverprofile=coverage.out -test.short -v
 
 test-all:
-	go test -covermode=count -coverprofile=coverage.out -v github.com/socketplane/libovsdb
+	go test -covermode=count -coverprofile=coverage.out -v
 
