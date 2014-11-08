@@ -9,20 +9,24 @@ machine:
     REPO_PATH: "${ORG_PATH}/libovsdb"
 
 dependencies:
-  pre:
-    - sudo pip install -qq fig
-    - fig up -d
   override:
-    - rm -f $GOPATH/src/${REPO_PATH}
-    - mkdir -p $GOPATH/src/${ORG_PATH}
-    - ln -s ${PWD} $GOPATH/src/${REPO_PATH}
+    - rm -rf ${GOPATH}/src/${REPO_PATH}
+    - mkdir -p ${GOPATH}/src/${ORG_PATH}
+    - cp -r ../libovsdb ${GOPATH}/src/${ORG_PATH}
     - mkdir -p ${CIRCLE_ARTIFACTS}/coverage
   post:
-    - cd $GOPATH/src/${REPO_PATH}
+    - sudo pip install -qq fig:
+        pwd: ../.go_workspace/src/${REPO_PATH}
+    - fig up -d:
+        pwd: ../.go_workspace/src/${REPO_PATH}
 test:
   override:
-    - make build
-    - make test-all
+    - make build:
+        pwd: ../.go_workspace/src/${REPO_PATH}
+    - make test-all:
+        pwd: ../.go_workspace/src/${REPO_PATH}
   post:
-    - fig stop
-    - go tool cover -html=coverage.out -o $CIRCLE_ARTIFACTS/coverage/index.html
+    - fig stop:
+        pwd: ../.go_workspace/src/${REPO_PATH}
+    - go tool cover -html=coverage.out -o $CIRCLE_ARTIFACTS/coverage/index.html:
+        pwd: ../.go_workspace/src/${REPO_PATH}
