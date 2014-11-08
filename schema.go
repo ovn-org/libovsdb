@@ -1,6 +1,9 @@
 package libovsdb
 
-import "fmt"
+import (
+	"fmt"
+	"io"
+)
 
 type DatabaseSchema struct {
 	Name    string                 `json:"name"`
@@ -20,12 +23,12 @@ type ColumnSchema struct {
 	Mutable   bool        `json:"mutable,omitempty"`
 }
 
-func (schema DatabaseSchema) Print() {
-	fmt.Printf("%s, (%s)\n", schema.Name, schema.Version)
+func (schema DatabaseSchema) Print(w io.Writer) {
+	fmt.Fprintf(w, "%s, (%s)\n", schema.Name, schema.Version)
 	for table, tableSchema := range schema.Tables {
-		fmt.Printf("\t %s\n", table)
+		fmt.Fprintf(w, "\t %s\n", table)
 		for column, columnSchema := range tableSchema.Columns {
-			fmt.Printf("\t\t %s => %v\n", column, columnSchema)
+			fmt.Fprintf(w, "\t\t %s => %v\n", column, columnSchema)
 		}
 	}
 }

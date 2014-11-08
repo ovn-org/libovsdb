@@ -1,6 +1,7 @@
 package libovsdb
 
 import (
+	"bytes"
 	"log"
 	"os"
 	"testing"
@@ -24,7 +25,8 @@ func TestListDbs(t *testing.T) {
 	if reply[0] != "Open_vSwitch" {
 		t.Error("Expected: 'Open_vSwitch', Got:", reply)
 	}
-	ovs.Schema[reply[0]].Print()
+	var b bytes.Buffer
+	ovs.Schema[reply[0]].Print(&b)
 	ovs.Disconnect()
 }
 
