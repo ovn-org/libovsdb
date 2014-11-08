@@ -7,18 +7,18 @@ import (
 	"regexp"
 )
 
-// Operation represents an operation according to RFC7047
+// Operation represents an operation according to RFC7047 section 5.2
 type Operation struct {
 	Op        string                   `json:"op"`
 	Table     string                   `json:"table"`
 	Row       map[string]interface{}   `json:"row,omitempty"`
 	Rows      []map[string]interface{} `json:"rows,omitempty"`
 	Columns   []string                 `json:"columns,omitempty"`
-	Mutations []string                 `json:"mutations,omitempty"`
+	Mutations []interface{}            `json:"mutations,omitempty"`
 	Timeout   int                      `json:"timeout,omitempty"`
-	Where     []string                 `json:"where,omitempty"`
+	Where     []interface{}            `json:"where,omitempty"`
 	Until     string                   `json:"until,omitempty"`
-	UUIDName  string                   `json:"uuid_name,omitempty"`
+	UUIDName  string                   `json:"uuid-name,omitempty"`
 }
 
 // MonitorRequest represents a monitor request according to RFC7047
@@ -41,18 +41,21 @@ type OvsdbError struct {
 	Details string `json:"details,omitempty"`
 }
 
-// NewUUID creates a new uuid as specified in RFC7047
-func NewUUID(uuid string) ([]string, error) {
-	err := validateUUID(uuid)
-	if err != nil {
-		return nil, err
-	}
-	return []string{"uuid", uuid}, nil
+type UUID struct {
+	uuid string `json:"uuid"`
 }
 
-// NewNamedUUID creates a new named-uuid as specified in RFC7047
-func NewNamedUUID(uuid string) []string {
-	return []string{"named-uuid", uuid}
+// <set> notation requires special marshaling
+func (u UUID) MarshalJSON() ([]byte, error) {
+	var uuidSlice []string
+	err := validateUUID(u.uuid)
+	if err == nil {
+		uuidSlice = []string{"uuid", u.uuid}
+	} else {
+		uuidSlice = []string{"named-uuid", u.uuid}
+	}
+
+	return json.Marshal(uuidSlice)
 }
 
 // NewCondition creates a new condition as specified in RFC7047

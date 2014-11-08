@@ -1,6 +1,7 @@
 package libovsdb
 
 import (
+	"bytes"
 	"log"
 	"os"
 	"testing"
@@ -18,13 +19,14 @@ func TestListDbs(t *testing.T) {
 	reply, err := ovs.ListDbs()
 
 	if err != nil {
-		log.Fatal("transact error:", err)
+		log.Fatal("ListDbs error:", err)
 	}
 
 	if reply[0] != "Open_vSwitch" {
 		t.Error("Expected: 'Open_vSwitch', Got:", reply)
 	}
-	ovs.Schema[reply[0]].Print()
+	var b bytes.Buffer
+	ovs.Schema[reply[0]].Print(&b)
 	ovs.Disconnect()
 }
 
@@ -64,16 +66,37 @@ func TestTransact(t *testing.T) {
 		panic(err)
 	}
 
-	bridge := make(map[string]interface{})
-	bridge["name"] = "docker-ovs"
+	// NamedUuid is used to add multiple related Operations in a single Transact operation
+	namedUuid := "gopher"
 
-	operation := Operation{
-		Op:    "insert",
-		Table: "Bridge",
-		Row:   bridge,
+	// bridge row to insert
+	bridge := make(map[string]interface{})
+	bridge["name"] = "gopher-br"
+
+	// simple insert operation
+	insertOp := Operation{
+		Op:       "insert",
+		Table:    "Bridge",
+		Row:      bridge,
+		UUIDName: namedUuid,
 	}
 
-	reply, err := ovs.Transact("Open_vSwitch", operation)
+	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
+	mutateUuid := []UUID{UUID{namedUuid}}
+	mutateSet, _ := newOvsSet(mutateUuid)
+	mutation := NewMutation("bridges", "insert", mutateSet)
+	// hacked Condition till we get Monitor / Select working
+	condition := NewCondition("_uuid", "!=", UUID{"2f77b348-9768-4866-b761-89d5177ecdab"})
+
+	// simple mutate operation
+	mutateOp := Operation{
+		Op:        "mutate",
+		Table:     "Open_vSwitch",
+		Mutations: []interface{}{mutation},
+		Where:     []interface{}{condition},
+	}
+
+	reply, err := ovs.Transact("Open_vSwitch", insertOp, mutateOp)
 
 	inner := reply[0].(map[string]interface{})
 	uuid := inner["uuid"].([]interface{})

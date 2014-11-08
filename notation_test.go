@@ -139,7 +139,7 @@ func TestValidateUuid(t *testing.T) {
 }
 
 func TestNewUUID(t *testing.T) {
-	uuid, _ := NewUUID("550e8400-e29b-41d4-a716-446655440000")
+	uuid := UUID{"550e8400-e29b-41d4-a716-446655440000"}
 	uuidStr, _ := json.Marshal(uuid)
 	expected := `["uuid","550e8400-e29b-41d4-a716-446655440000"]`
 	if string(uuidStr) != expected {
@@ -147,18 +147,8 @@ func TestNewUUID(t *testing.T) {
 	}
 }
 
-func TestNewUUIDWithError(t *testing.T) {
-	uuid, err := NewUUID("foo")
-	if uuid != nil {
-		t.Error("uuid should not be returned")
-	}
-	if err == nil {
-		t.Error("expected an error for invalid uuid")
-	}
-}
-
 func TestNewNamedUUID(t *testing.T) {
-	uuid := NewNamedUUID("test-uuid")
+	uuid := UUID{"test-uuid"}
 	uuidStr, _ := json.Marshal(uuid)
 	expected := `["named-uuid","test-uuid"]`
 	if string(uuidStr) != expected {
