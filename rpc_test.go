@@ -99,3 +99,30 @@ func TestEcho(t *testing.T) {
 		t.Error("Expected: ", req, " Got: ", reply)
 	}
 }
+
+func TestUpdate(t *testing.T) {
+	var reply interface{}
+
+	// Update notification should fail for arrays of size < 2
+	err := update(nil, []interface{}{"hello"}, &reply)
+	if err == nil {
+		t.Error("Expected: error for a dummy request")
+	}
+
+	// Update notification should fail if arg[1] is not map[string]map[string]RowUpdate type
+	err = update(nil, []interface{}{"hello", "gophers"}, &reply)
+	if err == nil {
+		t.Error("Expected: error for a dummy request")
+	}
+
+	// Valid dummy update should pass
+	validUpdate := make(map[string]interface{})
+	validRowUpdate := make(map[string]RowUpdate)
+	validRowUpdate["uuid"] = RowUpdate{}
+	validUpdate["table"] = validRowUpdate
+
+	err = update(nil, []interface{}{"hello", validUpdate}, &reply)
+	if err != nil {
+		t.Error(err)
+	}
+}

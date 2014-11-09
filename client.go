@@ -1,6 +1,7 @@
 package libovsdb
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -24,8 +25,9 @@ func Connect(ipAddr string, port int) (OvsdbClient, error) {
 	}
 
 	c := rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
-	// Process Echo Notifications
+	// Process Async Notifications
 	c.Handle("echo", echo)
+	c.Handle("update", update)
 
 	go c.Run()
 	ovs := OvsdbClient{c, make(map[string]DatabaseSchema)}
@@ -48,6 +50,38 @@ func (ovs OvsdbClient) Disconnect() {
 // RFC 7047 : Section 4.1.6 : Echo
 func echo(client *rpc2.Client, args string, reply *interface{}) error {
 	*reply = args
+	return nil
+}
+
+// RFC 7047 : Update Notification Section 4.1.6
+// Processing "params": [<json-value>, <table-updates>]
+func update(client *rpc2.Client, params []interface{}, reply *interface{}) error {
+	if len(params) < 2 {
+		return errors.New("Invalid Update message")
+	}
+	// Ignore params[0] as we dont use the <json-value> currently for comparison
+
+	raw, ok := params[1].(map[string]interface{})
+	if !ok {
+		return errors.New("Invalid Update message")
+	}
+	var rowUpdates map[string]map[string]RowUpdate
+
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(b, &rowUpdates)
+	if err != nil {
+		return err
+	}
+
+	// Update the local DB cache with the tableUpdates
+	tableUpdates := getTableUpdatesFromRawUnmarshal(rowUpdates)
+	if len(tableUpdates.Updates) > 0 {
+		return nil
+	}
+
 	return nil
 }
 
