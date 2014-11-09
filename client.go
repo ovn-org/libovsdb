@@ -87,3 +87,54 @@ func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]Oper
 	}
 	return reply, err
 }
+
+// Convenience method to monitor every table/column
+func (ovs OvsdbClient) MonitorAll(database string, jsonContext interface{}) (*TableUpdates, error) {
+	schema, ok := ovs.Schema[database]
+	if !ok {
+		return nil, errors.New("invalid Database Schema")
+	}
+
+	requests := make(map[string]MonitorRequest)
+	for table, tableSchema := range schema.Tables {
+		var columns []string
+		for column, _ := range tableSchema.Columns {
+			columns = append(columns, column)
+		}
+		requests[table] = MonitorRequest{
+			Columns: columns,
+			Select: MonitorSelect{
+				Initial: true,
+				Insert:  true,
+				Delete:  true,
+				Modify:  true,
+			}}
+	}
+	return ovs.Monitor(database, jsonContext, requests)
+}
+
+// RFC 7047 : monitor
+func (ovs OvsdbClient) Monitor(database string, jsonContext interface{}, requests map[string]MonitorRequest) (*TableUpdates, error) {
+	var reply TableUpdates
+
+	args := NewMonitorArgs(database, jsonContext, requests)
+
+	// This totally sucks. Refer to golang JSON issue #6213
+	var response map[string]map[string]RowUpdate
+	err := ovs.rpcClient.Call("monitor", args, &response)
+	reply = getTableUpdatesFromRawUnmarshal(response)
+	if err != nil {
+		return nil, err
+	}
+	return &reply, err
+}
+
+func getTableUpdatesFromRawUnmarshal(raw map[string]map[string]RowUpdate) TableUpdates {
+	var tableUpdates TableUpdates
+	tableUpdates.Updates = make(map[string]TableUpdate)
+	for table, update := range raw {
+		tableUpdate := TableUpdate{update}
+		tableUpdates.Updates[table] = tableUpdate
+	}
+	return tableUpdates
+}

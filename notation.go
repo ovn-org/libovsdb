@@ -15,6 +15,17 @@ type Operation struct {
 }
 
 // MonitorRequest represents a monitor request according to RFC7047
+/*
+ * We cannot use MonitorRequests by inlining the MonitorRequest Map structure till GoLang issue #6213 makes it.
+ * The only option is to go with raw map[string]interface{} option :-( that sucks !
+ * Refer to client.go : MonitorAll() function for more details
+ */
+
+type MonitorRequests struct {
+	Requests map[string]MonitorRequest `json:",overflow"`
+}
+
+// MonitorRequest represents a monitor request according to RFC7047
 type MonitorRequest struct {
 	Columns []string      `json:"columns,omitempty"`
 	Select  MonitorSelect `json:"select,omitempty"`
@@ -26,6 +37,27 @@ type MonitorSelect struct {
 	Insert  bool `json:"insert,omitempty"`
 	Delete  bool `json:"delete,omitempty"`
 	Modify  bool `json:"modify,omitempty"`
+}
+
+/*
+ * We cannot use TableUpdates directly by json encoding by inlining the TableUpdate Map
+ * structure till GoLang issue #6213 makes it.
+ *
+ * The only option is to go with raw map[string]map[string]interface{} option :-( that sucks !
+ * Refer to client.go : MonitorAll() function for more details
+ */
+type TableUpdates struct {
+	Updates map[string]TableUpdate `json:",overflow`
+}
+
+type TableUpdate struct {
+	Rows map[string]RowUpdate `json:",overflow"`
+}
+
+type RowUpdate struct {
+	Uuid UUID                   `json:"-,omitempty"`
+	New  map[string]interface{} `json:"new,omitempty"`
+	Old  map[string]interface{} `json:"old,omitempty"`
 }
 
 // OvsdbError is an OVS Error Condition

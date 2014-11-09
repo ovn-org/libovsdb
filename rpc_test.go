@@ -52,7 +52,7 @@ func TestNewMonitorArgs(t *testing.T) {
 	database := "Open_vSwitch"
 	value := 1
 	r := MonitorRequest{
-		Columns: []string{"Bridge", "Port", "Interface"},
+		Columns: []string{"name", "ports", "external_ids"},
 		Select: MonitorSelect{
 			Initial: true,
 			Insert:  true,
@@ -60,10 +60,12 @@ func TestNewMonitorArgs(t *testing.T) {
 			Modify:  true,
 		},
 	}
-	requests := []MonitorRequest{r}
+	requests := make(map[string]MonitorRequest)
+	requests["Bridge"] = r
+
 	args := NewMonitorArgs(database, value, requests)
 	argString, _ := json.Marshal(args)
-	expected := `["Open_vSwitch",1,[{"columns":["Bridge","Port","Interface"],"select":{"initial":true,"insert":true,"delete":true,"modify":true}}]]`
+	expected := `["Open_vSwitch",1,{"Bridge":{"columns":["name","ports","external_ids"],"select":{"initial":true,"insert":true,"delete":true,"modify":true}}}]`
 	if string(argString) != expected {
 		t.Error("Expected: ", expected, " Got: ", string(argString))
 	}
