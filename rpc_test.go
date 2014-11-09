@@ -52,7 +52,7 @@ func TestNewMonitorArgs(t *testing.T) {
 	database := "Open_vSwitch"
 	value := 1
 	r := MonitorRequest{
-		Columns: []string{"Bridge", "Port", "Interface"},
+		Columns: []string{"name", "ports", "external_ids"},
 		Select: MonitorSelect{
 			Initial: true,
 			Insert:  true,
@@ -60,10 +60,12 @@ func TestNewMonitorArgs(t *testing.T) {
 			Modify:  true,
 		},
 	}
-	requests := []MonitorRequest{r}
+	requests := make(map[string]MonitorRequest)
+	requests["Bridge"] = r
+
 	args := NewMonitorArgs(database, value, requests)
 	argString, _ := json.Marshal(args)
-	expected := `["Open_vSwitch",1,[{"columns":["Bridge","Port","Interface"],"select":{"initial":true,"insert":true,"delete":true,"modify":true}}]]`
+	expected := `["Open_vSwitch",1,{"Bridge":{"columns":["name","ports","external_ids"],"select":{"initial":true,"insert":true,"delete":true,"modify":true}}}]`
 	if string(argString) != expected {
 		t.Error("Expected: ", expected, " Got: ", string(argString))
 	}
@@ -86,5 +88,41 @@ func TestNewLockArgs(t *testing.T) {
 	expected := `["testId"]`
 	if string(argString) != expected {
 		t.Error("Expected: ", expected, " Got: ", string(argString))
+	}
+}
+
+func TestEcho(t *testing.T) {
+	req := "hi"
+	var reply interface{}
+	echo(nil, req, &reply)
+	if reply != req {
+		t.Error("Expected: ", req, " Got: ", reply)
+	}
+}
+
+func TestUpdate(t *testing.T) {
+	var reply interface{}
+
+	// Update notification should fail for arrays of size < 2
+	err := update(nil, []interface{}{"hello"}, &reply)
+	if err == nil {
+		t.Error("Expected: error for a dummy request")
+	}
+
+	// Update notification should fail if arg[1] is not map[string]map[string]RowUpdate type
+	err = update(nil, []interface{}{"hello", "gophers"}, &reply)
+	if err == nil {
+		t.Error("Expected: error for a dummy request")
+	}
+
+	// Valid dummy update should pass
+	validUpdate := make(map[string]interface{})
+	validRowUpdate := make(map[string]RowUpdate)
+	validRowUpdate["uuid"] = RowUpdate{}
+	validUpdate["table"] = validRowUpdate
+
+	err = update(nil, []interface{}{"hello", validUpdate}, &reply)
+	if err != nil {
+		t.Error(err)
 	}
 }

@@ -189,6 +189,26 @@ func TestDeleteTransact(t *testing.T) {
 	ovs.Disconnect()
 }
 
+func TestMonitor(t *testing.T) {
+
+	if testing.Short() {
+		t.Skip()
+	}
+
+	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
+	if err != nil {
+		log.Fatal("Failed to Connect. error:", err)
+		panic(err)
+	}
+
+	reply, err := ovs.MonitorAll("Open_vSwitch", nil)
+
+	if reply == nil || err != nil {
+		t.Error("Monitor operation failed with reply=", reply, " and error=", err)
+	}
+	ovs.Disconnect()
+}
+
 func TestDBSchemaValidation(t *testing.T) {
 
 	if testing.Short() {
