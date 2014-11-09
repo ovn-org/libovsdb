@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
 
 	"github.com/socketplane/libovsdb/Godeps/_workspace/src/github.com/cenkalti/rpc2"
 	"github.com/socketplane/libovsdb/Godeps/_workspace/src/github.com/cenkalti/rpc2/jsonrpc"
@@ -17,7 +16,7 @@ type OvsdbClient struct {
 }
 
 func Connect(ipAddr string, port int) (OvsdbClient, error) {
-	target := fmt.Sprintf("%s:%d", os.Getenv("DOCKER_IP"), port)
+	target := fmt.Sprintf("%s:%d", ipAddr, port)
 	conn, err := net.Dial("tcp", target)
 
 	if err != nil {
@@ -25,6 +24,8 @@ func Connect(ipAddr string, port int) (OvsdbClient, error) {
 	}
 
 	c := rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
+	// Process Echo Notifications
+	c.Handle("echo", echo)
 
 	go c.Run()
 	ovs := OvsdbClient{c, make(map[string]DatabaseSchema)}
@@ -42,6 +43,12 @@ func Connect(ipAddr string, port int) (OvsdbClient, error) {
 
 func (ovs OvsdbClient) Disconnect() {
 	ovs.rpcClient.Close()
+}
+
+// RFC 7047 : Section 4.1.6 : Echo
+func echo(client *rpc2.Client, args string, reply *interface{}) error {
+	*reply = args
+	return nil
 }
 
 // RFC 7047 : get_schema

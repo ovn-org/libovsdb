@@ -90,3 +90,12 @@ func TestNewLockArgs(t *testing.T) {
 		t.Error("Expected: ", expected, " Got: ", string(argString))
 	}
 }
+
+func TestEcho(t *testing.T) {
+	req := "hi"
+	var reply interface{}
+	echo(nil, req, &reply)
+	if reply != req {
+		t.Error("Expected: ", req, " Got: ", reply)
+	}
+}
