@@ -1,9 +1,7 @@
 libovsdb
 ========
 
-[![Circle CI](https://circleci.com/gh/socketplane/libovsdb.png?style=badge&circle-token=17838d6362be941ed8478bf9d10de5307d4b917d)](https://circleci.com/gh/socketplane/libovsdb)
-
-[![Coverage Status](https://coveralls.io/repos/socketplane/libovsdb/badge.png)](https://coveralls.io/r/socketplane/libovsdb)
+[![Circle CI](https://circleci.com/gh/socketplane/libovsdb.png?style=badge&circle-token=17838d6362be941ed8478bf9d10de5307d4b917d)](https://circleci.com/gh/socketplane/libovsdb) [![Coverage Status](https://coveralls.io/repos/socketplane/libovsdb/badge.png)](https://coveralls.io/r/socketplane/libovsdb)
 
 An OVSDB Library written in Go
 
