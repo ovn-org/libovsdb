@@ -94,8 +94,8 @@ func TestValidateOvsMap(t *testing.T) {
 	if err != nil {
 		t.Error("Error Marshalling OvsMap", err)
 	}
-	expected1 := `["map",[1,"hello"],[2,"world"]]`
-	expected2 := `["map",[2,"world"],[1,"hello"]]`
+	expected1 := `["map",[[1,"hello"],[2,"world"]]]`
+	expected2 := `["map",[[2,"world"],[1,"hello"]]]`
 	if string(data) != expected1 && string(data) != expected2 {
 		t.Error("Expected: ", expected1, "Got", string(data))
 	}
