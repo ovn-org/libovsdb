@@ -6,7 +6,48 @@ import (
 	"log"
 	"os"
 	"testing"
+	"time"
 )
+
+func TestConnect(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	timeoutChan := make(chan bool)
+	connected := make(chan bool)
+	go func() {
+		time.Sleep(10 * time.Second)
+		timeoutChan <- true
+	}()
+
+	go func() {
+		// Use Convenience params. Ignore failure even if any
+		_, err := Connect("", 0)
+		if err != nil {
+			log.Println("Couldnt establish OVSDB connection with Defult params. No big deal")
+		}
+	}()
+
+	go func() {
+		ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
+		if err != nil {
+			connected <- false
+		} else {
+			connected <- true
+			ovs.Disconnect()
+		}
+	}()
+
+	select {
+	case <-timeoutChan:
+		t.Error("Connection Timed Out")
+	case b := <-connected:
+		if !b {
+			t.Error("Couldnt connect to OVSDB Server")
+		}
+	}
+}
 
 func TestListDbs(t *testing.T) {
 	if testing.Short() {
@@ -207,6 +248,51 @@ func TestMonitor(t *testing.T) {
 		t.Error("Monitor operation failed with reply=", reply, " and error=", err)
 	}
 	ovs.Disconnect()
+}
+
+func TestNotify(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
+	if err != nil {
+		log.Fatal("Failed to Connect. error:", err)
+		panic(err)
+	}
+
+	notifyEchoChan := make(chan bool)
+
+	notifier := Notifier{notifyEchoChan}
+	ovs.Register(notifier)
+
+	timeoutChan := make(chan bool)
+	go func() {
+		time.Sleep(10 * time.Second)
+		timeoutChan <- true
+	}()
+
+	select {
+	case <-timeoutChan:
+		t.Error("No Echo message notify in 10 seconds")
+	case <-notifyEchoChan:
+		break
+	}
+	ovs.Disconnect()
+}
+
+type Notifier struct {
+	echoChan chan bool
+}
+
+func (n Notifier) Update(context interface{}, tableUpdates TableUpdates) {
+}
+func (n Notifier) Locked([]interface{}) {
+}
+func (n Notifier) Stolen([]interface{}) {
+}
+func (n Notifier) Echo([]interface{}) {
+	n.echoChan <- true
 }
 
 func TestDBSchemaValidation(t *testing.T) {
