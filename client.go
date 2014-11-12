@@ -91,7 +91,7 @@ type NotificationHandler interface {
 }
 
 // RFC 7047 : Section 4.1.6 : Echo
-func echo(client *rpc2.Client, args string, reply *interface{}) error {
+func echo(client *rpc2.Client, args []interface{}, reply *[]interface{}) error {
 	*reply = args
 	if _, ok := connections[client]; ok {
 		for _, handler := range connections[client].handlers {

@@ -2,6 +2,7 @@ package libovsdb
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 )
 
@@ -92,10 +93,10 @@ func TestNewLockArgs(t *testing.T) {
 }
 
 func TestEcho(t *testing.T) {
-	req := "hi"
-	var reply interface{}
+	req := []interface{}{"hi"}
+	var reply []interface{}
 	echo(nil, req, &reply)
-	if reply != req {
+	if !reflect.DeepEqual(req, reply) {
 		t.Error("Expected: ", req, " Got: ", reply)
 	}
 }
