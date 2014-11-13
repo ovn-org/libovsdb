@@ -22,7 +22,7 @@ type Operation struct {
  */
 
 type MonitorRequests struct {
-	Requests map[string]MonitorRequest `json:",overflow"`
+	Requests map[string]MonitorRequest `json:"requests,overflow"`
 }
 
 // MonitorRequest represents a monitor request according to RFC7047
@@ -47,11 +47,11 @@ type MonitorSelect struct {
  * Refer to client.go : MonitorAll() function for more details
  */
 type TableUpdates struct {
-	Updates map[string]TableUpdate `json:",overflow`
+	Updates map[string]TableUpdate `json:"updates,overflow"`
 }
 
 type TableUpdate struct {
-	Rows map[string]RowUpdate `json:",overflow"`
+	Rows map[string]RowUpdate `json:"rows,overflow"`
 }
 
 type RowUpdate struct {
