@@ -31,6 +31,19 @@ func (o OvsMap) MarshalJSON() ([]byte, error) {
 	return json.Marshal(ovsMap)
 }
 
+func (o *OvsMap) UnmarshalJSON(b []byte) (err error) {
+	var oMap []interface{}
+	o.GoMap = make(map[interface{}]interface{})
+	if err := json.Unmarshal(b, &oMap); err == nil && len(oMap) > 1 {
+		innerSlice := oMap[1].([]interface{})
+		for _, val := range innerSlice {
+			f := val.([]interface{})
+			o.GoMap[f[0]] = f[1]
+		}
+	}
+	return err
+}
+
 // <map> notation requires special marshaling
 func NewOvsMap(goMap interface{}) (*OvsMap, error) {
 	v := reflect.ValueOf(goMap)
