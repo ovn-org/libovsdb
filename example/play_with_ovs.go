@@ -16,11 +16,11 @@ var update chan *libovsdb.TableUpdates
 var cache map[string]map[string]libovsdb.Row
 
 func play(ovs *libovsdb.OvsdbClient) {
+	go processInput(ovs)
 	for {
 		select {
 		case currUpdate := <-update:
 			for table, tableUpdate := range currUpdate.Updates {
-				fmt.Println("Received Table update on : ", table)
 				if table == "Bridge" {
 					for uuid, row := range tableUpdate.Rows {
 						newRow := row.New
@@ -37,6 +37,71 @@ func play(ovs *libovsdb.OvsdbClient) {
 		}
 	}
 
+}
+
+func createBridge(ovs *libovsdb.OvsdbClient, bridgeName string) {
+	namedUuid := "gopher"
+	// bridge row to insert
+	bridge := make(map[string]interface{})
+	bridge["name"] = bridgeName
+
+	// simple insert operation
+	insertOp := libovsdb.Operation{
+		Op:       "insert",
+		Table:    "Bridge",
+		Row:      bridge,
+		UUIDName: namedUuid,
+	}
+
+	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
+	mutateUuid := []libovsdb.UUID{libovsdb.UUID{namedUuid}}
+	mutateSet, _ := libovsdb.NewOvsSet(mutateUuid)
+	mutation := libovsdb.NewMutation("bridges", "insert", mutateSet)
+	condition := libovsdb.NewCondition("_uuid", "==", libovsdb.UUID{getRootUuid()})
+
+	// simple mutate operation
+	mutateOp := libovsdb.Operation{
+		Op:        "mutate",
+		Table:     "Open_vSwitch",
+		Mutations: []interface{}{mutation},
+		Where:     []interface{}{condition},
+	}
+
+	operations := []libovsdb.Operation{insertOp, mutateOp}
+	reply, _ := ovs.Transact("Open_vSwitch", operations...)
+
+	if len(reply) < len(operations) {
+		fmt.Println("Number of Replies should be atleast equal to number of Operations")
+	}
+	ok := true
+	for i, o := range reply {
+		if o.Error != "" && i < len(operations) {
+			fmt.Println("Transaction Failed due to an error :", o.Error, " details:", o.Details, " in ", operations[i])
+			ok = false
+		} else if o.Error != "" {
+			fmt.Println("Transaction Failed due to an error :", o.Error)
+			ok = false
+		}
+	}
+	if ok {
+		fmt.Println("Bridge Addition Successful : ", reply[0].UUID.GoUuid)
+	}
+}
+
+func processInput(ovs *libovsdb.OvsdbClient) {
+	for {
+		fmt.Printf("\n Enter a Bridge Name : ")
+		var bridgeName string
+		fmt.Scanf("%s", &bridgeName)
+		createBridge(ovs, bridgeName)
+	}
+}
+
+func getRootUuid() string {
+	for uuid, _ := range cache["Open_vSwitch"] {
+		return uuid
+	}
+	return ""
 }
 
 func populateCache(updates libovsdb.TableUpdates) {
@@ -77,7 +142,7 @@ func main() {
 	initial, _ := ovs.MonitorAll("Open_vSwitch", "")
 	populateCache(*initial)
 
-	fmt.Println(`Silly game of stopping this app when a Bridge with name "stop" is monitored`)
+	fmt.Println(`Silly game of stopping this app when a Bridge with name "stop" is monitored !`)
 	go play(ovs)
 	<-quit
 }
