@@ -24,8 +24,8 @@ func play(ovs *libovsdb.OvsdbClient) {
 					rows := tableUpdate.Rows
 					for uuid, row := range rows {
 						newRow := row.New
-						if newRow != nil {
-							name := newRow["name"].(string)
+						if _, ok := newRow.Fields["name"]; ok {
+							name := newRow.Fields["name"].(string)
 							if name == "stop" {
 								fmt.Println("Bridge stop detected : ", uuid)
 								quit <- true
