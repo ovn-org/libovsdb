@@ -38,3 +38,17 @@ func (o OvsSet) MarshalJSON() ([]byte, error) {
 	oSet = append(oSet, o.GoSet)
 	return json.Marshal(oSet)
 }
+
+func (o *OvsSet) UnmarshalJSON(b []byte) (err error) {
+	var oSet []interface{}
+	if err = json.Unmarshal(b, &oSet); err == nil && len(oSet) > 1 {
+		innerSet := oSet[1].([]interface{})
+		for _, val := range innerSet {
+			goVal, err := ovsSliceToGoNotation(val)
+			if err == nil {
+				o.GoSet = append(o.GoSet, goVal)
+			}
+		}
+	}
+	return err
+}

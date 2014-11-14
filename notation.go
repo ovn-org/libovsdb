@@ -1,5 +1,7 @@
 package libovsdb
 
+import "encoding/json"
+
 // Operation represents an operation according to RFC7047 section 5.2
 type Operation struct {
 	Op        string                   `json:"op"`
@@ -55,9 +57,9 @@ type TableUpdate struct {
 }
 
 type RowUpdate struct {
-	Uuid UUID                   `json:"-,omitempty"`
-	New  map[string]interface{} `json:"new,omitempty"`
-	Old  map[string]interface{} `json:"old,omitempty"`
+	Uuid UUID `json:"-,omitempty"`
+	New  Row  `json:"new,omitempty"`
+	Old  Row  `json:"old,omitempty"`
 }
 
 // OvsdbError is an OVS Error Condition
@@ -87,6 +89,34 @@ type OperationResult struct {
 	Details string                   `json:"details,omitempty"`
 	UUID    UUID                     `json:"uuid,omitempty"`
 	Rows    []map[string]interface{} `json:"rows,omitempty"`
+}
+
+func ovsSliceToGoNotation(val interface{}) (interface{}, error) {
+	switch val.(type) {
+	case []interface{}:
+		sl := val.([]interface{})
+		bsliced, err := json.Marshal(sl)
+		if err != nil {
+			return nil, err
+		}
+
+		switch sl[0] {
+		case "uuid":
+			var uuid UUID
+			err = json.Unmarshal(bsliced, &uuid)
+			return uuid, err
+		case "set":
+			var oSet OvsSet
+			err = json.Unmarshal(bsliced, &oSet)
+			return oSet, err
+		case "map":
+			var oMap OvsMap
+			err = json.Unmarshal(bsliced, &oMap)
+			return oMap, err
+		}
+		return val, nil
+	}
+	return val, nil
 }
 
 // TODO : add Condition, Function, Mutation and Mutator notations
