@@ -22,6 +22,7 @@ Mac users can use [boot2docker](http://boot2docker.io)
 
     export DOCKER_IP=192.168.59.103
     fig up -d
+    sudo chmod a+rw db.sock
     make test-all
     fig stop
 
