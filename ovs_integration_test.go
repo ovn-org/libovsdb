@@ -102,8 +102,9 @@ func TestUnixDial(t *testing.T) {
 	}()
 
 	go func() {
-		ovs, err := Dial("unix", "/var/run/openvswitch/db.sock")
+		ovs, err := Dial("unix", "db.sock")
 		if err != nil {
+			fmt.Println("Error:", err)
 			connected <- false
 		} else {
 			connected <- true
