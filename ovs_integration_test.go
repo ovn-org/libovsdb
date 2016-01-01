@@ -30,8 +30,81 @@ func TestConnect(t *testing.T) {
 	}()
 
 	go func() {
-		ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
+		ovs, err := Connect("localhost", int(6640))
 		if err != nil {
+			connected <- false
+		} else {
+			connected <- true
+			ovs.Disconnect()
+		}
+	}()
+
+	select {
+	case <-timeoutChan:
+		t.Error("Connection Timed Out")
+	case b := <-connected:
+		if !b {
+			t.Error("Couldnt connect to OVSDB Server")
+		}
+	}
+}
+
+func TestDial(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	timeoutChan := make(chan bool)
+	connected := make(chan bool)
+	go func() {
+		time.Sleep(10 * time.Second)
+		timeoutChan <- true
+	}()
+
+	go func() {
+		// Use Convenience params. Ignore failure even if any
+		_, err := Dial("tcp", "127.0.0.1:6640")
+		if err != nil {
+			log.Println("Couldnt establish OVSDB connection with Defult params. No big deal")
+		}
+	}()
+
+	go func() {
+		ovs, err := Dial("tcp", os.Getenv("DOCKER_IP")+":6640")
+		if err != nil {
+			connected <- false
+		} else {
+			connected <- true
+			ovs.Disconnect()
+		}
+	}()
+
+	select {
+	case <-timeoutChan:
+		t.Error("Connection Timed Out")
+	case b := <-connected:
+		if !b {
+			t.Error("Couldnt connect to OVSDB Server")
+		}
+	}
+}
+
+func TestUnixDial(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	timeoutChan := make(chan bool)
+	connected := make(chan bool)
+	go func() {
+		time.Sleep(10 * time.Second)
+		timeoutChan <- true
+	}()
+
+	go func() {
+		ovs, err := Dial("unix", "db.sock")
+		if err != nil {
+			fmt.Println("Error:", err)
 			connected <- false
 		} else {
 			connected <- true
