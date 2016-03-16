@@ -8,7 +8,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/socketplane/libovsdb/Godeps/_workspace/src/github.com/cenkalti/hub"
+	"github.com/cenkalti/hub"
 )
 
 // Precompute the reflect type for error.  Can't use error directly
