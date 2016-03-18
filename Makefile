@@ -1,11 +1,14 @@
 all: build test
 
-build:
-	go build -v
+godep:
+	go get github.com/tools/godep
 
-test:
-	go test -covermode=count -coverprofile=coverage.out -test.short -v
+build: godep
+	godep go build -v
 
-test-all:
-	go test -covermode=count -coverprofile=coverage.out -v
+test: godep
+	godep go test -covermode=count -coverprofile=coverage.out -test.short -v
+
+test-all: godep
+	godep go test -covermode=count -coverprofile=coverage.out -v
 
