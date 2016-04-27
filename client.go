@@ -4,12 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/cenk/rpc2"
+	"github.com/cenk/rpc2/jsonrpc"
 	"log"
 	"net"
 	"sync"
-
-	"github.com/socketplane/libovsdb/Godeps/_workspace/src/github.com/cenkalti/rpc2"
-	"github.com/socketplane/libovsdb/Godeps/_workspace/src/github.com/cenkalti/rpc2/jsonrpc"
 )
 
 type OvsdbClient struct {
