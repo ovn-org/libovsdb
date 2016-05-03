@@ -82,7 +82,7 @@ func TestGetSchemas(t *testing.T) {
 		panic(err)
 	}
 
-	var dbName string = "Open_vSwitch"
+	dbName := "Open_vSwitch"
 	reply, err := ovs.GetSchema(dbName)
 
 	if err != nil {
@@ -96,8 +96,8 @@ func TestGetSchemas(t *testing.T) {
 	ovs.Disconnect()
 }
 
-var bridgeName string = "gopher-br7"
-var bridgeUuid string
+var bridgeName = "gopher-br7"
+var bridgeUUID string
 
 func TestInsertTransact(t *testing.T) {
 
@@ -111,8 +111,8 @@ func TestInsertTransact(t *testing.T) {
 		panic(err)
 	}
 
-	// NamedUuid is used to add multiple related Operations in a single Transact operation
-	namedUuid := "gopher"
+	// NamedUUID is used to add multiple related Operations in a single Transact operation
+	namedUUID := "gopher"
 
 	externalIds := make(map[string]string)
 	externalIds["go"] = "awesome"
@@ -128,12 +128,12 @@ func TestInsertTransact(t *testing.T) {
 		Op:       "insert",
 		Table:    "Bridge",
 		Row:      bridge,
-		UUIDName: namedUuid,
+		UUIDName: namedUUID,
 	}
 
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
-	mutateUuid := []UUID{UUID{namedUuid}}
-	mutateSet, _ := NewOvsSet(mutateUuid)
+	mutateUUID := []UUID{{namedUUID}}
+	mutateSet, _ := NewOvsSet(mutateUUID)
 	mutation := NewMutation("bridges", "insert", mutateSet)
 	// hacked Condition till we get Monitor / Select working
 	condition := NewCondition("_uuid", "!=", UUID{"2f77b348-9768-4866-b761-89d5177ecdab"})
@@ -163,8 +163,8 @@ func TestInsertTransact(t *testing.T) {
 		}
 	}
 	if ok {
-		fmt.Println("Bridge Addition Successful : ", reply[0].UUID.GoUuid)
-		bridgeUuid = reply[0].UUID.GoUuid
+		fmt.Println("Bridge Addition Successful : ", reply[0].UUID.GoUUID)
+		bridgeUUID = reply[0].UUID.GoUUID
 	}
 	ovs.Disconnect()
 }
@@ -175,7 +175,7 @@ func TestDeleteTransact(t *testing.T) {
 		t.Skip()
 	}
 
-	if bridgeUuid == "" {
+	if bridgeUUID == "" {
 		t.Skip()
 	}
 
@@ -194,8 +194,8 @@ func TestDeleteTransact(t *testing.T) {
 	}
 
 	// Deleting a Bridge row in Bridge table requires mutating the open_vswitch table.
-	mutateUuid := []UUID{UUID{bridgeUuid}}
-	mutateSet, _ := NewOvsSet(mutateUuid)
+	mutateUUID := []UUID{{bridgeUUID}}
+	mutateSet, _ := NewOvsSet(mutateUUID)
 	mutation := NewMutation("bridges", "delete", mutateSet)
 	// hacked Condition till we get Monitor / Select working
 	condition = NewCondition("_uuid", "!=", UUID{"2f77b348-9768-4866-b761-89d5177ecdab"})

@@ -8,10 +8,11 @@ import (
 	"net"
 	"sync"
 
-	"github.com/socketplane/libovsdb/Godeps/_workspace/src/github.com/cenkalti/rpc2"
-	"github.com/socketplane/libovsdb/Godeps/_workspace/src/github.com/cenkalti/rpc2/jsonrpc"
+	"github.com/cenk/rpc2"
+	"github.com/cenk/rpc2/jsonrpc"
 )
 
+// OvsdbClient is an OVSDB client
 type OvsdbClient struct {
 	rpcClient *rpc2.Client
 	Schema    map[string]DatabaseSchema
@@ -34,16 +35,20 @@ func newOvsdbClient(c *rpc2.Client) *OvsdbClient {
 var connections map[*rpc2.Client]*OvsdbClient
 var connectionsMutex = &sync.RWMutex{}
 
-const DEFAULT_ADDR = "127.0.0.1"
-const DEFAULT_PORT = 6640
+// DefaultAddress is the default IPV4 address that is used for a connection
+const DefaultAddress = "127.0.0.1"
 
+// DefaultPort is the default port used for a connection
+const DefaultPort = 6640
+
+// Connect creates an OVSDB connection and returns and OvsdbClient
 func Connect(ipAddr string, port int) (*OvsdbClient, error) {
 	if ipAddr == "" {
-		ipAddr = DEFAULT_ADDR
+		ipAddr = DefaultAddress
 	}
 
 	if port <= 0 {
-		port = DEFAULT_PORT
+		port = DefaultPort
 	}
 
 	target := fmt.Sprintf("%s:%d", ipAddr, port)
@@ -76,10 +81,12 @@ func Connect(ipAddr string, port int) (*OvsdbClient, error) {
 	return ovs, nil
 }
 
+// Register registers the supplied NotificationHandler to recieve OVSDB Notifications
 func (ovs *OvsdbClient) Register(handler NotificationHandler) {
 	ovs.handlers = append(ovs.handlers, handler)
 }
 
+// NotificationHandler is the interface that must be implemented to receive notifcations
 type NotificationHandler interface {
 	// RFC 7047 section 4.1.6 Update Notification
 	Update(context interface{}, tableUpdates TableUpdates)
@@ -145,6 +152,7 @@ func update(client *rpc2.Client, params []interface{}, reply *interface{}) error
 	return nil
 }
 
+// GetSchema returns the schema in use for the provided database name
 // RFC 7047 : get_schema
 func (ovs OvsdbClient) GetSchema(dbName string) (*DatabaseSchema, error) {
 	args := NewGetSchemaArgs(dbName)
@@ -152,12 +160,12 @@ func (ovs OvsdbClient) GetSchema(dbName string) (*DatabaseSchema, error) {
 	err := ovs.rpcClient.Call("get_schema", args, &reply)
 	if err != nil {
 		return nil, err
-	} else {
-		ovs.Schema[dbName] = reply
 	}
+	ovs.Schema[dbName] = reply
 	return &reply, err
 }
 
+// ListDbs returns the list of databases on the server
 // RFC 7047 : list_dbs
 func (ovs OvsdbClient) ListDbs() ([]string, error) {
 	var dbs []string
@@ -168,8 +176,8 @@ func (ovs OvsdbClient) ListDbs() ([]string, error) {
 	return dbs, err
 }
 
+// Transact performs the provided Operation's on the database
 // RFC 7047 : transact
-
 func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]OperationResult, error) {
 	var reply []OperationResult
 	db, ok := ovs.Schema[database]
@@ -189,7 +197,7 @@ func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]Oper
 	return reply, nil
 }
 
-// Convenience method to monitor every table/column
+// MonitorAll is a convenience method to monitor every table/column
 func (ovs OvsdbClient) MonitorAll(database string, jsonContext interface{}) (*TableUpdates, error) {
 	schema, ok := ovs.Schema[database]
 	if !ok {
@@ -199,7 +207,7 @@ func (ovs OvsdbClient) MonitorAll(database string, jsonContext interface{}) (*Ta
 	requests := make(map[string]MonitorRequest)
 	for table, tableSchema := range schema.Tables {
 		var columns []string
-		for column, _ := range tableSchema.Columns {
+		for column := range tableSchema.Columns {
 			columns = append(columns, column)
 		}
 		requests[table] = MonitorRequest{
@@ -214,6 +222,7 @@ func (ovs OvsdbClient) MonitorAll(database string, jsonContext interface{}) (*Ta
 	return ovs.Monitor(database, jsonContext, requests)
 }
 
+// Monitor will provide updates for a given table/column
 // RFC 7047 : monitor
 func (ovs OvsdbClient) Monitor(database string, jsonContext interface{}, requests map[string]MonitorRequest) (*TableUpdates, error) {
 	var reply TableUpdates
@@ -261,6 +270,7 @@ func handleDisconnectNotification(c *rpc2.Client) {
 	}
 }
 
+// Disconnect will close the OVSDB connection
 func (ovs OvsdbClient) Disconnect() {
 	ovs.rpcClient.Close()
 	clearConnection(ovs.rpcClient)
