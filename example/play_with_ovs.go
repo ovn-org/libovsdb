@@ -41,7 +41,7 @@ func play(ovs *libovsdb.OvsdbClient) {
 }
 
 func createBridge(ovs *libovsdb.OvsdbClient, bridgeName string) {
-	namedUuid := "gopher"
+	namedUUID := "gopher"
 	// bridge row to insert
 	bridge := make(map[string]interface{})
 	bridge["name"] = bridgeName
@@ -51,14 +51,14 @@ func createBridge(ovs *libovsdb.OvsdbClient, bridgeName string) {
 		Op:       "insert",
 		Table:    "Bridge",
 		Row:      bridge,
-		UUIDName: namedUuid,
+		UUIDName: namedUUID,
 	}
 
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
-	mutateUuid := []libovsdb.UUID{libovsdb.UUID{namedUuid}}
-	mutateSet, _ := libovsdb.NewOvsSet(mutateUuid)
+	mutateUUID := []libovsdb.UUID{{namedUUID}}
+	mutateSet, _ := libovsdb.NewOvsSet(mutateUUID)
 	mutation := libovsdb.NewMutation("bridges", "insert", mutateSet)
-	condition := libovsdb.NewCondition("_uuid", "==", libovsdb.UUID{getRootUuid()})
+	condition := libovsdb.NewCondition("_uuid", "==", libovsdb.UUID{getRootUUID()})
 
 	// simple mutate operation
 	mutateOp := libovsdb.Operation{
@@ -85,7 +85,7 @@ func createBridge(ovs *libovsdb.OvsdbClient, bridgeName string) {
 		}
 	}
 	if ok {
-		fmt.Println("Bridge Addition Successful : ", reply[0].UUID.GoUuid)
+		fmt.Println("Bridge Addition Successful : ", reply[0].UUID.GoUUID)
 	}
 }
 
@@ -98,8 +98,8 @@ func processInput(ovs *libovsdb.OvsdbClient) {
 	}
 }
 
-func getRootUuid() string {
-	for uuid, _ := range cache["Open_vSwitch"] {
+func getRootUUID() string {
+	for uuid := range cache["Open_vSwitch"] {
 		return uuid
 	}
 	return ""
@@ -137,7 +137,7 @@ func main() {
 		fmt.Println("Unable to Connect ", err)
 		os.Exit(1)
 	}
-	var notifier Notifier
+	var notifier myNotifier
 	ovs.Register(notifier)
 
 	initial, _ := ovs.MonitorAll("Open_vSwitch", "")
@@ -148,18 +148,18 @@ func main() {
 	<-quit
 }
 
-type Notifier struct {
+type myNotifier struct {
 }
 
-func (n Notifier) Update(context interface{}, tableUpdates libovsdb.TableUpdates) {
+func (n myNotifier) Update(context interface{}, tableUpdates libovsdb.TableUpdates) {
 	populateCache(tableUpdates)
 	update <- &tableUpdates
 }
-func (n Notifier) Locked([]interface{}) {
+func (n myNotifier) Locked([]interface{}) {
 }
-func (n Notifier) Stolen([]interface{}) {
+func (n myNotifier) Stolen([]interface{}) {
 }
-func (n Notifier) Echo([]interface{}) {
+func (n myNotifier) Echo([]interface{}) {
 }
-func (n Notifier) Disconnected(client *libovsdb.OvsdbClient) {
+func (n myNotifier) Disconnected(client *libovsdb.OvsdbClient) {
 }
