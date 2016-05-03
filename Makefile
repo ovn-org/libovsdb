@@ -1,4 +1,4 @@
-.PHONY: all test test-local install-deps lint fmt vet
+.PHONY: all test test-local test-ci install-deps lint fmt vet
 
 all: test
 
@@ -8,6 +8,10 @@ test-local: install-deps fmt lint vet
 
 test:
 	@docker-compose run --rm test
+
+# Because CircleCI fails to rm a container
+test-ci:
+	@docker-compose run test
 
 install-deps:
 	@echo "+ $@"
