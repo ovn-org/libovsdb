@@ -281,6 +281,33 @@ func TestNotify(t *testing.T) {
 	ovs.Disconnect()
 }
 
+func TestRemoveNotify(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
+	if err != nil {
+		log.Fatal("Failed to Connect. error:", err)
+		panic(err)
+	}
+
+	notifyEchoChan := make(chan bool)
+
+	notifier := Notifier{notifyEchoChan}
+	ovs.Register(notifier)
+
+	lenIni := len(ovs.handlers)
+	ovs.Unregister(notifier)
+	lenEnd := len(ovs.handlers)
+
+	if lenIni == lenEnd {
+		log.Fatal("Failed to Unregister Notifier:")
+	}
+
+	ovs.Disconnect()
+}
+
 type Notifier struct {
 	echoChan chan bool
 }

@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"reflect"
 	"sync"
+
+	"os"
 
 	"github.com/cenk/rpc2"
 	"github.com/cenk/rpc2/jsonrpc"
-	"os"
 )
 
 // OvsdbClient is an OVSDB client
@@ -107,6 +109,28 @@ func (ovs *OvsdbClient) Register(handler NotificationHandler) {
 	ovs.handlersMutex.Lock()
 	defer ovs.handlersMutex.Unlock()
 	ovs.handlers = append(ovs.handlers, handler)
+}
+
+//Get Handler by index
+func getHandlerIndex(handler NotificationHandler, handlers []NotificationHandler) (int, error) {
+	for i, h := range handlers {
+		if reflect.DeepEqual(h, handler) {
+			return i, nil
+		}
+	}
+	return -1, errors.New("Handler not found")
+}
+
+// Unregister the supplied NotificationHandler to not recieve OVSDB Notifications anymore
+func (ovs *OvsdbClient) Unregister(handler NotificationHandler) error {
+	ovs.handlersMutex.Lock()
+	defer ovs.handlersMutex.Unlock()
+	i, err := getHandlerIndex(handler, ovs.handlers)
+	if err != nil {
+		return err
+	}
+	ovs.handlers = append(ovs.handlers[:i], ovs.handlers[i+1:]...)
+	return nil
 }
 
 // NotificationHandler is the interface that must be implemented to receive notifcations
