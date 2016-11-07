@@ -15,13 +15,18 @@ import (
 
 // OvsdbClient is an OVSDB client
 type OvsdbClient struct {
-	rpcClient *rpc2.Client
-	Schema    map[string]DatabaseSchema
-	handlers  []NotificationHandler
+	rpcClient     *rpc2.Client
+	Schema        map[string]DatabaseSchema
+	handlers      []NotificationHandler
+	handlersMutex *sync.Mutex
 }
 
 func newOvsdbClient(c *rpc2.Client) *OvsdbClient {
-	ovs := &OvsdbClient{rpcClient: c, Schema: make(map[string]DatabaseSchema)}
+	ovs := &OvsdbClient{
+		rpcClient:     c,
+		Schema:        make(map[string]DatabaseSchema),
+		handlersMutex: &sync.Mutex{},
+	}
 	connectionsMutex.Lock()
 	defer connectionsMutex.Unlock()
 	if connections == nil {
@@ -99,6 +104,8 @@ func ConnectWithUnixSocket(socketFile string) (*OvsdbClient, error) {
 
 // Register registers the supplied NotificationHandler to recieve OVSDB Notifications
 func (ovs *OvsdbClient) Register(handler NotificationHandler) {
+	ovs.handlersMutex.Lock()
+	defer ovs.handlersMutex.Unlock()
 	ovs.handlers = append(ovs.handlers, handler)
 }
 
@@ -125,6 +132,8 @@ func echo(client *rpc2.Client, args []interface{}, reply *[]interface{}) error {
 	connectionsMutex.RLock()
 	defer connectionsMutex.RUnlock()
 	if _, ok := connections[client]; ok {
+		connections[client].handlersMutex.Lock()
+		defer connections[client].handlersMutex.Unlock()
 		for _, handler := range connections[client].handlers {
 			handler.Echo(nil)
 		}
@@ -160,6 +169,8 @@ func update(client *rpc2.Client, params []interface{}, reply *interface{}) error
 	connectionsMutex.RLock()
 	defer connectionsMutex.RUnlock()
 	if _, ok := connections[client]; ok {
+		connections[client].handlersMutex.Lock()
+		defer connections[client].handlersMutex.Unlock()
 		for _, handler := range connections[client].handlers {
 			handler.Update(params, tableUpdates)
 		}
