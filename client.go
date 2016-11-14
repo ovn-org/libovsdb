@@ -11,8 +11,8 @@ import (
 
 	"os"
 
-	"github.com/cenk/rpc2"
-	"github.com/cenk/rpc2/jsonrpc"
+	"github.com/cenkalti/rpc2"
+	"github.com/cenkalti/rpc2/jsonrpc"
 )
 
 // OvsdbClient is an OVSDB client
