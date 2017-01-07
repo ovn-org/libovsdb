@@ -11,7 +11,7 @@ type Operation struct {
 	Columns   []string                 `json:"columns,omitempty"`
 	Mutations []interface{}            `json:"mutations,omitempty"`
 	Timeout   int                      `json:"timeout,omitempty"`
-	Where     []interface{}            `json:"where,omitempty"`
+	Where     []interface{}            `json:"where"`
 	Until     string                   `json:"until,omitempty"`
 	UUIDName  string                   `json:"uuid-name,omitempty"`
 }
