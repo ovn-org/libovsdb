@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"os"
 	"reflect"
 	"sync"
 
-	"os"
+	"crypto/tls"
 
 	"github.com/cenkalti/rpc2"
 	"github.com/cenkalti/rpc2/jsonrpc"
@@ -57,30 +59,10 @@ func ConnectUsingProtocol(protocol string, target string) (*OvsdbClient, error) 
 		return nil, err
 	}
 
-	c := rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
-	c.Handle("echo", echo)
-	c.Handle("update", update)
-	go c.Run()
-	go handleDisconnectNotification(c)
-
-	ovs := newOvsdbClient(c)
-
-	// Process Async Notifications
-	dbs, err := ovs.ListDbs()
-	if err == nil {
-		for _, db := range dbs {
-			schema, err := ovs.GetSchema(db)
-			if err == nil {
-				ovs.Schema[db] = *schema
-			} else {
-				return nil, err
-			}
-		}
-	}
-	return ovs, nil
+	return ovsdbClient(conn)
 }
 
-// Connect creates an OVSDB connection and returns and OvsdbClient
+// Connect creates an OVSDB connection and returns OvsdbClient
 func Connect(ipAddr string, port int) (*OvsdbClient, error) {
 	if ipAddr == "" {
 		ipAddr = DefaultAddress
@@ -104,11 +86,55 @@ func ConnectWithUnixSocket(socketFile string) (*OvsdbClient, error) {
 	return ConnectUsingProtocol("unix", socketFile)
 }
 
+// ConnectWithSSL creates an OVSDB connection via SSL and returns OvsdbClient
+func ConnectWithSSL(host string, port int, tlsConfig *tls.Config) (*OvsdbClient, error) {
+	if host == "" {
+		host = DefaultAddress
+	}
+
+	if port <= 0 {
+		port = DefaultPort
+	}
+
+	target := fmt.Sprintf("%s:%d", host, port)
+	conn, err := tls.Dial("tcp", target, tlsConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return ovsdbClient(conn)
+}
+
 // Register registers the supplied NotificationHandler to recieve OVSDB Notifications
 func (ovs *OvsdbClient) Register(handler NotificationHandler) {
 	ovs.handlersMutex.Lock()
 	defer ovs.handlersMutex.Unlock()
 	ovs.handlers = append(ovs.handlers, handler)
+}
+
+// ovsdbClient returns OvsdbClient
+func ovsdbClient(conn io.ReadWriteCloser) (*OvsdbClient, error) {
+	c := rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
+	c.Handle("echo", echo)
+	c.Handle("update", update)
+	go c.Run()
+	go handleDisconnectNotification(c)
+
+	ovs := newOvsdbClient(c)
+
+	// Process Async Notifications
+	dbs, err := ovs.ListDbs()
+	if err == nil {
+		for _, db := range dbs {
+			schema, err := ovs.GetSchema(db)
+			if err == nil {
+				ovs.Schema[db] = *schema
+			} else {
+				return nil, err
+			}
+		}
+	}
+	return ovs, nil
 }
 
 //Get Handler by index
