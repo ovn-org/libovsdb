@@ -1,5 +1,5 @@
 ovs:
-  image: socketplane/openvswitch:2.4.0
+  image: huikang/openvswitch:2.7.0
   ports:
     - "6640:6640"
   command: "/usr/bin/supervisord -n"
