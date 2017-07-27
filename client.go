@@ -196,7 +196,7 @@ func update(client *rpc2.Client, params []interface{}, reply *interface{}) error
 		connections[client].handlersMutex.Lock()
 		defer connections[client].handlersMutex.Unlock()
 		for _, handler := range connections[client].handlers {
-			handler.Update(params, tableUpdates)
+			handler.Update(params[0], tableUpdates)
 		}
 	}
 
