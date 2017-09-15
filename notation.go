@@ -114,7 +114,7 @@ type OperationResult struct {
 	Error   string                   `json:"error,omitempty"`
 	Details string                   `json:"details,omitempty"`
 	UUID    UUID                     `json:"uuid,omitempty"`
-	Rows    []map[string]interface{} `json:"rows,omitempty"`
+	Rows    []ResultRow              `json:"rows,omitempty"`
 }
 
 func ovsSliceToGoNotation(val interface{}) (interface{}, error) {
