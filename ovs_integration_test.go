@@ -481,3 +481,37 @@ func TestColumnSchemaValidation(t *testing.T) {
 
 	ovs.Disconnect()
 }
+
+func TestMonitorCancel(t *testing.T) {
+
+	if testing.Short() {
+		t.Skip()
+	}
+
+	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
+	if err != nil {
+		log.Fatal("Failed to Connect. error:", err)
+		panic(err)
+	}
+
+	monitorID := "f1b2ca48-aad7-11e7-abc4-cec278b6b50a"
+
+	requests := make(map[string]MonitorRequest)
+	requests["Bridge"] = MonitorRequest{
+		Columns: []string{"name"},
+		Select: MonitorSelect{
+			Initial: true,
+			Insert:  true,
+			Delete:  true,
+			Modify:  true,
+		}}
+
+	ovs.Monitor("Open_vSwitch", monitorID, requests)
+
+	err = ovs.MonitorCancel("Open_vSwitch", monitorID)
+
+	if err != nil {
+		t.Error("MonitorCancel operation failed with error=", err)
+	}
+	ovs.Disconnect()
+}
