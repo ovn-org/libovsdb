@@ -273,6 +273,23 @@ func (ovs OvsdbClient) MonitorAll(database string, jsonContext interface{}) (*Ta
 	return ovs.Monitor(database, jsonContext, requests)
 }
 
+// MonitorCancel will request cancel a previously issued monitor request
+// RFC 7047 : monitor_cancel
+func (ovs OvsdbClient) MonitorCancel(database string, jsonContext interface{}) error {
+	var reply OperationResult
+
+	args := NewMonitorCancelArgs(jsonContext)
+
+	err := ovs.rpcClient.Call("monitor_cancel", args, &reply)
+	if err != nil {
+		return err
+	}
+	if reply.Error != "" {
+		return fmt.Errorf("Error while executing transaction: %s", reply.Error)
+	}
+	return nil
+}
+
 // Monitor will provide updates for a given table/column
 // RFC 7047 : monitor
 func (ovs OvsdbClient) Monitor(database string, jsonContext interface{}, requests map[string]MonitorRequest) (*TableUpdates, error) {
