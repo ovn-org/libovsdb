@@ -5,8 +5,10 @@ machine:
 
 dependencies:
   override:
-    - echo "Nothing to see here.." 
+    - echo "Nothing to see here..." 
 
 test:
   override:
-    - make test-ci
+    - make
+
+  
