@@ -211,7 +211,7 @@ func update(client *rpc2.Client, params []interface{}, reply *interface{}) error
 
 // GetSchema returns the schema in use for the provided database name
 // RFC 7047 : get_schema
-func (ovs OvsdbClient) GetSchema(dbName string) (*DatabaseSchema, error) {
+func (ovs *OvsdbClient) GetSchema(dbName string) (*DatabaseSchema, error) {
 	args := NewGetSchemaArgs(dbName)
 	var reply DatabaseSchema
 	err := ovs.rpcClient.Call("get_schema", args, &reply)
@@ -224,7 +224,7 @@ func (ovs OvsdbClient) GetSchema(dbName string) (*DatabaseSchema, error) {
 
 // ListDbs returns the list of databases on the server
 // RFC 7047 : list_dbs
-func (ovs OvsdbClient) ListDbs() ([]string, error) {
+func (ovs *OvsdbClient) ListDbs() ([]string, error) {
 	var dbs []string
 	err := ovs.rpcClient.Call("list_dbs", nil, &dbs)
 	if err != nil {
@@ -235,7 +235,7 @@ func (ovs OvsdbClient) ListDbs() ([]string, error) {
 
 // Transact performs the provided Operation's on the database
 // RFC 7047 : transact
-func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]OperationResult, error) {
+func (ovs *OvsdbClient) Transact(database string, operation ...Operation) ([]OperationResult, error) {
 	var reply []OperationResult
 	db, ok := ovs.Schema[database]
 	if !ok {
@@ -255,7 +255,7 @@ func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]Oper
 }
 
 // MonitorAll is a convenience method to monitor every table/column
-func (ovs OvsdbClient) MonitorAll(database string, jsonContext interface{}) (*TableUpdates, error) {
+func (ovs *OvsdbClient) MonitorAll(database string, jsonContext interface{}) (*TableUpdates, error) {
 	schema, ok := ovs.Schema[database]
 	if !ok {
 		return nil, errors.New("invalid Database Schema")
@@ -281,7 +281,7 @@ func (ovs OvsdbClient) MonitorAll(database string, jsonContext interface{}) (*Ta
 
 // Monitor will provide updates for a given table/column
 // RFC 7047 : monitor
-func (ovs OvsdbClient) Monitor(database string, jsonContext interface{}, requests map[string]MonitorRequest) (*TableUpdates, error) {
+func (ovs *OvsdbClient) Monitor(database string, jsonContext interface{}, requests map[string]MonitorRequest) (*TableUpdates, error) {
 	var reply TableUpdates
 
 	args := NewMonitorArgs(database, jsonContext, requests)
@@ -328,6 +328,6 @@ func handleDisconnectNotification(c *rpc2.Client) {
 }
 
 // Disconnect will close the OVSDB connection
-func (ovs OvsdbClient) Disconnect() {
+func (ovs *OvsdbClient) Disconnect() {
 	ovs.rpcClient.Close()
 }
