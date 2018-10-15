@@ -1,32 +1,59 @@
-.PHONY: all test test-local test-ci install-deps lint fmt vet
+.DEFAULT_GOAL := all
 
-all: test
+NET := libovsdbnet
+SUBNET := 172.16.0.0/24
 
-test-local: install-deps fmt lint vet
-	@echo "+ $@"
-	@go test -race -v ./...
+# GO
+GO_IMAGE := golang:1.9
+GO_CONTAINER := golang
+GO_IP := 172.16.0.3
 
-test:
-	@docker-compose run --rm test
+# OVSDB
+OVSDB_IMAGE := socketplane/openvswitch:2.4.0
+OVSDB_CONTAINER := ovsdb
+OVSDB_IP := 172.16.0.4
 
-# Because CircleCI fails to rm a container
-test-ci:
-	@docker-compose run test
+remove-network:
+	-@docker network rm $(NET)
+add-network: remove-network
+	-@docker network create --subnet=$(SUBNET) $(NET)
 
-install-deps:
-	@echo "+ $@"
-	@go get -u github.com/golang/lint/golint
-	@go get -d ./...
+ovsdb-clean-container:
+	-@docker rm -f $(OVSDB_CONTAINER)
+ovsdb-clean: ovsdb-clean-container
+	-@docker rmi $(OVSDB_IMAGE)
+ovsdb-build:
+	@docker pull $(OVSDB_IMAGE)
+ovsdb-run:
+	@docker run \
+		--privileged \
+		--detach \
+		--net $(NET) \
+		--ip $(OVSDB_IP) \
+		--name $(OVSDB_CONTAINER) \
+		--publish 6640:6640 \
+		$(OVSDB_IMAGE) 
+ovsdb: ovsdb-clean ovsdb-run
 
-lint:
-	@echo "+ $@"
-	@test -z "$$(golint ./... | tee /dev/stderr)"
+go-clean-container:
+	-@docker rm -f $(GO_CONTAINER)
+go-clean: go-clean-container
+	-@docker rmi $(GO_IMAGE)
+go-build:
+	@docker pull $(GO_IMAGE)
+	@docker build . --tag $(GO_IMAGE)
+go-test:
+	@docker run \
+		--detach \
+		--net $(NET) \
+		--ip $(GO_IP) \
+		--name $(GO_CONTAINER) \
+		$(GO_IMAGE) \
+		sh -c cd /go/src/libovsdb && go test .
+go-run: go-test go-clean-container ovsdb-clean-container
+	
+		
+go: go-clean go-build go-run
 
-fmt:
-	@echo "+ $@"
-	@test -z "$$(gofmt -s -l . | tee /dev/stderr)"
-
-vet:
-	@echo "+ $@"
-	@go vet ./...
-
+clean: go-clean ovsdb-clean remove-network
+all: add-network ovsdb go
