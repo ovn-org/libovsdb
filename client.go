@@ -332,10 +332,8 @@ func clearConnection(c *rpc2.Client) {
 
 func handleDisconnectNotification(c *rpc2.Client) {
 	disconnected := c.DisconnectNotify()
-	select {
-	case <-disconnected:
-		clearConnection(c)
-	}
+	<-disconnected
+	clearConnection(c)
 }
 
 // Disconnect will close the OVSDB connection
