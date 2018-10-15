@@ -6,7 +6,7 @@ ovs:
   privileged: true
 
 test:
-  image: golang:1.6
+  image: golang:1.11.1
   links:
     - ovs
   volumes: 

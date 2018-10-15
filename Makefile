@@ -15,12 +15,11 @@ test-ci:
 
 install-deps:
 	@echo "+ $@"
-	@go get -u github.com/golang/lint/golint
-	@go get -d ./...
+	@go get -u golang.org/x/lint/golint
 
 lint:
 	@echo "+ $@"
-	@test -z "$$(golint ./... | tee /dev/stderr)"
+	@test -z "$$(golint . | tee /dev/stderr)"
 
 fmt:
 	@echo "+ $@"
@@ -28,5 +27,5 @@ fmt:
 
 vet:
 	@echo "+ $@"
-	@go vet ./...
+	@go vet .
 
