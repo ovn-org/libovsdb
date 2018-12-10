@@ -15,7 +15,6 @@ test-ci:
 
 install-deps:
 	@echo "+ $@"
-	@go get -u github.com/golang/lint/golint
 	@go get -d ./...
 
 lint:
@@ -29,4 +28,3 @@ fmt:
 vet:
 	@echo "+ $@"
 	@go vet ./...
-

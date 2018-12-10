@@ -16,7 +16,7 @@ type Operation struct {
 	UUIDName  string                   `json:"uuid-name,omitempty"`
 }
 
-// MarshalJSON marshalls 'Operation' to a byte array
+// MarshalJSON marshal 'Operation' to a byte array
 // For 'select' operations, we dont omit the 'Where' field
 // to allow selecting all rows of a table
 func (o Operation) MarshalJSON() ([]byte, error) {

@@ -17,7 +17,7 @@ type OvsMap struct {
 	GoMap map[interface{}]interface{}
 }
 
-// MarshalJSON marshalls an OVSDB style Map to a byte array
+// MarshalJSON marshal an OVSDB style Map to a byte array
 func (o OvsMap) MarshalJSON() ([]byte, error) {
 	var ovsMap, innerMap []interface{}
 	ovsMap = append(ovsMap, "map")
@@ -31,7 +31,7 @@ func (o OvsMap) MarshalJSON() ([]byte, error) {
 	return json.Marshal(ovsMap)
 }
 
-// UnmarshalJSON unmarshalls an OVSDB style Map from a byte array
+// UnmarshalJSON unmarshal an OVSDB style Map from a byte array
 func (o *OvsMap) UnmarshalJSON(b []byte) (err error) {
 	var oMap []interface{}
 	o.GoMap = make(map[interface{}]interface{})
