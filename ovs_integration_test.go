@@ -212,7 +212,7 @@ func TestDeleteTransact(t *testing.T) {
 	reply, err := ovs.Transact("Open_vSwitch", operations...)
 
 	if len(reply) < len(operations) {
-		t.Error("Number of Replies should be atleast equal to number of Operations")
+		t.Error("Number of Replies should be at least equal to number of Operations")
 	}
 	ok := true
 	for i, o := range reply {
