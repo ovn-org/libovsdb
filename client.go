@@ -1,6 +1,8 @@
 package libovsdb
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,19 +42,21 @@ func newOvsdbClient(c *rpc2.Client) *OvsdbClient {
 
 // Would rather replace this connection map with an OvsdbClient Receiver scoped method
 // Unfortunately rpc2 package acts wierd with a receiver scoped method and needs some investigation.
-var connections map[*rpc2.Client]*OvsdbClient
-var connectionsMutex = &sync.RWMutex{}
+var (
+	connections      map[*rpc2.Client]*OvsdbClient
+	connectionsMutex = &sync.RWMutex{}
+)
 
-// DefaultAddress is the default IPV4 address that is used for a connection
-const DefaultAddress = "127.0.0.1"
+const (
+	// DefaultAddress is the default IPV4 address that is used for a connection
+	DefaultAddress = "127.0.0.1"
+	// DefaultPort is the default port used for a connection
+	DefaultPort     = 6640
+	// DefaultSocket is the default socket usef for a connection
+	DefaultSocket = "/var/run/openvswitch/db.sock"
+)
 
-// DefaultPort is the default port used for a connection
-const DefaultPort = 6640
-
-// DefaultSocket is the default socket usef for a connection
-const DefaultSocket = "/var/run/openvswitch/db.sock"
-
-// ConnectUsingProtocol creates an OVSDB connection and returns and OvsdbClient
+// ConnectUsingProtocol creates an OVSDB connection over tcp/unix and returns and OvsdbClient
 func ConnectUsingProtocol(protocol string, target string) (*OvsdbClient, error) {
 	conn, err := net.Dial(protocol, target)
 
@@ -81,6 +85,33 @@ func ConnectUsingProtocol(protocol string, target string) (*OvsdbClient, error) 
 		}
 	}
 	return ovs, nil
+}
+
+// ConnectUsingSSL creates an OVSDB connection using SSL and returns and OvsdbClient
+func ConnectUsingSSL(protocol string, target string, insecure bool) (*OvsdbClient, error) {
+	cert, err := tls.LoadX509KeyPair(os.Getenv("CLIENT_CERT_CA_CERT"),
+		os.Getenv("CLIENT_PRIVKEY"))
+	if err != nil {
+		log.Fatalf("client: loadkeys: %s", err)
+		return nil, err
+	}
+	if len(cert.Certificate) != 2 {
+		log.Fatal("client.crt should have 2 concatenated certificates: client + CA")
+		return nil, err
+	}
+	ca, err := x509.ParseCertificate(cert.Certificate[1])
+	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
+	certPool := x509.NewCertPool()
+	certPool.AddCert(ca)
+	config := tls.Config{
+		Certificates:       []tls.Certificate{cert},
+		RootCAs:            certPool,
+		InsecureSkipVerify: insecure,
+	}
+	return ConnectUsingProtocol("tcp", target)
 }
 
 // Connect creates an OVSDB connection and returns and OvsdbClient
