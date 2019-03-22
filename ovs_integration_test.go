@@ -181,7 +181,7 @@ func TestDeleteTransact(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
+	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640), PROTOCOL)
 	if err != nil {
 		log.Fatal("Failed to Connect. error:", err)
 		panic(err)
@@ -483,7 +483,7 @@ func TestMonitorCancel(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
+	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640), PROTOCOL)
 	if err != nil {
 		log.Fatal("Failed to Connect. error:", err)
 		panic(err)
