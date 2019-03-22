@@ -1,5 +1,6 @@
 libovsdb
 ========
+[![Travis-CI](https://travis-ci.org/eBay/libovsdb.svg?branch=master)](https://travis-ci.org/eBay/libovsdb)
 
 An OVSDB Library written in Go
 
