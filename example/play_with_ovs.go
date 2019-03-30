@@ -131,10 +131,10 @@ func main() {
 	cache = make(map[string]map[string]libovsdb.Row)
 
 	// By default libovsdb connects to 127.0.0.0:6400.
-	ovs, err := libovsdb.Connect("", 0, PROTOCOL)
+	ovs, err := libovsdb.Connect("tcp:", nil)
 
 	// If you prefer to connect to OVS in a specific location :
-	// ovs, err := libovsdb.Connect("192.168.56.101", 6640)
+	// ovs, err := libovsdb.Connect("tcp:192.168.56.101:6640", nil)
 
 	if err != nil {
 		fmt.Println("Unable to Connect ", err)

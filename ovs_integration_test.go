@@ -25,14 +25,14 @@ func TestConnect(t *testing.T) {
 
 	go func() {
 		// Use Convenience params. Ignore failure even if any
-		_, err := Connect("", 0, PROTOCOL)
+		_, err := Connect("tcp:", nil)
 		if err != nil {
 			log.Println("Couldnt establish OVSDB connection with Defult params. No big deal")
 		}
 	}()
 
 	go func() {
-		ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640), PROTOCOL)
+		ovs, err := Connect(fmt.Sprintf("tcp:%s:%d", os.Getenv("DOCKER_IP"), 6640), nil)
 		if err != nil {
 			connected <- false
 		} else {
@@ -56,9 +56,9 @@ func TestListDbs(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640), PROTOCOL)
+	ovs, err := Connect(fmt.Sprintf("tcp:%s:%d", os.Getenv("DOCKER_IP"), 6640), nil)
 	if err != nil {
-		panic(err)
+		t.Fatalf("Failed to Connect. error: %s", err)
 	}
 	reply, err := ovs.ListDbs()
 
@@ -79,9 +79,9 @@ func TestGetSchemas(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640), PROTOCOL)
+	ovs, err := Connect(fmt.Sprintf("tcp:%s:%d", os.Getenv("DOCKER_IP"), 6640), nil)
 	if err != nil {
-		panic(err)
+		t.Fatalf("Failed to Connect. error: %s", err)
 	}
 
 	dbName := "Open_vSwitch"
@@ -102,15 +102,13 @@ var bridgeName = "gopher-br7"
 var bridgeUUID string
 
 func TestInsertTransact(t *testing.T) {
-
 	if testing.Short() {
 		t.Skip()
 	}
 
-	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640), PROTOCOL)
+	ovs, err := Connect(fmt.Sprintf("tcp:%s:%d", os.Getenv("DOCKER_IP"), 6640), nil)
 	if err != nil {
-		log.Fatal("Failed to Connect. error:", err)
-		panic(err)
+		t.Fatalf("Failed to Connect. error: %s", err)
 	}
 
 	// NamedUUID is used to add multiple related Operations in a single Transact operation
@@ -181,10 +179,9 @@ func TestDeleteTransact(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640), PROTOCOL)
+	ovs, err := Connect(fmt.Sprintf("tcp:%s:%d", os.Getenv("DOCKER_IP"), 6640), nil)
 	if err != nil {
-		log.Fatal("Failed to Connect. error:", err)
-		panic(err)
+		t.Fatalf("Failed to Connect. error: %s", err)
 	}
 
 	// simple delete operation
@@ -238,10 +235,9 @@ func TestMonitor(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640), PROTOCOL)
+	ovs, err := Connect(fmt.Sprintf("tcp:%s:%d", os.Getenv("DOCKER_IP"), 6640), nil)
 	if err != nil {
-		log.Fatal("Failed to Connect. error:", err)
-		panic(err)
+		t.Fatalf("Failed to Connect. error: %s", err)
 	}
 
 	reply, err := ovs.MonitorAll("Open_vSwitch", nil)
@@ -257,10 +253,9 @@ func TestNotify(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640), PROTOCOL)
+	ovs, err := Connect(fmt.Sprintf("tcp:%s:%d", os.Getenv("DOCKER_IP"), 6640), nil)
 	if err != nil {
-		log.Fatal("Failed to Connect. error:", err)
-		panic(err)
+		t.Fatalf("Failed to Connect. error: %s", err)
 	}
 
 	notifyEchoChan := make(chan bool)
@@ -288,10 +283,9 @@ func TestRemoveNotify(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640), PROTOCOL)
+	ovs, err := Connect(fmt.Sprintf("tcp:%s:%d", os.Getenv("DOCKER_IP"), 6640), nil)
 	if err != nil {
-		log.Fatal("Failed to Connect. error:", err)
-		panic(err)
+		t.Fatalf("Failed to Connect. error: %s", err)
 	}
 
 	notifyEchoChan := make(chan bool)
@@ -332,10 +326,9 @@ func TestDBSchemaValidation(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, e := Connect(os.Getenv("DOCKER_IP"), int(6640), PROTOCOL)
-	if e != nil {
-		log.Fatal("Failed to Connect. error:", e)
-		panic(e)
+	ovs, err := Connect(fmt.Sprintf("tcp:%s:%d", os.Getenv("DOCKER_IP"), 6640), nil)
+	if err != nil {
+		t.Fatalf("Failed to Connect. error: %s", err)
 	}
 
 	bridge := make(map[string]interface{})
@@ -347,7 +340,7 @@ func TestDBSchemaValidation(t *testing.T) {
 		Row:   bridge,
 	}
 
-	_, err := ovs.Transact("Invalid_DB", operation)
+	_, err = ovs.Transact("Invalid_DB", operation)
 	if err == nil {
 		t.Error("Invalid DB operation Validation failed")
 	}
@@ -361,10 +354,9 @@ func TestTableSchemaValidation(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, e := Connect(os.Getenv("DOCKER_IP"), int(6640), PROTOCOL)
-	if e != nil {
-		log.Fatal("Failed to Connect. error:", e)
-		panic(e)
+	ovs, err := Connect(fmt.Sprintf("tcp:%s:%d", os.Getenv("DOCKER_IP"), 6640), nil)
+	if err != nil {
+		t.Fatalf("Failed to Connect. error: %s", err)
 	}
 
 	bridge := make(map[string]interface{})
@@ -375,7 +367,7 @@ func TestTableSchemaValidation(t *testing.T) {
 		Table: "InvalidTable",
 		Row:   bridge,
 	}
-	_, err := ovs.Transact("Open_vSwitch", operation)
+	_, err = ovs.Transact("Open_vSwitch", operation)
 
 	if err == nil {
 		t.Error("Invalid Table Name Validation failed")
@@ -390,10 +382,9 @@ func TestColumnSchemaInRowValidation(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, e := Connect(os.Getenv("DOCKER_IP"), int(6640), PROTOCOL)
-	if e != nil {
-		log.Fatal("Failed to Connect. error:", e)
-		panic(e)
+	ovs, err := Connect(fmt.Sprintf("tcp:%s:%d", os.Getenv("DOCKER_IP"), 6640), nil)
+	if err != nil {
+		t.Fatalf("Failed to Connect. error: %s", err)
 	}
 
 	bridge := make(map[string]interface{})
@@ -406,7 +397,7 @@ func TestColumnSchemaInRowValidation(t *testing.T) {
 		Row:   bridge,
 	}
 
-	_, err := ovs.Transact("Open_vSwitch", operation)
+	_, err = ovs.Transact("Open_vSwitch", operation)
 
 	if err == nil {
 		t.Error("Invalid Column Name Validation failed")
@@ -421,10 +412,9 @@ func TestColumnSchemaInMultipleRowsValidation(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, e := Connect(os.Getenv("DOCKER_IP"), int(6640), PROTOCOL)
-	if e != nil {
-		log.Fatal("Failed to Connect. error:", e)
-		panic(e)
+	ovs, err := Connect(fmt.Sprintf("tcp:%s:%d", os.Getenv("DOCKER_IP"), 6640), nil)
+	if err != nil {
+		t.Fatalf("Failed to Connect. error: %s", err)
 	}
 
 	rows := make([]map[string]interface{}, 2)
@@ -442,7 +432,7 @@ func TestColumnSchemaInMultipleRowsValidation(t *testing.T) {
 		Table: "Bridge",
 		Rows:  rows,
 	}
-	_, err := ovs.Transact("Open_vSwitch", operation)
+	_, err = ovs.Transact("Open_vSwitch", operation)
 
 	if err == nil {
 		t.Error("Invalid Column Name Validation failed")
@@ -452,15 +442,13 @@ func TestColumnSchemaInMultipleRowsValidation(t *testing.T) {
 }
 
 func TestColumnSchemaValidation(t *testing.T) {
-
 	if testing.Short() {
 		t.Skip()
 	}
 
-	ovs, e := Connect(os.Getenv("DOCKER_IP"), int(6640), PROTOCOL)
-	if e != nil {
-		log.Fatal("Failed to Connect. error:", e)
-		panic(e)
+	ovs, err := Connect(fmt.Sprintf("tcp:%s:%d", os.Getenv("DOCKER_IP"), 6640), nil)
+	if err != nil {
+		t.Fatalf("Failed to Connect. error: %s", err)
 	}
 
 	operation := Operation{
@@ -468,7 +456,7 @@ func TestColumnSchemaValidation(t *testing.T) {
 		Table:   "Bridge",
 		Columns: []string{"name", "invalidColumn"},
 	}
-	_, err := ovs.Transact("Open_vSwitch", operation)
+	_, err = ovs.Transact("Open_vSwitch", operation)
 
 	if err == nil {
 		t.Error("Invalid Column Name Validation failed")
@@ -483,10 +471,9 @@ func TestMonitorCancel(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640), PROTOCOL)
+	ovs, err := Connect(fmt.Sprintf("tcp:%s:%d", os.Getenv("DOCKER_IP"), 6640), nil)
 	if err != nil {
-		log.Fatal("Failed to Connect. error:", err)
-		panic(err)
+		t.Fatalf("Failed to Connect. error: %s", err)
 	}
 
 	monitorID := "f1b2ca48-aad7-11e7-abc4-cec278b6b50a"
