@@ -2,16 +2,15 @@ package libovsdb
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net"
+	"net/url"
 	"reflect"
+	"strings"
 	"sync"
-
-	"os"
 
 	"github.com/cenkalti/rpc2"
 	"github.com/cenkalti/rpc2/jsonrpc"
@@ -48,54 +47,54 @@ var (
 )
 
 const (
-	// DefaultAddress is the default IPV4 address that is used for a connection
-	DefaultAddress = "127.0.0.1"
-	// DefaultPort is the default port used for a connection
-	DefaultPort     = 6640
-	UNIX            = "unix"
-	TCP             = "tcp"
-	SSL             = "ssl"
-	SKIP_TLS_VERIFY = true
+	defaultTCPAddress  = "127.0.0.1:6640"
+	defaultUnixAddress = "/var/run/openvswitch/ovnnb_db.sock"
 )
 
-func ConnectDial(protocol string, target string) (net.Conn, error) {
-	if protocol == SSL {
-		cert, err := tls.LoadX509KeyPair(os.Getenv("CLIENT_CERT_CA_CERT"),
-			os.Getenv("CLIENT_PRIVKEY"))
+// Connect to ovn, using endpoint in format ovsdb Connection Methods
+// If address is empty, use default address for specified protocol
+func Connect(endpoints string, tlsConfig *tls.Config) (*OvsdbClient, error) {
+	var c net.Conn
+	var err error
+
+	for _, endpoint := range strings.Split(endpoints, ",") {
+		u, err := url.Parse(endpoint)
 		if err != nil {
-			log.Fatalf("client: loadkeys: %s", err)
 			return nil, err
 		}
-		if len(cert.Certificate) != 2 {
-			log.Fatal("client.crt should have 2 concatenated certificates: client + CA")
-			return nil, err
+
+		switch u.Scheme {
+		case "unix":
+			path := u.Path
+			if len(path) == 0 {
+				path = defaultUnixAddress
+			}
+			c, err = net.Dial(u.Scheme, path)
+		case "tcp":
+			host := u.Host
+			if len(u.Host) == 0 {
+				host = defaultTCPAddress
+			}
+			c, err = net.Dial(u.Scheme, host)
+		case "ssl":
+			host := u.Host
+			if len(host) == 0 {
+				host = defaultTCPAddress
+			}
+			c, err = tls.Dial("tcp", host, tlsConfig)
+		default:
+			err = fmt.Errorf("unknown network protocol %s", u.Scheme)
 		}
-		ca, err := x509.ParseCertificate(cert.Certificate[1])
-		if err != nil {
-			log.Fatal(err)
-			return nil, err
+
+		if err == nil {
+			return newRPC2Client(c)
 		}
-		certPool := x509.NewCertPool()
-		certPool.AddCert(ca)
-		config := tls.Config{
-			Certificates:       []tls.Certificate{cert},
-			RootCAs:            certPool,
-			InsecureSkipVerify: SKIP_TLS_VERIFY,
-		}
-		return tls.Dial(TCP, target, &config)
-	} else {
-		return net.Dial(protocol, target)
 	}
 
+	return nil, fmt.Errorf("failed to connect: %s", err.Error())
 }
 
-// ConnectUsingProtocol creates an OVSDB connection and returns an OvsdbClient
-func ConnectUsingProtocol(protocol string, target string) (*OvsdbClient, error) {
-	conn, err := ConnectDial(protocol, target)
-	if err != nil {
-		return nil, err
-	}
-
+func newRPC2Client(conn net.Conn) (*OvsdbClient, error) {
 	c := rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
 	c.SetBlocking(true)
 	c.Handle("echo", echo)
@@ -118,30 +117,6 @@ func ConnectUsingProtocol(protocol string, target string) (*OvsdbClient, error) 
 		}
 	}
 	return ovs, nil
-}
-
-// Connect creates an OVSDB connection and returns and OvsdbClient
-func Connect(ipAddr string, port int, protocol string) (*OvsdbClient, error) {
-	if ipAddr == "" {
-		ipAddr = DefaultAddress
-	}
-
-	if port <= 0 {
-		port = DefaultPort
-	}
-
-	target := fmt.Sprintf("%s:%d", ipAddr, port)
-	return ConnectUsingProtocol(protocol, target)
-}
-
-// ConnectWithUnixSocket makes a OVSDB Connection via a Unix Socket
-func ConnectWithUnixSocket(socketFile string) (*OvsdbClient, error) {
-
-	if _, err := os.Stat(socketFile); os.IsNotExist(err) {
-		return nil, errors.New("Invalid socket file")
-	}
-
-	return ConnectUsingProtocol(UNIX, socketFile)
 }
 
 // Register registers the supplied NotificationHandler to recieve OVSDB Notifications
