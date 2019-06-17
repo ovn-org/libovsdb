@@ -49,6 +49,9 @@ var (
 const (
 	defaultTCPAddress  = "127.0.0.1:6640"
 	defaultUnixAddress = "/var/run/openvswitch/ovnnb_db.sock"
+	SSL             = "ssl"
+	TCP             = "tcp"
+	UNIX            = "unix"
 )
 
 // Connect to ovn, using endpoint in format ovsdb Connection Methods
@@ -62,25 +65,24 @@ func Connect(endpoints string, tlsConfig *tls.Config) (*OvsdbClient, error) {
 		if err != nil {
 			return nil, err
 		}
-
+		var host string
+		endPointStr := strings.Split(endpoint, ":")
+		if len(endPointStr) > 2 {
+			host = fmt.Sprintf("%s:%s", endPointStr[1], endPointStr[2])
+			if len(host) == 0 {
+				host = defaultTCPAddress
+			}
+		}
 		switch u.Scheme {
-		case "unix":
+		case UNIX:
 			path := u.Path
 			if len(path) == 0 {
 				path = defaultUnixAddress
 			}
 			c, err = net.Dial(u.Scheme, path)
-		case "tcp":
-			host := u.Host
-			if len(u.Host) == 0 {
-				host = defaultTCPAddress
-			}
+		case TCP:
 			c, err = net.Dial(u.Scheme, host)
-		case "ssl":
-			host := u.Host
-			if len(host) == 0 {
-				host = defaultTCPAddress
-			}
+		case SSL:
 			c, err = tls.Dial("tcp", host, tlsConfig)
 		default:
 			err = fmt.Errorf("unknown network protocol %s", u.Scheme)
