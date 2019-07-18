@@ -59,10 +59,10 @@ const (
 func Connect(endpoints string, tlsConfig *tls.Config) (*OvsdbClient, error) {
 	var c net.Conn
 	var err error
+	var u *url.URL
 
 	for _, endpoint := range strings.Split(endpoints, ",") {
-		u, err := url.Parse(endpoint)
-		if err != nil {
+		if u, err = url.Parse(endpoint); err != nil {
 			return nil, err
 		}
 		var host string
