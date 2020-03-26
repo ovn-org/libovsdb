@@ -4,15 +4,60 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"testing"
 	"time"
 )
 
+func TestConnectWithUnixSocket(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	f, err := os.Open(DefaultSocket)
+	if err != nil {
+		t.Skip("Missing OVSDB unix socket")
+	}
+	f.Close()
+
+	timeoutChan := make(chan bool)
+	connected := make(chan bool)
+	go func() {
+		time.Sleep(10 * time.Second)
+		timeoutChan <- true
+	}()
+
+	go func() {
+		ovs, err := ConnectWithUnixSocket("")
+		if err != nil {
+			connected <- false
+		} else {
+			connected <- true
+			ovs.Disconnect()
+		}
+	}()
+
+	select {
+	case <-timeoutChan:
+		t.Error("Connection Timed Out")
+	case b := <-connected:
+		if !b {
+			t.Error("Couldnt connect to OVSDB Server")
+		}
+	}
+}
+
 func TestConnect(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
 	}
+
+	c, err := net.Dial("tcp", os.Getenv("DOCKER_IP")+":6640")
+	if err != nil {
+		t.Skip("No OVSDB connection over TCP")
+	}
+	c.Close()
 
 	timeoutChan := make(chan bool)
 	connected := make(chan bool)
@@ -25,7 +70,7 @@ func TestConnect(t *testing.T) {
 		// Use Convenience params. Ignore failure even if any
 		_, err := Connect("", 0)
 		if err != nil {
-			log.Println("Couldnt establish OVSDB connection with Defult params. No big deal")
+			log.Println("Couldnt establish OVSDB connection with Default params. No big deal")
 		}
 	}()
 
@@ -49,15 +94,23 @@ func TestConnect(t *testing.T) {
 	}
 }
 
+func getOvsClient(t *testing.T) (*OvsdbClient) {
+	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
+	if err != nil {
+		ovs, err = ConnectWithUnixSocket("")
+		if err != nil {
+			t.Skip("No OVS Connection")
+		}
+	}
+	return ovs
+}
+
 func TestListDbs(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
 	}
 
-	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
-	if err != nil {
-		panic(err)
-	}
+	ovs := getOvsClient(t)
 	reply, err := ovs.ListDbs()
 
 	if err != nil {
@@ -77,11 +130,7 @@ func TestGetSchemas(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
-	if err != nil {
-		panic(err)
-	}
-
+	ovs := getOvsClient(t)
 	dbName := "Open_vSwitch"
 	reply, err := ovs.GetSchema(dbName)
 
@@ -105,11 +154,7 @@ func TestInsertTransact(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
-	if err != nil {
-		log.Fatal("Failed to Connect. error:", err)
-		panic(err)
-	}
+	ovs := getOvsClient(t)
 
 	// NamedUUID is used to add multiple related Operations in a single Transact operation
 	namedUUID := "gopher"
@@ -118,6 +163,9 @@ func TestInsertTransact(t *testing.T) {
 	externalIds["go"] = "awesome"
 	externalIds["docker"] = "made-for-each-other"
 	oMap, err := NewOvsMap(externalIds)
+	if err != nil {
+		t.Fatal(err)
+	}
 	// bridge row to insert
 	bridge := make(map[string]interface{})
 	bridge["name"] = bridgeName
@@ -179,11 +227,7 @@ func TestDeleteTransact(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
-	if err != nil {
-		log.Fatal("Failed to Connect. error:", err)
-		panic(err)
-	}
+	ovs := getOvsClient(t)
 
 	// simple delete operation
 	condition := NewCondition("name", "==", bridgeName)
@@ -210,6 +254,9 @@ func TestDeleteTransact(t *testing.T) {
 
 	operations := []Operation{deleteOp, mutateOp}
 	reply, err := ovs.Transact("Open_vSwitch", operations...)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if len(reply) < len(operations) {
 		t.Error("Number of Replies should be atleast equal to number of Operations")
@@ -236,12 +283,7 @@ func TestMonitor(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
-	if err != nil {
-		log.Fatal("Failed to Connect. error:", err)
-		panic(err)
-	}
-
+	ovs := getOvsClient(t)
 	reply, err := ovs.MonitorAll("Open_vSwitch", nil)
 
 	if reply == nil || err != nil {
@@ -255,12 +297,7 @@ func TestNotify(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
-	if err != nil {
-		log.Fatal("Failed to Connect. error:", err)
-		panic(err)
-	}
-
+	ovs := getOvsClient(t)
 	notifyEchoChan := make(chan bool)
 
 	notifier := Notifier{notifyEchoChan}
@@ -286,12 +323,7 @@ func TestRemoveNotify(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
-	if err != nil {
-		log.Fatal("Failed to Connect. error:", err)
-		panic(err)
-	}
-
+	ovs := getOvsClient(t)
 	notifyEchoChan := make(chan bool)
 
 	notifier := Notifier{notifyEchoChan}
@@ -330,12 +362,7 @@ func TestDBSchemaValidation(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, e := Connect(os.Getenv("DOCKER_IP"), int(6640))
-	if e != nil {
-		log.Fatal("Failed to Connect. error:", e)
-		panic(e)
-	}
-
+	ovs := getOvsClient(t)
 	bridge := make(map[string]interface{})
 	bridge["name"] = "docker-ovs"
 
@@ -359,12 +386,7 @@ func TestTableSchemaValidation(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, e := Connect(os.Getenv("DOCKER_IP"), int(6640))
-	if e != nil {
-		log.Fatal("Failed to Connect. error:", e)
-		panic(e)
-	}
-
+	ovs := getOvsClient(t)
 	bridge := make(map[string]interface{})
 	bridge["name"] = "docker-ovs"
 
@@ -388,12 +410,7 @@ func TestColumnSchemaInRowValidation(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, e := Connect(os.Getenv("DOCKER_IP"), int(6640))
-	if e != nil {
-		log.Fatal("Failed to Connect. error:", e)
-		panic(e)
-	}
-
+	ovs := getOvsClient(t)
 	bridge := make(map[string]interface{})
 	bridge["name"] = "docker-ovs"
 	bridge["invalid_column"] = "invalid_column"
@@ -419,12 +436,7 @@ func TestColumnSchemaInMultipleRowsValidation(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, e := Connect(os.Getenv("DOCKER_IP"), int(6640))
-	if e != nil {
-		log.Fatal("Failed to Connect. error:", e)
-		panic(e)
-	}
-
+	ovs := getOvsClient(t)
 	rows := make([]map[string]interface{}, 2)
 
 	invalidBridge := make(map[string]interface{})
@@ -455,12 +467,7 @@ func TestColumnSchemaValidation(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, e := Connect(os.Getenv("DOCKER_IP"), int(6640))
-	if e != nil {
-		log.Fatal("Failed to Connect. error:", e)
-		panic(e)
-	}
-
+	ovs := getOvsClient(t)
 	operation := Operation{
 		Op:      "select",
 		Table:   "Bridge",

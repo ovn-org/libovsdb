@@ -49,6 +49,9 @@ const DefaultAddress = "127.0.0.1"
 // DefaultPort is the default port used for a connection
 const DefaultPort = 6640
 
+// DefaultSocket is the default socket usef for a connection
+const DefaultSocket = "/var/run/openvswitch/db.sock"
+
 // ConnectUsingProtocol creates an OVSDB connection and returns and OvsdbClient
 func ConnectUsingProtocol(protocol string, target string) (*OvsdbClient, error) {
 	conn, err := net.Dial(protocol, target)
@@ -96,6 +99,9 @@ func Connect(ipAddr string, port int) (*OvsdbClient, error) {
 
 // ConnectWithUnixSocket makes a OVSDB Connection via a Unix Socket
 func ConnectWithUnixSocket(socketFile string) (*OvsdbClient, error) {
+	if socketFile == "" {
+		socketFile = DefaultSocket
+	}
 
 	if _, err := os.Stat(socketFile); os.IsNotExist(err) {
 		return nil, errors.New("Invalid socket file")
