@@ -488,12 +488,7 @@ func TestMonitorCancel(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
-	if err != nil {
-		log.Fatal("Failed to Connect. error:", err)
-		panic(err)
-	}
-
+	ovs := getOvsClient(t)
 	monitorID := "f1b2ca48-aad7-11e7-abc4-cec278b6b50a"
 
 	requests := make(map[string]MonitorRequest)
@@ -508,7 +503,7 @@ func TestMonitorCancel(t *testing.T) {
 
 	ovs.Monitor("Open_vSwitch", monitorID, requests)
 
-	err = ovs.MonitorCancel("Open_vSwitch", monitorID)
+	err := ovs.MonitorCancel("Open_vSwitch", monitorID)
 
 	if err != nil {
 		t.Error("MonitorCancel operation failed with error=", err)

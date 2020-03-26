@@ -57,9 +57,15 @@ const (
 )
 
 // ConnectUsingProtocol creates an OVSDB connection over tcp/unix and returns and OvsdbClient
-func ConnectUsingProtocol(protocol string, target string) (*OvsdbClient, error) {
-	conn, err := net.Dial(protocol, target)
+func ConnectUsingProtocol(protocol string, target string, config *tls.Config) (*OvsdbClient, error) {
+	var conn net.Conn
+	var err error
 
+	if config != nil {
+		conn, err = tls.Dial(protocol, target, config)
+	} else {
+		conn, err = net.Dial(protocol, target)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +117,7 @@ func ConnectUsingSSL(protocol string, target string, insecure bool) (*OvsdbClien
 		RootCAs:            certPool,
 		InsecureSkipVerify: insecure,
 	}
-	return ConnectUsingProtocol("tcp", target)
+	return ConnectUsingProtocol("tcp", target, &config)
 }
 
 // Connect creates an OVSDB connection and returns and OvsdbClient
@@ -125,7 +131,7 @@ func Connect(ipAddr string, port int) (*OvsdbClient, error) {
 	}
 
 	target := fmt.Sprintf("%s:%d", ipAddr, port)
-	return ConnectUsingProtocol("tcp", target)
+	return ConnectUsingProtocol("tcp", target, nil)
 }
 
 // ConnectWithUnixSocket makes a OVSDB Connection via a Unix Socket
@@ -138,7 +144,7 @@ func ConnectWithUnixSocket(socketFile string) (*OvsdbClient, error) {
 		return nil, errors.New("Invalid socket file")
 	}
 
-	return ConnectUsingProtocol("unix", socketFile)
+	return ConnectUsingProtocol("unix", socketFile, nil)
 }
 
 // Register registers the supplied NotificationHandler to recieve OVSDB Notifications
