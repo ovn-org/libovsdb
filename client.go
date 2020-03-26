@@ -330,5 +330,4 @@ func handleDisconnectNotification(c *rpc2.Client) {
 // Disconnect will close the OVSDB connection
 func (ovs OvsdbClient) Disconnect() {
 	ovs.rpcClient.Close()
-	clearConnection(ovs.rpcClient)
 }
