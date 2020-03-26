@@ -14,6 +14,8 @@ jobs:
     services:
       openvswitch:
         image: socketplane/openvswitch:2.4.0
+        ports:
+        - 6640/tcp
 
     steps:
 
@@ -40,3 +42,6 @@ jobs:
 
     - name: Test
       run: go test -v ./...
+      env:
+        OVS_HOST: localhost
+        OVS_PORT: ${{ job.services.openvswitch.ports[6640] }}

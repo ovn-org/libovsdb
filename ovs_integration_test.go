@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 	"time"
+	"strconv"
 )
 
 func TestConnectWithUnixSocket(t *testing.T) {
@@ -15,11 +16,17 @@ func TestConnectWithUnixSocket(t *testing.T) {
 		t.Skip()
 	}
 
-	f, err := os.Open(DefaultSocket)
+	var socket string
+	if v, ok := os.LookupEnv("OVS_SOCK"); ok {
+		socket = v
+	} else {
+		socket = DefaultSocket
+	}
+
+	_, err := os.Stat(socket)
 	if err != nil {
 		t.Skip("Missing OVSDB unix socket")
 	}
-	f.Close()
 
 	timeoutChan := make(chan bool)
 	connected := make(chan bool)
@@ -29,7 +36,7 @@ func TestConnectWithUnixSocket(t *testing.T) {
 	}()
 
 	go func() {
-		ovs, err := ConnectWithUnixSocket("")
+		ovs, err := ConnectWithUnixSocket(socket)
 		if err != nil {
 			connected <- false
 		} else {
@@ -53,7 +60,11 @@ func TestConnect(t *testing.T) {
 		t.Skip()
 	}
 
-	c, err := net.Dial("tcp", os.Getenv("DOCKER_IP")+":6640")
+	port, err := strconv.Atoi(os.Getenv("OVS_PORT"))
+	if err != nil {
+		t.Skip("OVS_PORT incorrect or not provided")
+	}
+	c, err := net.Dial("tcp", fmt.Sprintf("%s:%d", os.Getenv("OVS_HOST"), port))
 	if err != nil {
 		t.Skip("No OVSDB connection over TCP")
 	}
@@ -75,7 +86,7 @@ func TestConnect(t *testing.T) {
 	}()
 
 	go func() {
-		ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
+		ovs, err := Connect(os.Getenv("OVS_HOST"), port)
 		if err != nil {
 			connected <- false
 		} else {
@@ -95,9 +106,19 @@ func TestConnect(t *testing.T) {
 }
 
 func getOvsClient(t *testing.T) *OvsdbClient {
-	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
+	port, err := strconv.Atoi(os.Getenv("OVS_PORT"))
 	if err != nil {
-		ovs, err = ConnectWithUnixSocket("")
+		t.Skip("OVS_PORT incorrect or not provided")
+	}
+	ovs, err := Connect(os.Getenv("OVS_HOST"), port)
+	if err != nil {
+		var socket string
+		if v, ok := os.LookupEnv("OVS_SOCK"); ok {
+			socket = v
+		} else {
+			socket = DefaultSocket
+		}
+		ovs, err = ConnectWithUnixSocket(socket)
 		if err != nil {
 			t.Skip("No OVS Connection")
 		}
