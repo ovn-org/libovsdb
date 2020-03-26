@@ -51,7 +51,7 @@ const (
 	// DefaultAddress is the default IPV4 address that is used for a connection
 	DefaultAddress = "127.0.0.1"
 	// DefaultPort is the default port used for a connection
-	DefaultPort     = 6640
+	DefaultPort = 6640
 	// DefaultSocket is the default socket usef for a connection
 	DefaultSocket = "/var/run/openvswitch/db.sock"
 )
@@ -375,10 +375,8 @@ func clearConnection(c *rpc2.Client) {
 
 func handleDisconnectNotification(c *rpc2.Client) {
 	disconnected := c.DisconnectNotify()
-	select {
-	case <-disconnected:
-		clearConnection(c)
-	}
+	<-disconnected
+	clearConnection(c)
 }
 
 // Disconnect will close the OVSDB connection

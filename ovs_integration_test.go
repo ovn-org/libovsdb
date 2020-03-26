@@ -94,7 +94,7 @@ func TestConnect(t *testing.T) {
 	}
 }
 
-func getOvsClient(t *testing.T) (*OvsdbClient) {
+func getOvsClient(t *testing.T) *OvsdbClient {
 	ovs, err := Connect(os.Getenv("DOCKER_IP"), int(6640))
 	if err != nil {
 		ovs, err = ConnectWithUnixSocket("")
@@ -196,6 +196,9 @@ func TestInsertTransact(t *testing.T) {
 
 	operations := []Operation{insertOp, mutateOp}
 	reply, err := ovs.Transact("Open_vSwitch", operations...)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if len(reply) < len(operations) {
 		t.Error("Number of Replies should be atleast equal to number of Operations")
@@ -330,7 +333,10 @@ func TestRemoveNotify(t *testing.T) {
 	ovs.Register(notifier)
 
 	lenIni := len(ovs.handlers)
-	ovs.Unregister(notifier)
+	err := ovs.Unregister(notifier)
+	if err != nil {
+		t.Fatal(err)
+	}
 	lenEnd := len(ovs.handlers)
 
 	if lenIni == lenEnd {
@@ -501,10 +507,12 @@ func TestMonitorCancel(t *testing.T) {
 			Modify:  true,
 		}}
 
-	ovs.Monitor("Open_vSwitch", monitorID, requests)
+	_, err := ovs.Monitor("Open_vSwitch", monitorID, requests)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	err := ovs.MonitorCancel("Open_vSwitch", monitorID)
-
+	err = ovs.MonitorCancel("Open_vSwitch", monitorID)
 	if err != nil {
 		t.Error("MonitorCancel operation failed with error=", err)
 	}
