@@ -41,7 +41,12 @@ jobs:
       run: go build -v .
 
     - name: Test
-      run: go test -v ./...
+      run: go test -v -coverprofile=profile.cov ./...
       env:
         OVS_HOST: localhost
         OVS_PORT: ${{ job.services.openvswitch.ports[6640] }}
+        
+    - name: Send coverage
+      uses: shogo82148/actions-goveralls@v1
+      with:
+        path-to-profile: profile.cov
