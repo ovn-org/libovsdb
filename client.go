@@ -250,7 +250,7 @@ func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]Oper
 	var reply []OperationResult
 	db, ok := ovs.Schema[database]
 	if !ok {
-		return nil, errors.New("invalid Database Schema")
+		return nil, errors.New("invalid Database %q Schema", database)
 	}
 
 	if ok := db.validateOperations(operation...); !ok {
@@ -269,7 +269,7 @@ func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]Oper
 func (ovs OvsdbClient) MonitorAll(database string, jsonContext interface{}) (*TableUpdates, error) {
 	schema, ok := ovs.Schema[database]
 	if !ok {
-		return nil, errors.New("invalid Database Schema")
+		return nil, errors.New("invalid Database %q Schema", database)
 	}
 
 	requests := make(map[string]MonitorRequest)
