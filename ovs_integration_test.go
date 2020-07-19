@@ -10,25 +10,24 @@ import (
 )
 
 const (
-	OVS_RUNDIR           = "/var/run/openvswitch"
-	OVS_SOCKET           = "db.sock"
+	defOvsRunDir = "/var/run/openvswitch"
+	defOvsSocket = "db.sock"
 )
 
-
 var cfg *Config
-func SetConfig () {
+
+func SetConfig() {
 
 	cfg = &Config{}
-	var ovs_rundir= os.Getenv("OVS_RUNDIR")
-	if ovs_rundir == "" {
-		ovs_rundir = OVS_RUNDIR
+	var ovsRunDir = os.Getenv("OVS_RUNDIR")
+	if ovsRunDir == "" {
+		ovsRunDir = defOvsRunDir
 	}
-	var ovs_db= os.Getenv("OVS_DB")
-	if ovs_db == "" {
-		cfg.Addr = "unix:" + ovs_rundir + "/" + OVS_SOCKET
+	var ovsDb = os.Getenv("OVS_DB")
+	if ovsDb == "" {
+		cfg.Addr = "unix:" + ovsRunDir + "/" + defOvsSocket
 	}
 }
-
 
 func TestConnect(t *testing.T) {
 	SetConfig()
