@@ -327,7 +327,7 @@ func TestRemoveNotify(t *testing.T) {
 	ovs.Register(notifier)
 
 	lenIni := len(ovs.handlers)
-	ovs.Unregister(notifier)
+	_ = ovs.Unregister(notifier)
 	lenEnd := len(ovs.handlers)
 
 	if lenIni == lenEnd {
@@ -341,7 +341,7 @@ type Notifier struct {
 	echoChan chan bool
 }
 
-func (n Notifier) Update(context interface{}, tableUpdates TableUpdates) {
+func (n Notifier) Update(interface{}, TableUpdates) {
 }
 func (n Notifier) Locked([]interface{}) {
 }
@@ -350,7 +350,7 @@ func (n Notifier) Stolen([]interface{}) {
 func (n Notifier) Echo([]interface{}) {
 	n.echoChan <- true
 }
-func (n Notifier) Disconnected(client *OvsdbClient) {
+func (n Notifier) Disconnected(*OvsdbClient) {
 }
 
 func TestDBSchemaValidation(t *testing.T) {
@@ -522,7 +522,7 @@ func TestMonitorCancel(t *testing.T) {
 			Modify:  true,
 		}}
 
-	ovs.Monitor("Open_vSwitch", monitorID, requests)
+	_, _ = ovs.Monitor("Open_vSwitch", monitorID, requests)
 
 	err = ovs.MonitorCancel(monitorID)
 

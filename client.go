@@ -183,7 +183,7 @@ func echo(client *rpc2.Client, args []interface{}, reply *[]interface{}) error {
 
 // RFC 7047 : Update Notification Section 4.1.6
 // Processing "params": [<json-value>, <table-updates>]
-func update(client *rpc2.Client, params []interface{}, reply *interface{}) error {
+func update(client *rpc2.Client, params []interface{}, _ *interface{}) error {
 	if len(params) < 2 {
 		return errors.New("Invalid Update message")
 	}
