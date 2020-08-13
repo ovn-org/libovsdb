@@ -92,7 +92,7 @@ func Connect(endpoints string, tlsConfig *tls.Config) (*OvsdbClient, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("failed to connect: %s", err.Error())
+	return nil, fmt.Errorf("failed to connect to endpoints %q: %v", endpoints, err)
 }
 
 func newRPC2Client(conn net.Conn) (*OvsdbClient, error) {
