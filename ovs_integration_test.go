@@ -524,7 +524,7 @@ func TestMonitorCancel(t *testing.T) {
 
 	ovs.Monitor("Open_vSwitch", monitorID, requests)
 
-	err = ovs.MonitorCancel("Open_vSwitch", monitorID)
+	err = ovs.MonitorCancel(monitorID)
 
 	if err != nil {
 		t.Error("MonitorCancel operation failed with error=", err)
