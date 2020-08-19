@@ -29,12 +29,6 @@ func newOvsdbClient(c *rpc2.Client) *OvsdbClient {
 		Schema:        make(map[string]DatabaseSchema),
 		handlersMutex: &sync.Mutex{},
 	}
-	connectionsMutex.Lock()
-	defer connectionsMutex.Unlock()
-	if connections == nil {
-		connections = make(map[*rpc2.Client]*OvsdbClient)
-	}
-	connections[c] = ovs
 	return ovs
 }
 
@@ -107,6 +101,7 @@ func newRPC2Client(conn net.Conn) (*OvsdbClient, error) {
 	// Process Async Notifications
 	dbs, err := ovs.ListDbs()
 	if err != nil {
+		c.Close()
 		return nil, err
 	}
 
@@ -115,9 +110,17 @@ func newRPC2Client(conn net.Conn) (*OvsdbClient, error) {
 		if err == nil {
 			ovs.Schema[db] = *schema
 		} else {
+			c.Close()
 			return nil, err
 		}
 	}
+
+	connectionsMutex.Lock()
+	defer connectionsMutex.Unlock()
+	if connections == nil {
+		connections = make(map[*rpc2.Client]*OvsdbClient)
+	}
+	connections[c] = ovs
 	return ovs, nil
 }
 
