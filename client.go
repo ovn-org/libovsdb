@@ -92,7 +92,7 @@ func Connect(endpoints string, tlsConfig *tls.Config) (*OvsdbClient, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("failed to connect: %s", err.Error())
+	return nil, fmt.Errorf("failed to connect to endpoints %q: %v", endpoints, err)
 }
 
 func newRPC2Client(conn net.Conn) (*OvsdbClient, error) {
@@ -183,7 +183,7 @@ func echo(client *rpc2.Client, args []interface{}, reply *[]interface{}) error {
 
 // RFC 7047 : Update Notification Section 4.1.6
 // Processing "params": [<json-value>, <table-updates>]
-func update(client *rpc2.Client, params []interface{}, reply *interface{}) error {
+func update(client *rpc2.Client, params []interface{}, _ *interface{}) error {
 	if len(params) < 2 {
 		return errors.New("Invalid Update message")
 	}
@@ -291,7 +291,7 @@ func (ovs OvsdbClient) MonitorAll(database string, jsonContext interface{}) (*Ta
 
 // MonitorCancel will request cancel a previously issued monitor request
 // RFC 7047 : monitor_cancel
-func (ovs OvsdbClient) MonitorCancel(database string, jsonContext interface{}) error {
+func (ovs OvsdbClient) MonitorCancel(jsonContext interface{}) error {
 	var reply OperationResult
 
 	args := NewMonitorCancelArgs(jsonContext)
