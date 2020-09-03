@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"net/url"
 	"reflect"
@@ -30,12 +29,6 @@ func newOvsdbClient(c *rpc2.Client) *OvsdbClient {
 		Schema:        make(map[string]DatabaseSchema),
 		handlersMutex: &sync.Mutex{},
 	}
-	connectionsMutex.Lock()
-	defer connectionsMutex.Unlock()
-	if connections == nil {
-		connections = make(map[*rpc2.Client]*OvsdbClient)
-	}
-	connections[c] = ovs
 	return ovs
 }
 
@@ -107,16 +100,27 @@ func newRPC2Client(conn net.Conn) (*OvsdbClient, error) {
 
 	// Process Async Notifications
 	dbs, err := ovs.ListDbs()
-	if err == nil {
-		for _, db := range dbs {
-			schema, err := ovs.GetSchema(db)
-			if err == nil {
-				ovs.Schema[db] = *schema
-			} else {
-				return nil, err
-			}
+	if err != nil {
+		c.Close()
+		return nil, err
+	}
+
+	for _, db := range dbs {
+		schema, err := ovs.GetSchema(db)
+		if err == nil {
+			ovs.Schema[db] = *schema
+		} else {
+			c.Close()
+			return nil, err
 		}
 	}
+
+	connectionsMutex.Lock()
+	defer connectionsMutex.Unlock()
+	if connections == nil {
+		connections = make(map[*rpc2.Client]*OvsdbClient)
+	}
+	connections[c] = ovs
 	return ovs, nil
 }
 
@@ -238,7 +242,7 @@ func (ovs OvsdbClient) ListDbs() ([]string, error) {
 	var dbs []string
 	err := ovs.rpcClient.Call("list_dbs", nil, &dbs)
 	if err != nil {
-		log.Fatal("ListDbs failure", err)
+		return nil, fmt.Errorf("ListDbs failure - %v", err)
 	}
 	return dbs, err
 }
