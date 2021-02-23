@@ -13,7 +13,6 @@ import (
 
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to this file")
 var memprofile = flag.String("memoryprofile", "", "write memory profile to this file")
-var api = flag.String("api", "", "api to use: [legacy (default), native]")
 var nins = flag.Int("ninserts", 100, "insert this number of elements in the database")
 var verbose = flag.Bool("verbose", false, "Be verbose")
 var connection = flag.String("ovsdb", "unix:/var/run/openvswitch/db.sock", "OVSDB connection string")
@@ -86,33 +85,17 @@ func transact(ovs *libovsdb.OvsdbClient, operations []libovsdb.Operation) (ok bo
 }
 
 func deleteBridge(ovs *libovsdb.OvsdbClient, uuid string) {
-	var err error
 	var mutation []interface{}
 	var delCondition []interface{}
 	var mutCondition []interface{}
 
-	if *api == "native" {
-		delCondition, err = ovs.API.NewCondition("Bridge", "_uuid", "==", uuid)
-		if err != nil {
-			log.Fatal(err)
-		}
-		mutation, err = ovs.API.NewMutation("Open_vSwitch", "bridges", "delete", []string{uuid})
-		if err != nil {
-			log.Fatal(err)
-		}
-		mutCondition, err = ovs.API.NewMutation("Open_vSwitch", "_uuid", "==", rootUUID)
-		if err != nil {
-			log.Fatal(err)
-		}
-	} else {
-		delCondition = libovsdb.NewCondition("_uuid", "==", libovsdb.UUID{GoUUID: uuid})
+	delCondition = libovsdb.NewCondition("_uuid", "==", libovsdb.UUID{GoUUID: uuid})
 
-		mutateUUID := []libovsdb.UUID{{GoUUID: uuid}}
-		mutateSet, _ := libovsdb.NewOvsSet(mutateUUID)
-		mutation = libovsdb.NewMutation("bridges", "delete", mutateSet)
-		// hacked Condition till we get Monitor / Select working
-		mutCondition = libovsdb.NewCondition("_uuid", "==", libovsdb.UUID{GoUUID: rootUUID})
-	}
+	mutateUUID := []libovsdb.UUID{{GoUUID: uuid}}
+	mutateSet, _ := libovsdb.NewOvsSet(mutateUUID)
+	mutation = libovsdb.NewMutation("bridges", "delete", mutateSet)
+	// hacked Condition till we get Monitor / Select working
+	mutCondition = libovsdb.NewCondition("_uuid", "==", libovsdb.UUID{GoUUID: rootUUID})
 
 	deleteOp := libovsdb.Operation{
 		Op:    "delete",
@@ -139,43 +122,19 @@ func createBridge(ovs *libovsdb.OvsdbClient, iter int) {
 	bridge := make(map[string]interface{})
 	namedUUID := "gopher"
 	bridgeName := fmt.Sprintf("bridge-%d", iter)
-	if *api == "native" {
-		nbridge := make(map[string]interface{})
-		var err error
-		datapathID := []string{"blablabla"}
-		otherConfig := map[string]string{
-			"foo":  "bar",
-			"fake": "config",
-		}
-		externalIds := map[string]string{
-			"key1": "val1",
-			"key2": "val2",
-		}
-		nbridge["name"] = bridgeName
-		nbridge["other_config"] = otherConfig
-		bridge["datapath_id"] = datapathID
-		nbridge["external_ids"] = externalIds
-
-		bridge, err = ovs.API.NewRow("Bridge", nbridge)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-	} else {
-		datapathID, _ := libovsdb.NewOvsSet([]string{"blablabla"})
-		otherConfig, _ := libovsdb.NewOvsMap(map[string]string{
-			"foo":  "bar",
-			"fake": "config",
-		})
-		externalIds, _ := libovsdb.NewOvsMap(map[string]string{
-			"key1": "val1",
-			"key2": "val2",
-		})
-		bridge["name"] = bridgeName
-		bridge["other_config"] = otherConfig
-		bridge["datapath_id"] = datapathID
-		bridge["external_ids"] = externalIds
-	}
+	datapathID, _ := libovsdb.NewOvsSet([]string{"blablabla"})
+	otherConfig, _ := libovsdb.NewOvsMap(map[string]string{
+		"foo":  "bar",
+		"fake": "config",
+	})
+	externalIds, _ := libovsdb.NewOvsMap(map[string]string{
+		"key1": "val1",
+		"key2": "val2",
+	})
+	bridge["name"] = bridgeName
+	bridge["other_config"] = otherConfig
+	bridge["datapath_id"] = datapathID
+	bridge["external_ids"] = externalIds
 
 	// simple insert operation
 	insertOp := libovsdb.Operation{
@@ -187,26 +146,13 @@ func createBridge(ovs *libovsdb.OvsdbClient, iter int) {
 
 	var mutation []interface{}
 	var condition []interface{}
-	var err error
 
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
-	if *api == "native" {
-		// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
-		mutation, err = ovs.API.NewMutation("Open_vSwitch", "bridges", "insert", []string{namedUUID})
-		if err != nil {
-			log.Fatalf("Mutation Error: %s", err.Error())
-		}
-		condition, err = ovs.API.NewCondition("Open_vSwitch", "_uuid", "==", rootUUID)
-		if err != nil {
-			log.Fatalf("Condition Error: %s", err.Error())
-		}
-	} else {
-		uuidParameter := libovsdb.UUID{GoUUID: rootUUID}
-		mutateUUID := []libovsdb.UUID{{GoUUID: namedUUID}}
-		mutateSet, _ := libovsdb.NewOvsSet(mutateUUID)
-		mutation = libovsdb.NewMutation("bridges", "insert", mutateSet)
-		condition = libovsdb.NewCondition("_uuid", "==", uuidParameter)
-	}
+	uuidParameter := libovsdb.UUID{GoUUID: rootUUID}
+	mutateUUID := []libovsdb.UUID{{GoUUID: namedUUID}}
+	mutateSet, _ := libovsdb.NewOvsSet(mutateUUID)
+	mutation = libovsdb.NewMutation("bridges", "insert", mutateSet)
+	condition = libovsdb.NewCondition("_uuid", "==", uuidParameter)
 
 	// simple mutate operation
 	mutateOp := libovsdb.Operation{
