@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"encoding/json"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSchema(t *testing.T) {
@@ -348,5 +349,56 @@ func TestSchema(t *testing.T) {
 			}
 		})
 	}
+}
 
+func TestTable(t *testing.T) {
+	schemaJ := []byte(`{"name": "TestSchema",
+		  "version": "0.0.0",
+		  "tables": {
+		    "test": {
+		      "columns": {
+		        "foo": {
+			  "type": {
+			    "key": "string",
+			    "value": "string"
+			  }
+			},
+		        "bar": {
+			  "type": "string"
+			}
+		      }
+		    }
+		}
+	    }`)
+
+	var schema DatabaseSchema
+	err := json.Unmarshal(schemaJ, &schema)
+	assert.Nil(t, err)
+
+	t.Run("GetTable_exists", func(t *testing.T) {
+		table := schema.Table("test")
+		assert.NotNil(t, table)
+	})
+	t.Run("GetTable_not_exists", func(t *testing.T) {
+		table := schema.Table("notexists")
+		assert.Nil(t, table)
+	})
+	t.Run("GetColumn_exists", func(t *testing.T) {
+		table := schema.Table("test")
+		assert.NotNil(t, table)
+		column := table.Column("foo")
+		assert.NotNil(t, column)
+	})
+	t.Run("GetColumn_not_exists", func(t *testing.T) {
+		table := schema.Table("test")
+		assert.NotNil(t, table)
+		column := table.Column("notexists")
+		assert.Nil(t, column)
+	})
+	t.Run("GetColumn_uuid", func(t *testing.T) {
+		table := schema.Table("test")
+		assert.NotNil(t, table)
+		column := table.Column("_uuid")
+		assert.NotNil(t, column)
+	})
 }
