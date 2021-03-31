@@ -23,12 +23,15 @@ func getErrTransMaps() []map[string]interface{} {
 		"native": 42,
 		"ovs":    42,
 	})
+
+	// OVS floats should be convertible to integers since encoding/json will use float64 as
+	// the default numeric type. However, native types should match
 	transMap = append(transMap, map[string]interface{}{
 		"name":   "Wrong Atomic Numeric Type: Int",
 		"schema": []byte(`{"type":"integer"}`),
 		"native": 42.0,
-		"ovs":    42.0,
 	})
+
 	transMap = append(transMap, map[string]interface{}{
 		"name":   "Wrong Atomic Numeric Type: Float",
 		"schema": []byte(`{"type":"real"}`),
@@ -105,6 +108,32 @@ func getTransMaps() []map[string]interface{} {
 		"native2ovs": aFloat,
 		"ovs":        aFloat,
 		"ovs2native": aFloat,
+	})
+
+	// Integers
+	transMap = append(transMap, map[string]interface{}{
+		"name":       "Integers with float ovs type",
+		"schema":     []byte(`{"type":"integer"}`),
+		"native":     aInt,
+		"native2ovs": aInt,
+		"ovs":        aFloat, // Default json encoding uses float64 for all numbers
+		"ovs2native": aInt,
+	})
+	transMap = append(transMap, map[string]interface{}{
+		"name":       "Integers",
+		"schema":     []byte(`{"type":"integer"}`),
+		"native":     aInt,
+		"native2ovs": aInt,
+		"ovs":        aInt,
+		"ovs2native": aInt,
+	})
+	transMap = append(transMap, map[string]interface{}{
+		"name":       "Integer set with float ovs type ",
+		"schema":     []byte(`{"type":"integer", "min":0}`),
+		"native":     aInt,
+		"native2ovs": aInt,
+		"ovs":        aFloat,
+		"ovs2native": aInt,
 	})
 
 	// string set
@@ -187,8 +216,9 @@ func getTransMaps() []map[string]interface{} {
 		"ovs2native": []string{aUUID0},
 	})
 
-	// A integer set
+	// A integer set with integer ovs input
 	is, _ := NewOvsSet(aIntSet)
+	fs, _ := NewOvsSet(aFloatSet)
 	transMap = append(transMap, map[string]interface{}{
 		"name": "Integer Set",
 		"schema": []byte(`{
@@ -206,8 +236,63 @@ func getTransMaps() []map[string]interface{} {
 		"ovs2native": aIntSet,
 	})
 
+	// A integer set with float ovs input
+	transMap = append(transMap, map[string]interface{}{
+		"name": "Integer Set single",
+		"schema": []byte(`{
+	"type":{
+            "key": {
+              "type": "integer"
+            },
+            "min": 0,
+            "max": "unlimited"
+          }
+        }`),
+		"native":     aIntSet,
+		"native2ovs": is,
+		"ovs":        *fs,
+		"ovs2native": aIntSet,
+	})
+
+	// A single-value integer set with integer ovs input
+	sis, _ := NewOvsSet([]int{aInt})
+	sfs, _ := NewOvsSet([]float64{aFloat})
+	transMap = append(transMap, map[string]interface{}{
+		"name": "Integer Set single",
+		"schema": []byte(`{
+	"type":{
+            "key": {
+              "type": "integer"
+            },
+            "min": 0,
+            "max": "unlimited"
+          }
+        }`),
+		"native":     []int{aInt},
+		"native2ovs": sis,
+		"ovs":        *sis,
+		"ovs2native": []int{aInt},
+	})
+
+	// A single-value integer set with float ovs input
+	transMap = append(transMap, map[string]interface{}{
+		"name": "Integer Set single",
+		"schema": []byte(`{
+	"type":{
+            "key": {
+              "type": "integer"
+            },
+            "min": 0,
+            "max": "unlimited"
+          }
+        }`),
+		"native":     []int{aInt},
+		"native2ovs": sis,
+		"ovs":        *sfs,
+		"ovs2native": []int{aInt},
+	})
+
 	// A float set
-	fs, _ := NewOvsSet(aFloatSet)
 	transMap = append(transMap, map[string]interface{}{
 		"name": "Float Set",
 		"schema": []byte(`{
@@ -368,6 +453,9 @@ func TestNativeToOvs(t *testing.T) {
 func TestOvsToNativeErr(t *testing.T) {
 	transMaps := getErrTransMaps()
 	for _, trans := range transMaps {
+		if _, ok := trans["ovs"]; !ok {
+			continue
+		}
 		t.Run(fmt.Sprintf("Ovs To Native Error: %s", trans["name"]), func(t *testing.T) {
 			var column ColumnSchema
 			if err := json.Unmarshal(trans["schema"].([]byte), &column); err != nil {
@@ -386,6 +474,9 @@ func TestOvsToNativeErr(t *testing.T) {
 func TestNativeToOvsErr(t *testing.T) {
 	transMaps := getErrTransMaps()
 	for _, trans := range transMaps {
+		if _, ok := trans["native"]; !ok {
+			continue
+		}
 		t.Run(fmt.Sprintf("Native To Ovs Error: %s", trans["name"]), func(t *testing.T) {
 			var column ColumnSchema
 			if err := json.Unmarshal(trans["schema"].([]byte), &column); err != nil {
