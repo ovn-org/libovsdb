@@ -178,5 +178,5 @@ func (n myNotifier) Stolen([]interface{}) {
 }
 func (n myNotifier) Echo([]interface{}) {
 }
-func (n myNotifier) Disconnected(client *libovsdb.OvsdbClient) {
+func (n myNotifier) Disconnected() {
 }
