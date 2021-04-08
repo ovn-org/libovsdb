@@ -5,11 +5,16 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/socketplane/libovsdb"
+	"github.com/ebay/libovsdb"
 )
 
 // Silly game that detects creation of Bridge named "stop" and exits
 // Just a demonstration of how an app can use libovsdb library to configure and manage OVS
+const (
+	bridgeTable = "Bridge"
+	ovsDb       = "Open_vSwitch"
+	ovsTable    = ovsDb
+)
 
 var quit chan bool
 var update chan *libovsdb.TableUpdates
@@ -18,17 +23,22 @@ var cache map[string]map[string]libovsdb.Row
 func play(ovs *libovsdb.OvsdbClient) {
 	go processInput(ovs)
 	for {
-		currUpdate := <-update
-		for table, tableUpdate := range currUpdate.Updates {
-			if table == "Bridge" {
-				for uuid, row := range tableUpdate.Rows {
-					newRow := row.New
-					if _, ok := newRow.Fields["name"]; ok {
-						name := newRow.Fields["name"].(string)
-						if name == "stop" {
-							fmt.Println("Bridge stop detected : ", uuid)
-							ovs.Disconnect()
-							quit <- true
+		select {
+		case currUpdate := <-update:
+			for table, tableUpdate := range currUpdate.Updates {
+				if table == bridgeTable {
+					for uuid, row := range tableUpdate.Rows {
+						rowData, err := ovs.Apis[ovsDb].GetRowData(bridgeTable, &row.New)
+						if err != nil {
+							fmt.Println("ERROR getting Bridge Data", err)
+						}
+						if _, ok := rowData["name"]; ok {
+							name := rowData["name"].(string)
+							if name == "stop" {
+								fmt.Println("Bridge stop detected : ", uuid)
+								ovs.Disconnect()
+								quit <- true
+							}
 						}
 					}
 				}
@@ -39,38 +49,49 @@ func play(ovs *libovsdb.OvsdbClient) {
 }
 
 func createBridge(ovs *libovsdb.OvsdbClient, bridgeName string) {
+	api := ovs.Apis[ovsDb]
 	namedUUID := "gopher"
 	// bridge row to insert
 	bridge := make(map[string]interface{})
 	bridge["name"] = bridgeName
+	bridge["external_ids"] = map[string]string{"purpose": "fun"}
 
+	brow, err := api.NewRow(bridgeTable, bridge)
+	if err != nil {
+		fmt.Printf("Row Error: %s", err.Error())
+		os.Exit(1)
+
+	}
 	// simple insert operation
 	insertOp := libovsdb.Operation{
 		Op:       "insert",
-		Table:    "Bridge",
-		Row:      bridge,
+		Table:    bridgeTable,
+		Row:      brow,
 		UUIDName: namedUUID,
 	}
 
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
-	uuidParameter := libovsdb.UUID{GoUUID: getRootUUID()}
-	mutateUUID := []libovsdb.UUID{
-		libovsdb.UUID{GoUUID: namedUUID},
+	mutation, err := api.NewMutation(ovsTable, "bridges", "insert", []string{namedUUID})
+	if err != nil {
+		fmt.Printf("Mutation Error: %s", err.Error())
+		os.Exit(1)
 	}
-	mutateSet, _ := libovsdb.NewOvsSet(mutateUUID)
-	mutation := libovsdb.NewMutation("bridges", "insert", mutateSet)
-	condition := libovsdb.NewCondition("_uuid", "==", uuidParameter)
+	condition, err := api.NewCondition(ovsTable, "_uuid", "==", getRootUUID())
+	if err != nil {
+		fmt.Printf("Condition Error: %s", err.Error())
+		os.Exit(1)
+	}
 
 	// simple mutate operation
 	mutateOp := libovsdb.Operation{
 		Op:        "mutate",
-		Table:     "Open_vSwitch",
+		Table:     "ovsTable",
 		Mutations: []interface{}{mutation},
 		Where:     []interface{}{condition},
 	}
 
 	operations := []libovsdb.Operation{insertOp, mutateOp}
-	reply, _ := ovs.Transact("Open_vSwitch", operations...)
+	reply, _ := ovs.Transact(ovsDb, operations...)
 
 	if len(reply) < len(operations) {
 		fmt.Println("Number of Replies should be atleast equal to number of Operations")
@@ -100,7 +121,7 @@ func processInput(ovs *libovsdb.OvsdbClient) {
 }
 
 func getRootUUID() string {
-	for uuid := range cache["Open_vSwitch"] {
+	for uuid := range cache[ovsTable] {
 		return uuid
 	}
 	return ""
@@ -129,10 +150,10 @@ func main() {
 	cache = make(map[string]map[string]libovsdb.Row)
 
 	// By default libovsdb connects to 127.0.0.0:6400.
-	ovs, err := libovsdb.Connect("", 0)
+	ovs, err := libovsdb.Connect("tcp:", nil)
 
 	// If you prefer to connect to OVS in a specific location :
-	// ovs, err := libovsdb.Connect("192.168.56.101", 6640)
+	// ovs, err := libovsdb.Connect("tcp:192.168.56.101:6640", nil)
 
 	if err != nil {
 		fmt.Println("Unable to Connect ", err)
@@ -141,7 +162,7 @@ func main() {
 	var notifier myNotifier
 	ovs.Register(notifier)
 
-	initial, _ := ovs.MonitorAll("Open_vSwitch", "")
+	initial, _ := ovs.MonitorAll(ovsDb, "")
 	populateCache(*initial)
 
 	fmt.Println(`Silly game of stopping this app when a Bridge with name "stop" is monitored !`)
