@@ -18,7 +18,7 @@ type DatabaseSchema struct {
 func (schema DatabaseSchema) GetColumn(tableName, columnName string) (*ColumnSchema, error) {
 	table, ok := schema.Tables[tableName]
 	if !ok {
-		return nil, fmt.Errorf("Table not found in schema %s", tableName)
+		return nil, fmt.Errorf("table not found in schema %s", tableName)
 	}
 	if columnName == "_uuid" {
 		return &ColumnSchema{
@@ -27,7 +27,7 @@ func (schema DatabaseSchema) GetColumn(tableName, columnName string) (*ColumnSch
 	}
 	column, ok := table.Columns[columnName]
 	if !ok {
-		return nil, fmt.Errorf("Column not found in schema %s", columnName)
+		return nil, fmt.Errorf("column not found in schema %s", columnName)
 	}
 	return column, nil
 }
@@ -209,7 +209,7 @@ func (column *ColumnSchema) String() string {
 		panic(fmt.Sprintf("Unsupported type %s", column.Type))
 	}
 
-	return fmt.Sprintf(strings.Join([]string{typeStr, flagStr}, " "))
+	return strings.Join([]string{typeStr, flagStr}, " ")
 }
 
 // UnmarshalJSON unmarshalls a json-formatted column
@@ -224,7 +224,7 @@ func (column *ColumnSchema) UnmarshalJSON(data []byte) error {
 
 	// Unmarshall known keys
 	if err := json.Unmarshal(data, &colJSON); err != nil {
-		return fmt.Errorf("Cannot parse column object %s", err)
+		return fmt.Errorf("cannot parse column object %s", err)
 	}
 
 	column.Ephemeral = colJSON.Ephemeral
@@ -234,7 +234,7 @@ func (column *ColumnSchema) UnmarshalJSON(data []byte) error {
 	var typeString string
 	if err := json.Unmarshal(colJSON.TypeRawMsg, &typeString); err == nil {
 		if !isAtomicType(typeString) {
-			return fmt.Errorf("Schema contains unknown atomic type %s", typeString)
+			return fmt.Errorf("schema contains unknown atomic type %s", typeString)
 		}
 		// This was an easy one. Use the string as our 'extended' type
 		column.Type = typeString
@@ -265,7 +265,7 @@ func (column *ColumnSchema) UnmarshalJSON(data []byte) error {
 	}
 
 	if err := json.Unmarshal(colJSON.TypeRawMsg, &colTypeJSON); err != nil {
-		return fmt.Errorf("Cannot parse type object: %s", err)
+		return fmt.Errorf("cannot parse type object: %s", err)
 	}
 
 	// Now we have to unmarshall some fields manually because they can store
@@ -283,10 +283,10 @@ func (column *ColumnSchema) UnmarshalJSON(data []byte) error {
 			if maxString == "unlimited" {
 				column.TypeObj.Max = Unlimited
 			} else {
-				return fmt.Errorf("Unknown max value %s", maxString)
+				return fmt.Errorf("unknown max value %s", maxString)
 			}
 		} else if err := json.Unmarshal(*colTypeJSON.MaxRawMsg, &column.TypeObj.Max); err != nil {
-			return fmt.Errorf("Cannot parse max field: %s", err)
+			return fmt.Errorf("cannot parse max field: %s", err)
 		}
 	}
 	column.TypeObj.Min = colTypeJSON.Min
@@ -297,7 +297,7 @@ func (column *ColumnSchema) UnmarshalJSON(data []byte) error {
 
 	if err := json.Unmarshal(*colTypeJSON.KeyRawMsg, &column.TypeObj.Key.Type); err != nil {
 		if err := json.Unmarshal(*colTypeJSON.KeyRawMsg, column.TypeObj.Key); err != nil {
-			return fmt.Errorf("Cannot parse key object: %s", err)
+			return fmt.Errorf("cannot parse key object: %s", err)
 		}
 		if err := column.TypeObj.Key.parseEnum(*colTypeJSON.KeyRawMsg); err != nil {
 			return err
@@ -305,7 +305,7 @@ func (column *ColumnSchema) UnmarshalJSON(data []byte) error {
 	}
 
 	if !isAtomicType(column.TypeObj.Key.Type) {
-		return fmt.Errorf("Schema contains unknown atomic type %s", column.TypeObj.Key.Type)
+		return fmt.Errorf("schema contains unknown atomic type %s", column.TypeObj.Key.Type)
 	}
 
 	// 'value' is optional. If it exists, we know the real native type is a map
@@ -313,14 +313,14 @@ func (column *ColumnSchema) UnmarshalJSON(data []byte) error {
 		column.TypeObj.Value = &BaseType{}
 		if err := json.Unmarshal(*colTypeJSON.ValueRawMsg, &column.TypeObj.Value.Type); err != nil {
 			if err := json.Unmarshal(*colTypeJSON.ValueRawMsg, &column.TypeObj.Value); err != nil {
-				return fmt.Errorf("Cannot parse value object: %s", err)
+				return fmt.Errorf("cannot parse value object: %s", err)
 			}
 			if err := column.TypeObj.Value.parseEnum(*colTypeJSON.ValueRawMsg); err != nil {
 				return err
 			}
 		}
 		if !isAtomicType(column.TypeObj.Value.Type) {
-			return fmt.Errorf("Schema contains unknown atomic type %s", column.TypeObj.Key.Type)
+			return fmt.Errorf("schema contains unknown atomic type %s", column.TypeObj.Key.Type)
 		}
 	}
 
@@ -346,7 +346,7 @@ func (bt *BaseType) parseEnum(rawData json.RawMessage) error {
 	var enumJSON EnumJSON
 
 	if err := json.Unmarshal(rawData, &enumJSON); err != nil {
-		return fmt.Errorf("Cannot parse enum object: %s (%s)", string(rawData), err)
+		return fmt.Errorf("cannot parse enum object: %s (%s)", string(rawData), err)
 	}
 	// enum is optional
 	if enumJSON.Enum == nil {

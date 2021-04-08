@@ -70,7 +70,7 @@ func (na NativeAPI) GetData(tableName string, ovsData map[string]interface{}) (m
 		}
 		nativeElem, err := OvsToNative(column, ovsElem)
 		if err != nil {
-			return nil, fmt.Errorf("Table %s, Column %s: Failed to extract native element: %s", tableName, name, err.Error())
+			return nil, fmt.Errorf("table %s, column %s: failed to extract native element: %s", tableName, name, err.Error())
 		}
 		nativeRow[name] = nativeElem
 	}
@@ -98,7 +98,7 @@ func (na NativeAPI) NewRow(tableName string, data interface{}) (map[string]inter
 		}
 		ovsElem, err := NativeToOvs(column, nativeElem)
 		if err != nil {
-			return nil, fmt.Errorf("Table %s, Column %s: Failed to generate OvS element. %s", tableName, name, err.Error())
+			return nil, fmt.Errorf("table %s, column %s: failed to generate ovs element. %s", tableName, name, err.Error())
 		}
 		ovsRow[name] = ovsElem
 	}

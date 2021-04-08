@@ -22,30 +22,26 @@ var cache map[string]map[string]libovsdb.Row
 
 func play(ovs *libovsdb.OvsdbClient) {
 	go processInput(ovs)
-	for {
-		select {
-		case currUpdate := <-update:
-			for table, tableUpdate := range currUpdate.Updates {
-				if table == bridgeTable {
-					for uuid, row := range tableUpdate.Rows {
-						rowData, err := ovs.Apis[ovsDb].GetRowData(bridgeTable, &row.New)
-						if err != nil {
-							fmt.Println("ERROR getting Bridge Data", err)
-						}
-						if _, ok := rowData["name"]; ok {
-							name := rowData["name"].(string)
-							if name == "stop" {
-								fmt.Println("Bridge stop detected : ", uuid)
-								ovs.Disconnect()
-								quit <- true
-							}
+	for currUpdate := range update {
+		for table, tableUpdate := range currUpdate.Updates {
+			if table == bridgeTable {
+				for uuid, row := range tableUpdate.Rows {
+					rowData, err := ovs.Apis[ovsDb].GetRowData(bridgeTable, &row.New)
+					if err != nil {
+						fmt.Println("ERROR getting Bridge Data", err)
+					}
+					if _, ok := rowData["name"]; ok {
+						name := rowData["name"].(string)
+						if name == "stop" {
+							fmt.Println("Bridge stop detected : ", uuid)
+							ovs.Disconnect()
+							quit <- true
 						}
 					}
 				}
 			}
 		}
 	}
-
 }
 
 func createBridge(ovs *libovsdb.OvsdbClient, bridgeName string) {

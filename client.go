@@ -3,7 +3,6 @@ package libovsdb
 import (
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -141,7 +140,7 @@ func getHandlerIndex(handler NotificationHandler, handlers []NotificationHandler
 			return i, nil
 		}
 	}
-	return -1, errors.New("Handler not found")
+	return -1, fmt.Errorf("handler not found")
 }
 
 // Unregister the supplied NotificationHandler to not recieve OVSDB Notifications anymore
@@ -192,13 +191,13 @@ func echo(client *rpc2.Client, args []interface{}, reply *[]interface{}) error {
 // Processing "params": [<json-value>, <table-updates>]
 func update(client *rpc2.Client, params []interface{}, _ *interface{}) error {
 	if len(params) < 2 {
-		return errors.New("Invalid Update message")
+		return fmt.Errorf("invalid update message")
 	}
 	// Ignore params[0] as we dont use the <json-value> currently for comparison
 
 	raw, ok := params[1].(map[string]interface{})
 	if !ok {
-		return errors.New("Invalid Update message")
+		return fmt.Errorf("invalid update message")
 	}
 	var rowUpdates map[string]map[string]RowUpdate
 
@@ -260,7 +259,7 @@ func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]Oper
 	}
 
 	if ok := db.validateOperations(operation...); !ok {
-		return nil, errors.New("Validation failed for the operation")
+		return nil, fmt.Errorf("validation failed for the operation")
 	}
 
 	args := NewTransactArgs(database, operation...)
@@ -355,10 +354,8 @@ func clearConnection(c *rpc2.Client) {
 
 func handleDisconnectNotification(c *rpc2.Client) {
 	disconnected := c.DisconnectNotify()
-	select {
-	case <-disconnected:
-		clearConnection(c)
-	}
+	<-disconnected
+	clearConnection(c)
 }
 
 // Disconnect will close the OVSDB connection

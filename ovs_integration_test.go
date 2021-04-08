@@ -150,6 +150,9 @@ func TestInsertTransact(t *testing.T) {
 	externalIds["go"] = "awesome"
 	externalIds["docker"] = "made-for-each-other"
 	oMap, err := NewOvsMap(externalIds)
+	if err != nil {
+		t.Fatal(err)
+	}
 	// bridge row to insert
 	bridge := make(map[string]interface{})
 	bridge["name"] = bridgeName
@@ -180,6 +183,9 @@ func TestInsertTransact(t *testing.T) {
 
 	operations := []Operation{insertOp, mutateOp}
 	reply, err := ovs.Transact("Open_vSwitch", operations...)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if len(reply) < len(operations) {
 		t.Error("Number of Replies should be atleast equal to number of Operations")
@@ -242,7 +248,9 @@ func TestDeleteTransact(t *testing.T) {
 
 	operations := []Operation{deleteOp, mutateOp}
 	reply, err := ovs.Transact("Open_vSwitch", operations...)
-
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(reply) < len(operations) {
 		t.Error("Number of Replies should be atleast equal to number of Operations")
 	}

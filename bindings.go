@@ -86,7 +86,7 @@ func nativeType(column *ColumnSchema) reflect.Type {
 		kType := nativeTypeFromBasic(column.TypeObj.Key.Type)
 		return reflect.SliceOf(kType)
 	default:
-		panic(fmt.Errorf("Unknown Extended type %s", column.Type))
+		panic(fmt.Errorf("unknown extended type %s", column.Type))
 	}
 }
 
@@ -112,9 +112,8 @@ func OvsToNative(column *ColumnSchema, ovsElem interface{}) (interface{}, error)
 		var nativeSet reflect.Value
 
 		// RFC says that for a set of exactly one, an atomic type an be sent
-		switch ovsElem.(type) {
+		switch ovsSet := ovsElem.(type) {
 		case OvsSet:
-			ovsSet := ovsElem.(OvsSet)
 			nativeSet = reflect.MakeSlice(naType, 0, len(ovsSet.GoSet))
 			for _, v := range ovsSet.GoSet {
 				vv, err := nativeValueOf(v, column.TypeObj.Key.Type)

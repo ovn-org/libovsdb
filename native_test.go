@@ -124,13 +124,13 @@ var testSchema = []byte(`{
 // Perform indirection of ovs fields to be compared
 // with the ones that wre used initially
 func expectedOvs(in interface{}) interface{} {
-	switch in.(type) {
+	switch i := in.(type) {
 	case *OvsSet:
-		return *(in.(*OvsSet))
+		return *i
 	case *OvsMap:
-		return *(in.(*OvsMap))
+		return *i
 	default:
-		return in
+		return i
 	}
 }
 func getNativeMap() map[string]interface{} {

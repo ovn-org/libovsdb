@@ -47,22 +47,6 @@ var (
 	aEmptySet = []string{}
 )
 
-func getColnames() []string {
-	return []string{
-		"aString",
-		"aSet",
-		"anotherSet",
-		"aUUIDSet",
-		"aIntSet",
-		"aFloat",
-		"aFloatSet",
-		"aMap",
-		"aUUID",
-		"aEmptySet",
-		"aEnum",
-	}
-}
-
 type Transformation map[string]interface{}
 
 func (t Transformation) String() string {

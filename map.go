@@ -2,7 +2,7 @@ package libovsdb
 
 import (
 	"encoding/json"
-	"errors"
+	"fmt"
 	"reflect"
 )
 
@@ -52,7 +52,7 @@ func (o *OvsMap) UnmarshalJSON(b []byte) (err error) {
 func NewOvsMap(goMap interface{}) (*OvsMap, error) {
 	v := reflect.ValueOf(goMap)
 	if v.Kind() != reflect.Map {
-		return nil, errors.New("OvsMap supports only Go Map types")
+		return nil, fmt.Errorf("OvsMap supports only Go Map types")
 	}
 
 	genMap := make(map[interface{}]interface{})

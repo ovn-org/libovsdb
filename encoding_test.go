@@ -85,11 +85,11 @@ var setTestList = []marshalSetTestTuple{
 		jsonExpectedOutput: `["named-uuid","aa"]`,
 	},
 	{
-		objInput:           []UUID{UUID{GoUUID: `aa`}},
+		objInput:           []UUID{{GoUUID: `aa`}},
 		jsonExpectedOutput: `["named-uuid","aa"]`,
 	},
 	{
-		objInput:           []UUID{UUID{GoUUID: `aa`}, UUID{GoUUID: `bb`}},
+		objInput:           []UUID{{GoUUID: `aa`}, {GoUUID: `bb`}},
 		jsonExpectedOutput: `["set",[["named-uuid","aa"],["named-uuid","bb"]]]`,
 	},
 	{
@@ -128,9 +128,8 @@ var mapTestList = []marshalMapsTestTuple{
 func setsAreEqual(t *testing.T, set1 *OvsSet, set2 *OvsSet) {
 	res1 := map[interface{}]bool{}
 	for _, elem := range set1.GoSet {
-		switch elem.(type) {
+		switch uuid := elem.(type) {
 		case UUID:
-			uuid := elem.(UUID)
 			res1[uuid.GoUUID] = true
 		default:
 			s := fmt.Sprintf("%v", elem)
@@ -140,9 +139,8 @@ func setsAreEqual(t *testing.T, set1 *OvsSet, set2 *OvsSet) {
 
 	res2 := map[interface{}]bool{}
 	for _, elem := range set2.GoSet {
-		switch elem.(type) {
+		switch uuid := elem.(type) {
 		case UUID:
-			uuid := elem.(UUID)
 			res2[uuid.GoUUID] = true
 		default:
 			s := fmt.Sprintf("%v", elem)
