@@ -5,7 +5,7 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/ebay/libovsdb"
+	"github.com/socketplane/libovsdb"
 )
 
 // Silly game that detects creation of Bridge named "stop" and exits
