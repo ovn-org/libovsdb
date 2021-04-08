@@ -10,7 +10,9 @@ services:
     cap_add:
       - NET_ADMIN
   test:
-    image: golang:1.13.8
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
     links:
       - ovs
     volumes: 
@@ -19,4 +21,4 @@ services:
     environment:
       DOCKER_IP: "ovs"
       OVS_DB: "tcp:ovs:6640"
-    command: "make test-local"
+    command: make test-local

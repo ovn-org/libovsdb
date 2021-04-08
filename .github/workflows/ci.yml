@@ -19,25 +19,25 @@ jobs:
 
     steps:
 
-    - name: Set up Go 1.14
+    - name: Set up Go 1.16
       uses: actions/setup-go@v1
       with:
-        go-version: 1.14
+        go-version: 1.16
       id: go
 
     - name: Check out code into the Go module directory
       uses: actions/checkout@v2
 
-    - name: Run golangci-lint
-      run: |
-        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.39.0
-        $(go env GOPATH)/bin/golangci-lint run
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v2
+      with:
+        version: v1.39
 
     - name: Build
       run: go build -v .
 
     - name: Test
-      run: go test -v -coverprofile=profile.cov ./...
+      run: go test -race -v -coverprofile=profile.cov ./...
       env:
         OVS_HOST: localhost
         OVS_PORT: ${{ job.services.openvswitch.ports[6640] }}
