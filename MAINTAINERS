@@ -10,8 +10,12 @@
 	[Org."Core maintainers"]
 		people = [
 			"dave-tucker",
+			"hzhou8"
+		]
+	[Org.Alumni]
+		people = [
 			"mavenugo",
-			"shaleman",
+			"shaleman"
 		]
 
 [people]
@@ -23,8 +27,12 @@
 	# ADD YOURSELF HERE IN ALPHABETICAL ORDER
 	[people.dave-tucker]
 	Name = "Dave Tucker"
-	Email = "dt@docker.com"
+	Email = "dave@dtucker.co.uk"
 	GitHub = "dave-tucker"
+
+	[people.hzhou8]
+	Name = "Han Zhou"
+	GitHub = "hzhou8"
 
 	[people.mavenugo]
 	Name = "Madhu Venugopal"
