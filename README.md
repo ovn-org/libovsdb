@@ -1,6 +1,7 @@
 libovsdb
 ========
-[![Travis-CI](https://travis-ci.org/eBay/libovsdb.svg?branch=master)](https://travis-ci.org/eBay/libovsdb)
+
+[![Coverage Status](https://coveralls.io/repos/socketplane/libovsdb/badge.png?branch=master)](https://coveralls.io/r/socketplane/libovsdb?branch=master)
 
 An OVSDB Library written in Go
 
