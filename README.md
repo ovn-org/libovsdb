@@ -1,7 +1,7 @@
 libovsdb
 ========
 
-[![Coverage Status](https://coveralls.io/repos/socketplane/libovsdb/badge.png?branch=master)](https://coveralls.io/r/socketplane/libovsdb?branch=master)
+[![libovsb-ci](https://github.com/socketplane/libovsdb/actions/workflows/ci.yml/badge.svg)](https://github.com/socketplane/libovsdb/actions/workflows/ci.yml) [![Coverage Status](https://coveralls.io/repos/socketplane/libovsdb/badge.png?branch=master)](https://coveralls.io/r/socketplane/libovsdb?branch=master)
 
 An OVSDB Library written in Go
 
