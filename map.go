@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 )
 
 // OvsMap is the JSON map structure used for OVSDB
@@ -22,7 +23,20 @@ func (o OvsMap) MarshalJSON() ([]byte, error) {
 	if len(o.GoMap) > 0 {
 		var ovsMap, innerMap []interface{}
 		ovsMap = append(ovsMap, "map")
-		for key, val := range o.GoMap {
+		// sort map keys in lexicographic order so we have a predictable output
+		// while the json rfc doesn't specify ordering, and the ovsdb rfc doesn't depend on it
+		// the golang json marshaller does indeed sort keys for map types, which makes them nicer to compare
+		mapKeys := make([]interface{}, 0, len(o.GoMap))
+		for k := range o.GoMap {
+			mapKeys = append(mapKeys, k)
+		}
+		sort.Slice(mapKeys, func(i, j int) bool {
+			val1 := fmt.Sprintf("%v", mapKeys[i])
+			val2 := fmt.Sprintf("%v", mapKeys[j])
+			return val1 < val2
+		})
+		for _, key := range mapKeys {
+			val := o.GoMap[key]
 			var mapSeg []interface{}
 			mapSeg = append(mapSeg, key)
 			mapSeg = append(mapSeg, val)
