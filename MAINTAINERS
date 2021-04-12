@@ -9,6 +9,7 @@
 [Org]
 	[Org."Core maintainers"]
 		people = [
+			"amorenoz",
 			"dave-tucker",
 			"hzhou8"
 		]
@@ -25,6 +26,10 @@
 # in the people section.
 
 	# ADD YOURSELF HERE IN ALPHABETICAL ORDER
+	[people.amorenoz]
+	Name = "Adrián Moreno"
+	GitHub = amorenoz
+
 	[people.dave-tucker]
 	Name = "Dave Tucker"
 	Email = "dave@dtucker.co.uk"
