@@ -2,18 +2,17 @@ version: "3"
 
 services:
   ovs:
-    image: socketplane/openvswitch:2.4.0
-    volumes:
-      - ./run:/usr/local/var/run/openvswitch
+    image: libovsdb/ovs:latest
     ports:
       - "6640/tcp"
     cap_add:
       - NET_ADMIN
+    tty: true
   test:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    links:
+    depends_on:
       - ovs
     volumes: 
       - .:/go/src/github.com/socketplane/libovsdb
