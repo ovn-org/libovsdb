@@ -1,4 +1,4 @@
-name: libovsb-ci
+name: libovsb-images
 
 on:
   push:
@@ -51,12 +51,11 @@ jobs:
         id: docker_build
         uses: docker/build-push-action@v2
         with:
-          context: ./ovs
-          file: ./Dockerfile
+          context: ovs
           builder: ${{ steps.buildx.outputs.name }}
           push: true
           build-args: OVS_VERSION=${{ matrix.image.ovs_version }}
-          tags: libovdb/ovs:${{ matrix.image.tag }}
+          tags: libovsdb/ovs:${{ matrix.image.tag }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
 
