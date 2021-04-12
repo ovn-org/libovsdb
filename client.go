@@ -2,16 +2,13 @@ package libovsdb
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"log"
 	"net"
+	"net/url"
 	"reflect"
+	"strings"
 	"sync"
-
-	"os"
 
 	"github.com/cenkalti/rpc2"
 	"github.com/cenkalti/rpc2/jsonrpc"
@@ -21,6 +18,7 @@ import (
 type OvsdbClient struct {
 	rpcClient     *rpc2.Client
 	Schema        map[string]DatabaseSchema
+	Apis          map[string]NativeAPI
 	handlers      []NotificationHandler
 	handlersMutex *sync.Mutex
 }
@@ -31,12 +29,6 @@ func newOvsdbClient(c *rpc2.Client) *OvsdbClient {
 		Schema:        make(map[string]DatabaseSchema),
 		handlersMutex: &sync.Mutex{},
 	}
-	connectionsMutex.Lock()
-	defer connectionsMutex.Unlock()
-	if connections == nil {
-		connections = make(map[*rpc2.Client]*OvsdbClient)
-	}
-	connections[c] = ovs
 	return ovs
 }
 
@@ -47,30 +39,58 @@ var (
 	connectionsMutex = &sync.RWMutex{}
 )
 
+// Constants defined for libovsdb
 const (
-	// DefaultAddress is the default IPV4 address that is used for a connection
-	DefaultAddress = "127.0.0.1"
-	// DefaultPort is the default port used for a connection
-	DefaultPort = 6640
-	// DefaultSocket is the default socket usef for a connection
-	DefaultSocket = "/var/run/openvswitch/db.sock"
+	defaultTCPAddress  = "127.0.0.1:6640"
+	defaultUnixAddress = "/var/run/openvswitch/ovnnb_db.sock"
+	SSL                = "ssl"
+	TCP                = "tcp"
+	UNIX               = "unix"
 )
 
-// ConnectUsingProtocol creates an OVSDB connection over tcp/unix and returns and OvsdbClient
-func ConnectUsingProtocol(protocol string, target string, config *tls.Config) (*OvsdbClient, error) {
-	var conn net.Conn
+// Connect to ovn, using endpoint in format ovsdb Connection Methods
+// If address is empty, use default address for specified protocol
+func Connect(endpoints string, tlsConfig *tls.Config) (*OvsdbClient, error) {
+	var c net.Conn
 	var err error
+	var u *url.URL
 
-	if config != nil {
-		conn, err = tls.Dial(protocol, target, config)
-	} else {
-		conn, err = net.Dial(protocol, target)
-	}
-	if err != nil {
-		return nil, err
+	for _, endpoint := range strings.Split(endpoints, ",") {
+		if u, err = url.Parse(endpoint); err != nil {
+			return nil, err
+		}
+		// u.Opaque contains the original endPoint with the leading protocol stripped
+		// off. For example: endPoint is "tcp:127.0.0.1:6640" and u.Opaque is "127.0.0.1:6640"
+		host := u.Opaque
+		if len(host) == 0 {
+			host = defaultTCPAddress
+		}
+		switch u.Scheme {
+		case UNIX:
+			path := u.Path
+			if len(path) == 0 {
+				path = defaultUnixAddress
+			}
+			c, err = net.Dial(u.Scheme, path)
+		case TCP:
+			c, err = net.Dial(u.Scheme, host)
+		case SSL:
+			c, err = tls.Dial("tcp", host, tlsConfig)
+		default:
+			err = fmt.Errorf("unknown network protocol %s", u.Scheme)
+		}
+
+		if err == nil {
+			return newRPC2Client(c)
+		}
 	}
 
+	return nil, fmt.Errorf("failed to connect to endpoints %q: %v", endpoints, err)
+}
+
+func newRPC2Client(conn net.Conn) (*OvsdbClient, error) {
 	c := rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
+	c.SetBlocking(true)
 	c.Handle("echo", echo)
 	c.Handle("update", update)
 	go c.Run()
@@ -80,71 +100,30 @@ func ConnectUsingProtocol(protocol string, target string, config *tls.Config) (*
 
 	// Process Async Notifications
 	dbs, err := ovs.ListDbs()
-	if err == nil {
-		for _, db := range dbs {
-			schema, err := ovs.GetSchema(db)
-			if err == nil {
-				ovs.Schema[db] = *schema
-			} else {
-				return nil, err
-			}
+	if err != nil {
+		c.Close()
+		return nil, err
+	}
+
+	ovs.Apis = make(map[string]NativeAPI)
+	for _, db := range dbs {
+		schema, err := ovs.GetSchema(db)
+		if err == nil {
+			ovs.Schema[db] = *schema
+			ovs.Apis[db] = NewNativeAPI(schema)
+		} else {
+			c.Close()
+			return nil, err
 		}
 	}
+
+	connectionsMutex.Lock()
+	defer connectionsMutex.Unlock()
+	if connections == nil {
+		connections = make(map[*rpc2.Client]*OvsdbClient)
+	}
+	connections[c] = ovs
 	return ovs, nil
-}
-
-// ConnectUsingSSL creates an OVSDB connection using SSL and returns and OvsdbClient
-func ConnectUsingSSL(protocol string, target string, insecure bool) (*OvsdbClient, error) {
-	cert, err := tls.LoadX509KeyPair(os.Getenv("CLIENT_CERT_CA_CERT"),
-		os.Getenv("CLIENT_PRIVKEY"))
-	if err != nil {
-		log.Fatalf("client: loadkeys: %s", err)
-		return nil, err
-	}
-	if len(cert.Certificate) != 2 {
-		log.Fatal("client.crt should have 2 concatenated certificates: client + CA")
-		return nil, err
-	}
-	ca, err := x509.ParseCertificate(cert.Certificate[1])
-	if err != nil {
-		log.Fatal(err)
-		return nil, err
-	}
-	certPool := x509.NewCertPool()
-	certPool.AddCert(ca)
-	config := tls.Config{
-		Certificates:       []tls.Certificate{cert},
-		RootCAs:            certPool,
-		InsecureSkipVerify: insecure,
-	}
-	return ConnectUsingProtocol("tcp", target, &config)
-}
-
-// Connect creates an OVSDB connection and returns and OvsdbClient
-func Connect(ipAddr string, port int) (*OvsdbClient, error) {
-	if ipAddr == "" {
-		ipAddr = DefaultAddress
-	}
-
-	if port <= 0 {
-		port = DefaultPort
-	}
-
-	target := fmt.Sprintf("%s:%d", ipAddr, port)
-	return ConnectUsingProtocol("tcp", target, nil)
-}
-
-// ConnectWithUnixSocket makes a OVSDB Connection via a Unix Socket
-func ConnectWithUnixSocket(socketFile string) (*OvsdbClient, error) {
-	if socketFile == "" {
-		socketFile = DefaultSocket
-	}
-
-	if _, err := os.Stat(socketFile); os.IsNotExist(err) {
-		return nil, errors.New("Invalid socket file")
-	}
-
-	return ConnectUsingProtocol("unix", socketFile, nil)
 }
 
 // Register registers the supplied NotificationHandler to recieve OVSDB Notifications
@@ -161,7 +140,7 @@ func getHandlerIndex(handler NotificationHandler, handlers []NotificationHandler
 			return i, nil
 		}
 	}
-	return -1, errors.New("Handler not found")
+	return -1, fmt.Errorf("handler not found")
 }
 
 // Unregister the supplied NotificationHandler to not recieve OVSDB Notifications anymore
@@ -210,15 +189,15 @@ func echo(client *rpc2.Client, args []interface{}, reply *[]interface{}) error {
 
 // RFC 7047 : Update Notification Section 4.1.6
 // Processing "params": [<json-value>, <table-updates>]
-func update(client *rpc2.Client, params []interface{}, reply *interface{}) error {
+func update(client *rpc2.Client, params []interface{}, _ *interface{}) error {
 	if len(params) < 2 {
-		return errors.New("Invalid Update message")
+		return fmt.Errorf("invalid update message")
 	}
 	// Ignore params[0] as we dont use the <json-value> currently for comparison
 
 	raw, ok := params[1].(map[string]interface{})
 	if !ok {
-		return errors.New("Invalid Update message")
+		return fmt.Errorf("invalid update message")
 	}
 	var rowUpdates map[string]map[string]RowUpdate
 
@@ -248,7 +227,7 @@ func update(client *rpc2.Client, params []interface{}, reply *interface{}) error
 
 // GetSchema returns the schema in use for the provided database name
 // RFC 7047 : get_schema
-func (ovs *OvsdbClient) GetSchema(dbName string) (*DatabaseSchema, error) {
+func (ovs OvsdbClient) GetSchema(dbName string) (*DatabaseSchema, error) {
 	args := NewGetSchemaArgs(dbName)
 	var reply DatabaseSchema
 	err := ovs.rpcClient.Call("get_schema", args, &reply)
@@ -261,26 +240,26 @@ func (ovs *OvsdbClient) GetSchema(dbName string) (*DatabaseSchema, error) {
 
 // ListDbs returns the list of databases on the server
 // RFC 7047 : list_dbs
-func (ovs *OvsdbClient) ListDbs() ([]string, error) {
+func (ovs OvsdbClient) ListDbs() ([]string, error) {
 	var dbs []string
 	err := ovs.rpcClient.Call("list_dbs", nil, &dbs)
 	if err != nil {
-		log.Fatal("ListDbs failure", err)
+		return nil, fmt.Errorf("ListDbs failure - %v", err)
 	}
 	return dbs, err
 }
 
 // Transact performs the provided Operation's on the database
 // RFC 7047 : transact
-func (ovs *OvsdbClient) Transact(database string, operation ...Operation) ([]OperationResult, error) {
+func (ovs OvsdbClient) Transact(database string, operation ...Operation) ([]OperationResult, error) {
 	var reply []OperationResult
 	db, ok := ovs.Schema[database]
 	if !ok {
-		return nil, errors.New("invalid Database Schema")
+		return nil, fmt.Errorf("invalid Database %q Schema", database)
 	}
 
 	if ok := db.validateOperations(operation...); !ok {
-		return nil, errors.New("Validation failed for the operation")
+		return nil, fmt.Errorf("validation failed for the operation")
 	}
 
 	args := NewTransactArgs(database, operation...)
@@ -292,10 +271,10 @@ func (ovs *OvsdbClient) Transact(database string, operation ...Operation) ([]Ope
 }
 
 // MonitorAll is a convenience method to monitor every table/column
-func (ovs *OvsdbClient) MonitorAll(database string, jsonContext interface{}) (*TableUpdates, error) {
+func (ovs OvsdbClient) MonitorAll(database string, jsonContext interface{}) (*TableUpdates, error) {
 	schema, ok := ovs.Schema[database]
 	if !ok {
-		return nil, errors.New("invalid Database Schema")
+		return nil, fmt.Errorf("invalid Database %q Schema", database)
 	}
 
 	requests := make(map[string]MonitorRequest)
@@ -318,7 +297,7 @@ func (ovs *OvsdbClient) MonitorAll(database string, jsonContext interface{}) (*T
 
 // MonitorCancel will request cancel a previously issued monitor request
 // RFC 7047 : monitor_cancel
-func (ovs OvsdbClient) MonitorCancel(database string, jsonContext interface{}) error {
+func (ovs OvsdbClient) MonitorCancel(jsonContext interface{}) error {
 	var reply OperationResult
 
 	args := NewMonitorCancelArgs(jsonContext)
@@ -335,7 +314,7 @@ func (ovs OvsdbClient) MonitorCancel(database string, jsonContext interface{}) e
 
 // Monitor will provide updates for a given table/column
 // RFC 7047 : monitor
-func (ovs *OvsdbClient) Monitor(database string, jsonContext interface{}, requests map[string]MonitorRequest) (*TableUpdates, error) {
+func (ovs OvsdbClient) Monitor(database string, jsonContext interface{}, requests map[string]MonitorRequest) (*TableUpdates, error) {
 	var reply TableUpdates
 
 	args := NewMonitorArgs(database, jsonContext, requests)
@@ -380,6 +359,6 @@ func handleDisconnectNotification(c *rpc2.Client) {
 }
 
 // Disconnect will close the OVSDB connection
-func (ovs *OvsdbClient) Disconnect() {
+func (ovs OvsdbClient) Disconnect() {
 	ovs.rpcClient.Close()
 }

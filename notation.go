@@ -81,9 +81,8 @@ type TableUpdate struct {
 
 // RowUpdate represents a row update according to RFC7047
 type RowUpdate struct {
-	UUID UUID `json:"-,omitempty"`
-	New  Row  `json:"new,omitempty"`
-	Old  Row  `json:"old,omitempty"`
+	New Row `json:"new,omitempty"`
+	Old Row `json:"old,omitempty"`
 }
 
 // OvsdbError is an OVS Error Condition
@@ -118,14 +117,15 @@ type OperationResult struct {
 }
 
 func ovsSliceToGoNotation(val interface{}) (interface{}, error) {
-	switch val := val.(type) {
+	switch sl := val.(type) {
 	case []interface{}:
-		bsliced, err := json.Marshal(val)
+		bsliced, err := json.Marshal(sl)
 		if err != nil {
 			return nil, err
 		}
-		switch val[0] {
-		case "uuid":
+
+		switch sl[0] {
+		case "uuid", "named-uuid":
 			var uuid UUID
 			err = json.Unmarshal(bsliced, &uuid)
 			return uuid, err

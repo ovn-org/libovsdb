@@ -9,3 +9,16 @@ services:
       - "6640/tcp"
     cap_add:
       - NET_ADMIN
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    links:
+      - ovs
+    volumes: 
+      - .:/go/src/github.com/socketplane/libovsdb
+    working_dir: /go/src/github.com/socketplane/libovsdb
+    environment:
+      DOCKER_IP: "ovs"
+      OVS_DB: "tcp:ovs:6640"
+    command: make test-local
