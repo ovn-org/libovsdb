@@ -18,10 +18,10 @@ type marshalMapsTestTuple struct {
 	jsonExpectedOutput string
 }
 
-var validUuidStr0 = `00000000-0000-0000-0000-000000000000`
-var validUuidStr1 = `11111111-1111-1111-1111-111111111111`
-var validUuid0 = UUID{GoUUID: validUuidStr0}
-var validUuid1 = UUID{GoUUID: validUuidStr1}
+var validUUIDStr0 = `00000000-0000-0000-0000-000000000000`
+var validUUIDStr1 = `11111111-1111-1111-1111-111111111111`
+var validUUID0 = UUID{GoUUID: validUUIDStr0}
+var validUUID1 = UUID{GoUUID: validUUIDStr1}
 
 var setTestList = []marshalSetTestTuple{
 	{
@@ -85,24 +85,24 @@ var setTestList = []marshalSetTestTuple{
 		jsonExpectedOutput: `["named-uuid","aa"]`,
 	},
 	{
-		objInput:           []UUID{UUID{GoUUID: `aa`}},
+		objInput:           []UUID{{GoUUID: `aa`}},
 		jsonExpectedOutput: `["named-uuid","aa"]`,
 	},
 	{
-		objInput:           []UUID{UUID{GoUUID: `aa`}, UUID{GoUUID: `bb`}},
+		objInput:           []UUID{{GoUUID: `aa`}, {GoUUID: `bb`}},
 		jsonExpectedOutput: `["set",[["named-uuid","aa"],["named-uuid","bb"]]]`,
 	},
 	{
-		objInput:           validUuid0,
-		jsonExpectedOutput: fmt.Sprintf(`["uuid","%v"]`, validUuidStr0),
+		objInput:           validUUID0,
+		jsonExpectedOutput: fmt.Sprintf(`["uuid","%v"]`, validUUIDStr0),
 	},
 	{
-		objInput:           []UUID{validUuid0},
-		jsonExpectedOutput: fmt.Sprintf(`["uuid","%v"]`, validUuidStr0),
+		objInput:           []UUID{validUUID0},
+		jsonExpectedOutput: fmt.Sprintf(`["uuid","%v"]`, validUUIDStr0),
 	},
 	{
-		objInput:           []UUID{validUuid0, validUuid1},
-		jsonExpectedOutput: fmt.Sprintf(`["set",[["uuid","%v"],["uuid","%v"]]]`, validUuidStr0, validUuidStr1),
+		objInput:           []UUID{validUUID0, validUUID1},
+		jsonExpectedOutput: fmt.Sprintf(`["set",[["uuid","%v"],["uuid","%v"]]]`, validUUIDStr0, validUUIDStr1),
 	},
 }
 
@@ -171,9 +171,17 @@ func TestMarshalMap(t *testing.T) {
 		assert.Nil(t, err)
 		jsonStr, err := json.Marshal(m)
 		assert.Nil(t, err)
-		assert.JSONEqf(t, e.jsonExpectedOutput, string(jsonStr), "they should be equal\n")
+		// Compare unmarshalled data since the order of the elements of the map might not
+		// have been preserved
+		var expectedSlice []interface{}
+		var jsonSlice []interface{}
+		err = json.Unmarshal([]byte(e.jsonExpectedOutput), &expectedSlice)
+		assert.Nil(t, err)
+		err = json.Unmarshal([]byte(jsonStr), &jsonSlice)
+		assert.Nil(t, err)
+		assert.Equal(t, expectedSlice[0], jsonSlice[0], "they should both start with 'map'")
+		assert.ElementsMatch(t, expectedSlice[1].([]interface{}), jsonSlice[1].([]interface{}), "they should have the same elements\n")
 	}
-
 }
 
 func TestUnmarshalSet(t *testing.T) {
