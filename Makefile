@@ -7,6 +7,7 @@ test-local: install-deps fmt lint
 	@go test -race -v ./...
 
 test:
+	@docker-compose pull
 	@docker-compose run --rm test
 
 install-deps:
