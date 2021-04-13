@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 
-	"github.com/ebay/libovsdb"
+	"github.com/socketplane/libovsdb"
 )
 
 func usage() {
