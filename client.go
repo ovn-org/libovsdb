@@ -22,6 +22,7 @@ type OvsdbClient struct {
 	handlersMutex *sync.Mutex
 	Cache         *TableCache
 	stopCh        chan struct{}
+	API           API
 }
 
 func newOvsdbClient() *OvsdbClient {
@@ -119,6 +120,7 @@ func newRPC2Client(conn net.Conn, database *DBModel) (*OvsdbClient, error) {
 		if cache, err := newTableCache(schema, database); err == nil {
 			ovs.Cache = cache
 			ovs.Register(ovs.Cache)
+			ovs.API = newAPI(ovs.Cache)
 		} else {
 			ovs.rpcClient.Close()
 			return nil, err
