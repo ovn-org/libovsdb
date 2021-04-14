@@ -5,6 +5,7 @@ all: test
 test-local: install-deps fmt lint
 	@echo "+ $@"
 	@go test -race -v ./...
+	@go test -run=XXX -bench=. -cpuprofile=bench.out
 
 test:
 	@docker-compose pull
