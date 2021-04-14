@@ -23,21 +23,13 @@ type OvsdbClient struct {
 	handlersMutex *sync.Mutex
 }
 
-func newOvsdbClient(c *rpc2.Client) *OvsdbClient {
+func newOvsdbClient() *OvsdbClient {
 	ovs := &OvsdbClient{
-		rpcClient:     c,
 		Schema:        make(map[string]DatabaseSchema),
 		handlersMutex: &sync.Mutex{},
 	}
 	return ovs
 }
-
-// Would rather replace this connection map with an OvsdbClient Receiver scoped method
-// Unfortunately rpc2 package acts wierd with a receiver scoped method and needs some investigation.
-var (
-	connections      map[*rpc2.Client]*OvsdbClient
-	connectionsMutex = &sync.RWMutex{}
-)
 
 // Constants defined for libovsdb
 const (
@@ -89,19 +81,22 @@ func Connect(endpoints string, tlsConfig *tls.Config) (*OvsdbClient, error) {
 }
 
 func newRPC2Client(conn net.Conn) (*OvsdbClient, error) {
-	c := rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
-	c.SetBlocking(true)
-	c.Handle("echo", echo)
-	c.Handle("update", update)
-	go c.Run()
-	go handleDisconnectNotification(c)
-
-	ovs := newOvsdbClient(c)
+	ovs := newOvsdbClient()
+	ovs.rpcClient = rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
+	ovs.rpcClient.SetBlocking(true)
+	ovs.rpcClient.Handle("echo", func(_ *rpc2.Client, args []interface{}, reply *[]interface{}) error {
+		return ovs.echo(args, reply)
+	})
+	ovs.rpcClient.Handle("update", func(_ *rpc2.Client, args []interface{}, _ *[]interface{}) error {
+		return ovs.update(args)
+	})
+	go ovs.rpcClient.Run()
+	go ovs.handleDisconnectNotification()
 
 	// Process Async Notifications
 	dbs, err := ovs.ListDbs()
 	if err != nil {
-		c.Close()
+		ovs.rpcClient.Close()
 		return nil, err
 	}
 
@@ -112,17 +107,10 @@ func newRPC2Client(conn net.Conn) (*OvsdbClient, error) {
 			ovs.Schema[db] = *schema
 			ovs.Apis[db] = NewNativeAPI(schema)
 		} else {
-			c.Close()
+			ovs.rpcClient.Close()
 			return nil, err
 		}
 	}
-
-	connectionsMutex.Lock()
-	defer connectionsMutex.Unlock()
-	if connections == nil {
-		connections = make(map[*rpc2.Client]*OvsdbClient)
-	}
-	connections[c] = ovs
 	return ovs, nil
 }
 
@@ -173,23 +161,19 @@ type NotificationHandler interface {
 }
 
 // RFC 7047 : Section 4.1.6 : Echo
-func echo(client *rpc2.Client, args []interface{}, reply *[]interface{}) error {
+func (ovs *OvsdbClient) echo(args []interface{}, reply *[]interface{}) error {
 	*reply = args
-	connectionsMutex.RLock()
-	defer connectionsMutex.RUnlock()
-	if _, ok := connections[client]; ok {
-		connections[client].handlersMutex.Lock()
-		defer connections[client].handlersMutex.Unlock()
-		for _, handler := range connections[client].handlers {
-			handler.Echo(nil)
-		}
+	ovs.handlersMutex.Lock()
+	defer ovs.handlersMutex.Unlock()
+	for _, handler := range ovs.handlers {
+		handler.Echo(nil)
 	}
 	return nil
 }
 
 // RFC 7047 : Update Notification Section 4.1.6
 // Processing "params": [<json-value>, <table-updates>]
-func update(client *rpc2.Client, params []interface{}, _ *interface{}) error {
+func (ovs *OvsdbClient) update(params []interface{}) error {
 	if len(params) < 2 {
 		return fmt.Errorf("invalid update message")
 	}
@@ -212,14 +196,10 @@ func update(client *rpc2.Client, params []interface{}, _ *interface{}) error {
 
 	// Update the local DB cache with the tableUpdates
 	tableUpdates := getTableUpdatesFromRawUnmarshal(rowUpdates)
-	connectionsMutex.RLock()
-	defer connectionsMutex.RUnlock()
-	if _, ok := connections[client]; ok {
-		connections[client].handlersMutex.Lock()
-		defer connections[client].handlersMutex.Unlock()
-		for _, handler := range connections[client].handlers {
-			handler.Update(params[0], tableUpdates)
-		}
+	ovs.handlersMutex.Lock()
+	defer ovs.handlersMutex.Unlock()
+	for _, handler := range ovs.handlers {
+		handler.Update(params[0], tableUpdates)
 	}
 
 	return nil
@@ -339,23 +319,18 @@ func getTableUpdatesFromRawUnmarshal(raw map[string]map[string]RowUpdate) TableU
 	return tableUpdates
 }
 
-func clearConnection(c *rpc2.Client) {
-	connectionsMutex.Lock()
-	defer connectionsMutex.Unlock()
-	if _, ok := connections[c]; ok {
-		for _, handler := range connections[c].handlers {
-			if handler != nil {
-				handler.Disconnected(connections[c])
-			}
+func (ovs *OvsdbClient) clearConnection() {
+	for _, handler := range ovs.handlers {
+		if handler != nil {
+			handler.Disconnected(ovs)
 		}
 	}
-	delete(connections, c)
 }
 
-func handleDisconnectNotification(c *rpc2.Client) {
-	disconnected := c.DisconnectNotify()
+func (ovs *OvsdbClient) handleDisconnectNotification() {
+	disconnected := ovs.rpcClient.DisconnectNotify()
 	<-disconnected
-	clearConnection(c)
+	ovs.clearConnection()
 }
 
 // Disconnect will close the OVSDB connection

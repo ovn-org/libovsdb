@@ -3,6 +3,7 @@ package libovsdb
 import (
 	"encoding/json"
 	"reflect"
+	"sync"
 	"testing"
 )
 
@@ -95,7 +96,11 @@ func TestNewLockArgs(t *testing.T) {
 func TestEcho(t *testing.T) {
 	req := []interface{}{"hi"}
 	var reply []interface{}
-	err := echo(nil, req, &reply)
+	ovs := OvsdbClient{
+		handlers:      []NotificationHandler{},
+		handlersMutex: &sync.Mutex{},
+	}
+	err := ovs.echo(req, &reply)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,16 +110,18 @@ func TestEcho(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
-	var reply interface{}
-
+	ovs := OvsdbClient{
+		handlers:      []NotificationHandler{},
+		handlersMutex: &sync.Mutex{},
+	}
 	// Update notification should fail for arrays of size < 2
-	err := update(nil, []interface{}{"hello"}, &reply)
+	err := ovs.update([]interface{}{"hello"})
 	if err == nil {
 		t.Error("Expected: error for a dummy request")
 	}
 
 	// Update notification should fail if arg[1] is not map[string]map[string]RowUpdate type
-	err = update(nil, []interface{}{"hello", "gophers"}, &reply)
+	err = ovs.update([]interface{}{"hello", "gophers"})
 	if err == nil {
 		t.Error("Expected: error for a dummy request")
 	}
@@ -125,7 +132,7 @@ func TestUpdate(t *testing.T) {
 	validRowUpdate["uuid"] = RowUpdate{}
 	validUpdate["table"] = validRowUpdate
 
-	err = update(nil, []interface{}{"hello", validUpdate}, &reply)
+	err = ovs.update([]interface{}{"hello", validUpdate})
 	if err != nil {
 		t.Error(err)
 	}
