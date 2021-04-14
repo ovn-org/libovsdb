@@ -12,18 +12,6 @@ var (
 	strType  = reflect.TypeOf("")
 )
 
-type Mutator string
-
-const (
-	MutateOperationDelete    Mutator = "delete"
-	MutateOperationInsert    Mutator = "insert"
-	MutateOperationAdd       Mutator = "+="
-	MutateOperationSubstract Mutator = "-="
-	MutateOperationMultiply  Mutator = "*="
-	MutateOperationDivide    Mutator = "/="
-	MutateOperationModulo    Mutator = "%="
-)
-
 // ErrWrongType describes typing error
 type ErrWrongType struct {
 	from     string

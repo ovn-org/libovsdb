@@ -8,6 +8,7 @@ import (
 
 const (
 	opInsert string = "insert"
+	opMutate string = "mutate"
 )
 
 // API defines basic operations to interact with the database
@@ -50,6 +51,33 @@ type ConditionalAPI interface {
 	// List uses the condition to search on the cache and populates
 	// the slice of Models objects based on their type
 	List(result interface{}) error
+
+	// Mutate returns the operations needed to perform the mutation specified
+	// By the model and the list of Mutation objects
+	// Depending on the Condition, it might return one or many operations
+	Mutate(Model, []Mutation) ([]Operation, error)
+}
+
+type Mutator string
+
+const (
+	MutateOperationDelete    Mutator = "delete"
+	MutateOperationInsert    Mutator = "insert"
+	MutateOperationAdd       Mutator = "+="
+	MutateOperationSubstract Mutator = "-="
+	MutateOperationMultiply  Mutator = "*="
+	MutateOperationDivide    Mutator = "/="
+	MutateOperationModulo    Mutator = "%="
+)
+
+// Mutation is a type that represents a OVSDB Mutation
+type Mutation struct {
+	// Pointer to the field of the model that shall be mutated
+	Field interface{}
+	// String representing the mutator (as per RFC7047)
+	Mutator Mutator
+	// Value to use in the mutation
+	Value interface{}
 }
 
 // InputTypeError is used to report the user provided parameter has the wrong type
@@ -253,6 +281,52 @@ func (a api) Create(model Model) (*Operation, error) {
 		UUIDName: namedUUID,
 	}
 	return &insertOp, nil
+}
+
+// Mutate returns the operations needed to transform the one Model into another one
+func (a api) Mutate(model Model, mutationObjs []Mutation) ([]Operation, error) {
+	var mutations []interface{}
+	var operations []Operation
+
+	tableName := a.cache.dbModel.FindTable(reflect.ValueOf(model).Type())
+	table := a.cache.orm.schema.Table(tableName)
+	if table == nil {
+		return nil, fmt.Errorf("Schema error: table not found in Database Model for type %s", reflect.TypeOf(model))
+	}
+
+	conditions, err := a.cond.Generate()
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := newORMInfo(table, model)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, mobj := range mutationObjs {
+		col, err := info.columnByPtr(mobj.Field)
+		if err != nil {
+			return nil, err
+		}
+
+		mutation, err := a.cache.orm.newMutation(tableName, model, col, mobj.Mutator, mobj.Value)
+		if err != nil {
+			return nil, err
+		}
+		mutations = append(mutations, mutation)
+	}
+
+	for _, condition := range conditions {
+		operations = append(operations,
+			Operation{
+				Op:        opMutate,
+				Table:     tableName,
+				Mutations: mutations,
+				Where:     condition,
+			})
+	}
+	return operations, nil
 }
 
 // getTableFromModel returns the table name from a Model object after performing
