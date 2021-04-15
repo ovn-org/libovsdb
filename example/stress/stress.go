@@ -9,7 +9,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 
-	"github.com/socketplane/libovsdb"
+	"github.com/ovn-org/libovsdb"
 )
 
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to this file")
