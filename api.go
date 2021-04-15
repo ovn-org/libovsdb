@@ -10,6 +10,7 @@ const (
 	opInsert string = "insert"
 	opMutate string = "mutate"
 	opUpdate string = "insert"
+	opDelete string = "delete"
 )
 
 // API defines basic operations to interact with the database
@@ -64,6 +65,9 @@ type ConditionalAPI interface {
 	// Optional fields can be passed (pointer to fields in the model) to select the
 	// the fields to be updated
 	Update(Model, ...interface{}) ([]Operation, error)
+
+	// Delete returns the Operations needed to delete the models seleted via the condition
+	Delete() ([]Operation, error)
 }
 
 type Mutator string
@@ -364,6 +368,25 @@ func (a api) Update(model Model, fields ...interface{}) ([]Operation, error) {
 			Where: condition,
 		})
 	}
+	return operations, nil
+}
+
+// Delete returns the Operation needed to delete the selected models from the database
+func (a api) Delete() ([]Operation, error) {
+	var operations []Operation
+	conditions, err := a.cond.Generate()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, condition := range conditions {
+		operations = append(operations, Operation{
+			Op:    opDelete,
+			Table: a.cond.Table(),
+			Where: condition,
+		})
+	}
+
 	return operations, nil
 }
 
