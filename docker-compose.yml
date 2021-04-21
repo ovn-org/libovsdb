@@ -20,4 +20,4 @@ services:
     environment:
       DOCKER_IP: "ovs"
       OVS_DB: "tcp:ovs:6640"
-    command: make test-local
+    command: make local integration-test-local
