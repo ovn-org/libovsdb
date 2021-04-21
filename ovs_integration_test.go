@@ -31,7 +31,10 @@ func SetConfig() {
 	}
 }
 
-func TestConnect(t *testing.T) {
+func TestConnectIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
 	SetConfig()
 	if testing.Short() {
 		t.Skip()
@@ -72,7 +75,10 @@ func TestConnect(t *testing.T) {
 	}
 }
 
-func TestListDbs(t *testing.T) {
+func TestListDbsIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
 	SetConfig()
 	if testing.Short() {
 		t.Skip()
@@ -104,7 +110,10 @@ func TestListDbs(t *testing.T) {
 	ovs.Disconnect()
 }
 
-func TestGetSchemas(t *testing.T) {
+func TestGetSchemasIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
 	SetConfig()
 	if testing.Short() {
 		t.Skip()
@@ -132,7 +141,10 @@ func TestGetSchemas(t *testing.T) {
 var bridgeName = "gopher-br7"
 var bridgeUUID string
 
-func TestInsertTransact(t *testing.T) {
+func TestInsertTransactIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
 	SetConfig()
 	if testing.Short() {
 		t.Skip()
@@ -207,7 +219,10 @@ func TestInsertTransact(t *testing.T) {
 	ovs.Disconnect()
 }
 
-func TestDeleteTransact(t *testing.T) {
+func TestDeleteTransactIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
 	SetConfig()
 
 	if testing.Short() {
@@ -270,7 +285,10 @@ func TestDeleteTransact(t *testing.T) {
 	ovs.Disconnect()
 }
 
-func TestMonitor(t *testing.T) {
+func TestMonitorIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
 	SetConfig()
 	if testing.Short() {
 		t.Skip()
@@ -289,7 +307,10 @@ func TestMonitor(t *testing.T) {
 	ovs.Disconnect()
 }
 
-func TestNotify(t *testing.T) {
+func TestNotifyIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
 	SetConfig()
 	if testing.Short() {
 		t.Skip()
@@ -320,7 +341,10 @@ func TestNotify(t *testing.T) {
 	ovs.Disconnect()
 }
 
-func TestRemoveNotify(t *testing.T) {
+func TestRemoveNotifyIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
 	SetConfig()
 	if testing.Short() {
 		t.Skip()
@@ -363,7 +387,10 @@ func (n Notifier) Echo([]interface{}) {
 func (n Notifier) Disconnected(*OvsdbClient) {
 }
 
-func TestDBSchemaValidation(t *testing.T) {
+func TestDBSchemaValidationIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
 	SetConfig()
 	if testing.Short() {
 		t.Skip()
@@ -391,7 +418,10 @@ func TestDBSchemaValidation(t *testing.T) {
 	ovs.Disconnect()
 }
 
-func TestTableSchemaValidation(t *testing.T) {
+func TestTableSchemaValidationIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
 	SetConfig()
 	if testing.Short() {
 		t.Skip()
@@ -419,7 +449,10 @@ func TestTableSchemaValidation(t *testing.T) {
 	ovs.Disconnect()
 }
 
-func TestColumnSchemaInRowValidation(t *testing.T) {
+func TestColumnSchemaInRowValidationIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
 	SetConfig()
 	if testing.Short() {
 		t.Skip()
@@ -449,7 +482,10 @@ func TestColumnSchemaInRowValidation(t *testing.T) {
 	ovs.Disconnect()
 }
 
-func TestColumnSchemaInMultipleRowsValidation(t *testing.T) {
+func TestColumnSchemaInMultipleRowsValidationIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
 	SetConfig()
 	if testing.Short() {
 		t.Skip()
@@ -484,7 +520,10 @@ func TestColumnSchemaInMultipleRowsValidation(t *testing.T) {
 	ovs.Disconnect()
 }
 
-func TestColumnSchemaValidation(t *testing.T) {
+func TestColumnSchemaValidationIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
 	SetConfig()
 	if testing.Short() {
 		t.Skip()
@@ -509,7 +548,10 @@ func TestColumnSchemaValidation(t *testing.T) {
 	ovs.Disconnect()
 }
 
-func TestMonitorCancel(t *testing.T) {
+func TestMonitorCancelIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
 	SetConfig()
 	if testing.Short() {
 		t.Skip()

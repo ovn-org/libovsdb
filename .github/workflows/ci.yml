@@ -7,26 +7,9 @@ on:
     branches: [ main ]
 
 jobs:
-
   build:
-    name: Build & Test
+    name: Build & Unit Test
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        ovs_version:
-          - latest
-          - 2.15.0
-          - 2.14.0
-          - 2.13.0
-
-    services:
-      ovs:
-        image: libovsdb/ovs:${{ matrix.ovs_version }}
-        options: --tty
-        ports:
-          - 6640:6640
-
     steps:
 
     - name: Set up Go 1.16
@@ -46,34 +29,99 @@ jobs:
       with:
         version: v1.39
 
+    - name: Check Formatting
+      run: make fmt
+
     - name: Build
-      run: go build -v .
+      run: make build-local
 
     - name: Test
-      run: go test -race -v -coverprofile=profile.cov ./...
+      run: make test-local
+
+    - name: Upload Unit Test Coverage
+      uses: actions/upload-artifact@v2
+      with:
+        path: unit.cov
+        name: unit.cov
+
+    - name: Benchmark
+      run: make bench-local
+
+    - name: Restore Latest Main Benchmark
+      id: old-benchmark
+      uses: actions/cache@v2
+      with:
+        path: bench-main.out
+        key: benchmark-main-${{ hashfiles('**/*.go') }}
+        restore-keys: |
+          benchmark-main-
+
+    - name: Compare Benchmarks
+      if: hashFiles('bench-main.out') != ''
+      run: benchstat bench-main.out bench.out
+
+    - name: Create New Main Benchmark On Cache Miss
+      if: steps.old-benchmark.outputs.cache-hit != 'true' && github.ref == 'refs/heads/main'
+      run: cp -f bench.out bench-main.out
+
+  test:
+    name: Integration Test
+    needs: build
+    strategy:
+      matrix:
+        ovs_version:
+          - latest
+          - 2.15.0
+          - 2.14.0
+          - 2.13.0
+
+    runs-on: ubuntu-latest
+    services:
+      ovs:
+        image: libovsdb/ovs:${{ matrix.ovs_version }}
+        options: --tty
+        ports:
+          - 6640:6640
+
+    steps:
+    - name: Set up Go 1.16
+      uses: actions/setup-go@v1
+      with:
+        go-version: 1.16
+      id: go
+
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v2
+
+    - name: Integration Test
+      run: make integration-test-local
       env:
         OVS_DB: tcp:127.0.0.1:6640
 
-    - name: Benchmark
-      run: go test -run=XXX -count 5 -bench=. | tee bench.out
-
-    - name: Download Artifacts
-      id: download
-      uses: actions/download-artifact@v2
-      continue-on-error: true
-      with:
-        name: bench.out
-        path: bench-old.out
-
-    - name: Archive Artifacts
+    - name: Upload Integration Test Coverage
       uses: actions/upload-artifact@v2
-      if: contains(github.ref, 'main')
       with:
-        path: bench.out
+        path: integration.cov
+        name: integration.cov
 
-    - name: Compare Benchmarks
-      if: steps.download.outputs.download-path != ''
-      run: benchstat bench-old.out bench.out
+  coverage:
+    name: Upload Coverage
+    needs: [build, test]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Set up Go 1.16
+      uses: actions/setup-go@v1
+      with:
+        go-version: 1.16
+      id: go
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v2
+
+    - name: Restore Coverage Files
+      uses: actions/download-artifact@v2
+
+    - name: Combine Reports
+      run: cat unit.cov/unit.cov <(tail -n +2 integration.cov/integration.cov) > profile.cov
 
     - name: Send coverage
       uses: shogo82148/actions-goveralls@v1
