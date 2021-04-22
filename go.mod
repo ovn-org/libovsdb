@@ -1,4 +1,4 @@
-module github.com/socketplane/libovsdb
+module github.com/ovn-org/libovsdb
 
 go 1.16
 

@@ -15,8 +15,8 @@ services:
     depends_on:
       - ovs
     volumes: 
-      - .:/go/src/github.com/socketplane/libovsdb
-    working_dir: /go/src/github.com/socketplane/libovsdb
+      - .:/go/src/github.com/ovn-org/libovsdb
+    working_dir: /go/src/github.com/ovn-org/libovsdb
     environment:
       DOCKER_IP: "ovs"
       OVS_DB: "tcp:ovs:6640"
