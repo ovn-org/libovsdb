@@ -6,9 +6,18 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/google/uuid"
 )
+
+var testUUIDs = []string{
+	"38d9fa08-8e97-4402-9347-a610773b91cb",
+	"aab50e87-1410-4c44-8c43-58aed178c833",
+	"445d365f-1e5b-44ee-86e7-41605858df83",
+	"a132ac6f-8b95-483b-8595-5453703e0617",
+	"5e617059-c157-47ff-a4ea-2bc3f163b198",
+	"faceebeb-4b52-4721-a879-c9f70e3f58a6",
+	"1ff23dbb-41d1-423f-acbc-94b06c508926",
+	"7e191fdb-228d-4bf3-9db4-883c8705ac7e",
+}
 
 func benchmarkSetMarshalJSON(s interface{}, b *testing.B) {
 	testSet, err := NewOvsSet(s)
@@ -64,18 +73,18 @@ func BenchmarkSetMarshalJSONFloat8(b *testing.B) {
 	benchmarkSetMarshalJSON([]int{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0}, b)
 }
 
-func BenchmarkSetMarshalJSONUUID1(b *testing.B) { benchmarkSetMarshalJSON(uuid.New(), b) }
+func BenchmarkSetMarshalJSONUUID1(b *testing.B) { benchmarkSetMarshalJSON(testUUIDs[0], b) }
 func BenchmarkSetMarshalJSONUUID2(b *testing.B) {
-	benchmarkSetMarshalJSON([]uuid.UUID{uuid.New(), uuid.New()}, b)
+	benchmarkSetMarshalJSON(testUUIDs[0:2], b)
 }
 func BenchmarkSetMarshalJSONUUID3(b *testing.B) {
-	benchmarkSetMarshalJSON([]uuid.UUID{uuid.New(), uuid.New(), uuid.New()}, b)
+	benchmarkSetMarshalJSON(testUUIDs[0:3], b)
 }
 func BenchmarkSetMarshalJSONUUID5(b *testing.B) {
-	benchmarkSetMarshalJSON([]uuid.UUID{uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()}, b)
+	benchmarkSetMarshalJSON(testUUIDs[0:5], b)
 }
 func BenchmarkSetMarshalJSONUUID8(b *testing.B) {
-	benchmarkSetMarshalJSON([]uuid.UUID{uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()}, b)
+	benchmarkSetMarshalJSON(testUUIDs, b)
 }
 
 func benchmarkSetUnmarshalJSON(data []byte, b *testing.B) {
@@ -137,19 +146,19 @@ func BenchmarkSetUnmarshalJSONFloat8(b *testing.B) {
 }
 
 func BenchmarkSetUnmarshalJSONUUID1(b *testing.B) {
-	benchmarkSetUnmarshalJSON([]byte(`"`+uuid.New().String()+`"`), b)
+	benchmarkSetUnmarshalJSON([]byte(`"`+testUUIDs[0]+`"`), b)
 }
 func BenchmarkSetUnmarshalJSONUUID2(b *testing.B) {
-	benchmarkSetUnmarshalJSON(setify([]uuid.UUID{uuid.New(), uuid.New()}), b)
+	benchmarkSetUnmarshalJSON(setify(testUUIDs[0:2]), b)
 }
 func BenchmarkSetUnmarshalJSONUUID3(b *testing.B) {
-	benchmarkSetUnmarshalJSON(setify([]uuid.UUID{uuid.New(), uuid.New(), uuid.New()}), b)
+	benchmarkSetUnmarshalJSON(setify(testUUIDs[0:3]), b)
 }
 func BenchmarkSetUnmarshalJSONUUID5(b *testing.B) {
-	benchmarkSetUnmarshalJSON(setify([]uuid.UUID{uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()}), b)
+	benchmarkSetUnmarshalJSON(setify(testUUIDs[0:5]), b)
 }
 func BenchmarkSetUnmarshalJSONUUID8(b *testing.B) {
-	benchmarkSetUnmarshalJSON(setify([]uuid.UUID{uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()}), b)
+	benchmarkSetUnmarshalJSON(setify(testUUIDs), b)
 }
 
 func setify(i interface{}) []byte {
