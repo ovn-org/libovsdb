@@ -37,7 +37,7 @@ var setTestList = []marshalSetTestTuple{
 		jsonExpectedOutput: `false`,
 	},
 	{
-		objInput:           10,
+		objInput:           float64(10),
 		jsonExpectedOutput: `10`,
 	},
 	{
@@ -59,18 +59,6 @@ var setTestList = []marshalSetTestTuple{
 	{
 		objInput:           [2]string{`aa`, `bb`},
 		jsonExpectedOutput: `["set",["aa","bb"]]`,
-	},
-	{
-		objInput:           []int{10, 15},
-		jsonExpectedOutput: `["set",[10,15]]`,
-	},
-	{
-		objInput:           []uint16{10, 15},
-		jsonExpectedOutput: `["set",[10,15]]`,
-	},
-	{
-		objInput:           []float32{10.2, 15.4},
-		jsonExpectedOutput: `["set",[10.2,15.4]]`,
 	},
 	{
 		objInput:           []float64{10.2, 15.4},
@@ -111,59 +99,17 @@ var mapTestList = []marshalMapsTestTuple{
 		objInput:           map[string]string{},
 		jsonExpectedOutput: `["map",[]]`,
 	},
-
 	{
 		objInput:           map[string]string{`v0`: `k0`},
 		jsonExpectedOutput: `["map",[["v0","k0"]]]`,
 	},
-
 	{
 		objInput:           map[string]string{`v0`: `k0`, `v1`: `k1`},
 		jsonExpectedOutput: `["map",[["v0","k0"],["v1","k1"]]]`,
 	},
 }
 
-// Json array is not order sensitive, but Golang set is, so we have to compare teh sets independently to the order of
-// its elements
-func setsAreEqual(t *testing.T, set1 *OvsSet, set2 *OvsSet) {
-	res1 := map[interface{}]bool{}
-	for _, elem := range set1.GoSet {
-		switch uuid := elem.(type) {
-		case UUID:
-			res1[uuid.GoUUID] = true
-		default:
-			s := fmt.Sprintf("%v", elem)
-			res1[s] = true
-		}
-	}
-
-	res2 := map[interface{}]bool{}
-	for _, elem := range set2.GoSet {
-		switch uuid := elem.(type) {
-		case UUID:
-			res2[uuid.GoUUID] = true
-		default:
-			s := fmt.Sprintf("%v", elem)
-			res2[s] = true
-		}
-	}
-	assert.Equal(t, res1, res2, "they should be equal\n")
-}
-
-func TestMarshalSet(t *testing.T) {
-
-	for _, e := range setTestList {
-		set, err := NewOvsSet(e.objInput)
-		assert.Nil(t, err)
-		jsonStr, err := json.Marshal(set)
-		assert.Nil(t, err)
-		assert.JSONEqf(t, e.jsonExpectedOutput, string(jsonStr), "they should be equal\n")
-	}
-
-}
-
-func TestMarshalMap(t *testing.T) {
-
+func TestMap(t *testing.T) {
 	for _, e := range mapTestList {
 		m, err := NewOvsMap(e.objInput)
 		assert.Nil(t, err)
@@ -175,38 +121,29 @@ func TestMarshalMap(t *testing.T) {
 		var jsonSlice []interface{}
 		err = json.Unmarshal([]byte(e.jsonExpectedOutput), &expectedSlice)
 		assert.Nil(t, err)
-		err = json.Unmarshal([]byte(jsonStr), &jsonSlice)
+		err = json.Unmarshal(jsonStr, &jsonSlice)
 		assert.Nil(t, err)
 		assert.Equal(t, expectedSlice[0], jsonSlice[0], "they should both start with 'map'")
 		assert.ElementsMatch(t, expectedSlice[1].([]interface{}), jsonSlice[1].([]interface{}), "they should have the same elements\n")
+
+		var res OvsMap
+		err = json.Unmarshal(jsonStr, &res)
+		assert.Nil(t, err)
+		assert.Equal(t, *m, res, "they should be equal\n")
 	}
 }
 
-func TestUnmarshalSet(t *testing.T) {
-
+func TestSet(t *testing.T) {
 	for _, e := range setTestList {
 		set, err := NewOvsSet(e.objInput)
 		assert.Nil(t, err)
 		jsonStr, err := json.Marshal(set)
 		assert.Nil(t, err)
+		assert.JSONEqf(t, e.jsonExpectedOutput, string(jsonStr), "they should be equal\n")
+
 		var res OvsSet
 		err = json.Unmarshal(jsonStr, &res)
 		assert.Nil(t, err)
-		setsAreEqual(t, set, &res)
-	}
-
-}
-
-func TestUnmarshalMap(t *testing.T) {
-
-	for _, e := range mapTestList {
-		m, err := NewOvsMap(e.objInput)
-		assert.Nil(t, err)
-		jsonStr, err := json.Marshal(m)
-		assert.Nil(t, err)
-		var res OvsMap
-		err = json.Unmarshal(jsonStr, &res)
-		assert.Nil(t, err)
-		assert.Equal(t, *m, res, "they should be equal\n")
+		assert.Equal(t, set.GoSet, res.GoSet, "they should have the same elements\n")
 	}
 }
