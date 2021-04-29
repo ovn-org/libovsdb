@@ -152,7 +152,7 @@ func (a api) ConditionFromFunc(predicate interface{}) Condition {
 		return newErrorCondition(err)
 	}
 
-	condition, err := newPredicateCond(table, predicate)
+	condition, err := newPredicateCond(table, a.cache, predicate)
 	if err != nil {
 		return newErrorCondition(err)
 	}
