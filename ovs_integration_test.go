@@ -12,6 +12,7 @@ import (
 const (
 	defOvsRunDir = "/var/run/openvswitch"
 	defOvsSocket = "db.sock"
+	defDB        = "Open_vSwitch"
 )
 
 var cfg *Config
@@ -49,14 +50,14 @@ func TestConnectIntegration(t *testing.T) {
 	go func() {
 		// Use Convenience params. Ignore failure even if any
 
-		_, err := Connect(cfg.Addr, nil)
+		_, err := Connect(cfg.Addr, defDB, nil)
 		if err != nil {
 			log.Println("Couldnt establish OVSDB connection with Defult params. No big deal")
 		}
 	}()
 
 	go func() {
-		ovs, err := Connect(cfg.Addr, nil)
+		ovs, err := Connect(cfg.Addr, defDB, nil)
 		if err != nil {
 			connected <- false
 		} else {
@@ -84,7 +85,7 @@ func TestListDbsIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -106,7 +107,7 @@ func TestListDbsIntegration(t *testing.T) {
 		t.Error("Expected: 'Open_vSwitch'", reply)
 	}
 	var b bytes.Buffer
-	ovs.Schema[reply[0]].Print(&b)
+	ovs.Schema.Print(&b)
 	ovs.Disconnect()
 }
 
@@ -119,7 +120,7 @@ func TestGetSchemasIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -150,7 +151,7 @@ func TestInsertTransactIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -194,7 +195,7 @@ func TestInsertTransactIntegration(t *testing.T) {
 	}
 
 	operations := []Operation{insertOp, mutateOp}
-	reply, err := ovs.Transact("Open_vSwitch", operations...)
+	reply, err := ovs.Transact(operations...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,7 +234,7 @@ func TestDeleteTransactIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -262,10 +263,11 @@ func TestDeleteTransactIntegration(t *testing.T) {
 	}
 
 	operations := []Operation{deleteOp, mutateOp}
-	reply, err := ovs.Transact("Open_vSwitch", operations...)
+	reply, err := ovs.Transact(operations...)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if len(reply) < len(operations) {
 		t.Error("Number of Replies should be atleast equal to number of Operations")
 	}
@@ -294,15 +296,14 @@ func TestMonitorIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
 
-	reply, err := ovs.MonitorAll("Open_vSwitch", nil)
-
-	if reply == nil || err != nil {
-		t.Error("Monitor operation failed with reply=", reply, " and error=", err)
+	err = ovs.MonitorAll(nil)
+	if err != nil {
+		t.Fatal(err)
 	}
 	ovs.Disconnect()
 }
@@ -316,7 +317,7 @@ func TestNotifyIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -350,7 +351,7 @@ func TestRemoveNotifyIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -384,38 +385,7 @@ func (n Notifier) Stolen([]interface{}) {
 func (n Notifier) Echo([]interface{}) {
 	n.echoChan <- true
 }
-func (n Notifier) Disconnected(*OvsdbClient) {
-}
-
-func TestDBSchemaValidationIntegration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test")
-	}
-	SetConfig()
-	if testing.Short() {
-		t.Skip()
-	}
-
-	ovs, err := Connect(cfg.Addr, nil)
-	if err != nil {
-		t.Fatalf("Failed to Connect. error: %s", err)
-	}
-
-	bridge := make(map[string]interface{})
-	bridge["name"] = "docker-ovs"
-
-	operation := Operation{
-		Op:    "insert",
-		Table: "Bridge",
-		Row:   bridge,
-	}
-
-	_, err = ovs.Transact("Invalid_DB", operation)
-	if err == nil {
-		t.Error("Invalid DB operation Validation failed")
-	}
-
-	ovs.Disconnect()
+func (n Notifier) Disconnected() {
 }
 
 func TestTableSchemaValidationIntegration(t *testing.T) {
@@ -427,7 +397,7 @@ func TestTableSchemaValidationIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -440,7 +410,7 @@ func TestTableSchemaValidationIntegration(t *testing.T) {
 		Table: "InvalidTable",
 		Row:   bridge,
 	}
-	_, err = ovs.Transact("Open_vSwitch", operation)
+	_, err = ovs.Transact(operation)
 
 	if err == nil {
 		t.Error("Invalid Table Name Validation failed")
@@ -458,7 +428,7 @@ func TestColumnSchemaInRowValidationIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -473,7 +443,7 @@ func TestColumnSchemaInRowValidationIntegration(t *testing.T) {
 		Row:   bridge,
 	}
 
-	_, err = ovs.Transact("Open_vSwitch", operation)
+	_, err = ovs.Transact(operation)
 
 	if err == nil {
 		t.Error("Invalid Column Name Validation failed")
@@ -491,7 +461,7 @@ func TestColumnSchemaInMultipleRowsValidationIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -511,7 +481,7 @@ func TestColumnSchemaInMultipleRowsValidationIntegration(t *testing.T) {
 		Table: "Bridge",
 		Rows:  rows,
 	}
-	_, err = ovs.Transact("Open_vSwitch", operation)
+	_, err = ovs.Transact(operation)
 
 	if err == nil {
 		t.Error("Invalid Column Name Validation failed")
@@ -529,7 +499,7 @@ func TestColumnSchemaValidationIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -539,7 +509,7 @@ func TestColumnSchemaValidationIntegration(t *testing.T) {
 		Table:   "Bridge",
 		Columns: []string{"name", "invalidColumn"},
 	}
-	_, err = ovs.Transact("Open_vSwitch", operation)
+	_, err = ovs.Transact(operation)
 
 	if err == nil {
 		t.Error("Invalid Column Name Validation failed")
@@ -557,7 +527,7 @@ func TestMonitorCancelIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, nil)
+	ovs, err := Connect(cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -574,7 +544,10 @@ func TestMonitorCancelIntegration(t *testing.T) {
 			Modify:  true,
 		}}
 
-	_, _ = ovs.Monitor("Open_vSwitch", monitorID, requests)
+	err = ovs.Monitor(monitorID, requests)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	err = ovs.MonitorCancel(monitorID)
 

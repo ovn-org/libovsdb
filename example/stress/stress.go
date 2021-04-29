@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"reflect"
 	"runtime"
 	"runtime/pprof"
 
@@ -20,56 +19,44 @@ var verbose = flag.Bool("verbose", false, "Be verbose")
 var connection = flag.String("ovsdb", "unix:/var/run/openvswitch/db.sock", "OVSDB connection string")
 
 var (
-	cache    map[string]map[string]interface{}
-	rootUUID string
-	summary  = map[string]int{
-		"deletions":  0,
-		"insertions": 0,
-		"listings":   0,
-	}
+	rootUUID   string
+	insertions int
+	deletions  int
 )
 
-func list() {
-	ovs, err := libovsdb.Connect(*connection, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-	final, err := ovs.MonitorAll("Open_vSwitch", "")
-	if err != nil {
-		log.Fatal(err)
-	}
-	populateCache(ovs, *final)
-}
 func run() {
-	ovs, err := libovsdb.Connect(*connection, nil)
+	ovs, err := libovsdb.Connect(*connection, "Open_vSwitch", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
-	initial, _ := ovs.MonitorAll("Open_vSwitch", "")
-	if *verbose {
-		fmt.Printf("initial : %v\n\n", initial)
+	defer ovs.Disconnect()
+	ovs.Cache.AddEventHandler(
+		&libovsdb.EventHandlerFuncs{
+			AddFunc: func(table string, row libovsdb.Row) {
+				insertions++
+			},
+			DeleteFunc: func(table string, row libovsdb.Row) {
+				deletions++
+			},
+		},
+	)
+
+	if err := ovs.MonitorAll(""); err != nil {
+		log.Fatal(err)
 	}
 
 	// Get root UUID
-OUTER:
-	for table, update := range initial.Updates {
-		if table == "Open_vSwitch" {
-			for uuid := range update.Rows {
-				rootUUID = uuid
-				if *verbose {
-					fmt.Printf("rootUUID is %v", rootUUID)
-				}
-				break OUTER
-			}
+	for _, uuid := range ovs.Cache.Table("Open_vSwitch").Rows() {
+		rootUUID = uuid
+		if *verbose {
+			fmt.Printf("rootUUID is %v", rootUUID)
 		}
 	}
 
 	// Remove all existing bridges
-	for table, update := range initial.Updates {
-		if table == "Bridge" {
-			for uuid := range update.Rows {
-				deleteBridge(ovs, uuid)
-			}
+	if ovs.Cache.Table("Bridge") != nil {
+		for _, uuid := range ovs.Cache.Table("Bridge").Rows() {
+			deleteBridge(ovs, uuid)
 		}
 	}
 
@@ -79,7 +66,7 @@ OUTER:
 }
 
 func transact(ovs *libovsdb.OvsdbClient, operations []libovsdb.Operation) (ok bool, uuid string) {
-	reply, _ := ovs.Transact("Open_vSwitch", operations...)
+	reply, _ := ovs.Transact(operations...)
 
 	if len(reply) < len(operations) {
 		fmt.Println("Number of Replies should be atleast equal to number of Operations")
@@ -98,34 +85,6 @@ func transact(ovs *libovsdb.OvsdbClient, operations []libovsdb.Operation) (ok bo
 	return
 }
 
-func populateCache(ovs *libovsdb.OvsdbClient, updates libovsdb.TableUpdates) {
-	cache = make(map[string]map[string]interface{})
-	for table, tableUpdate := range updates.Updates {
-		if _, ok := cache[table]; !ok {
-			cache[table] = make(map[string]interface{})
-		}
-		for uuid, row := range tableUpdate.Rows {
-			empty := libovsdb.Row{}
-			if !reflect.DeepEqual(row.New, empty) {
-				if *api == "native" {
-					rowData, err := ovs.Apis["Open_vSwitch"].GetRowData(table, &row.New)
-					if err != nil {
-						log.Fatal(err)
-					}
-
-					cache[table][uuid] = rowData
-
-				} else {
-					cache[table][uuid] = row.New
-				}
-				summary["listings"]++
-			} else {
-				delete(cache[table], uuid)
-			}
-		}
-	}
-}
-
 func deleteBridge(ovs *libovsdb.OvsdbClient, uuid string) {
 	var err error
 	var mutation []interface{}
@@ -133,15 +92,15 @@ func deleteBridge(ovs *libovsdb.OvsdbClient, uuid string) {
 	var mutCondition []interface{}
 
 	if *api == "native" {
-		delCondition, err = ovs.Apis["Open_vSwitch"].NewCondition("Bridge", "_uuid", "==", uuid)
+		delCondition, err = ovs.API.NewCondition("Bridge", "_uuid", "==", uuid)
 		if err != nil {
 			log.Fatal(err)
 		}
-		mutation, err = ovs.Apis["Open_vSwitch"].NewMutation("Open_vSwitch", "bridges", "delete", []string{uuid})
+		mutation, err = ovs.API.NewMutation("Open_vSwitch", "bridges", "delete", []string{uuid})
 		if err != nil {
 			log.Fatal(err)
 		}
-		mutCondition, err = ovs.Apis["Open_vSwitch"].NewMutation("Open_vSwitch", "_uuid", "==", rootUUID)
+		mutCondition, err = ovs.API.NewMutation("Open_vSwitch", "_uuid", "==", rootUUID)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -170,7 +129,6 @@ func deleteBridge(ovs *libovsdb.OvsdbClient, uuid string) {
 	operations := []libovsdb.Operation{deleteOp, mutateOp}
 	ok, _ := transact(ovs, operations)
 	if ok {
-		summary["deletions"]++
 		if *verbose {
 			fmt.Println("Bridge Deletion Successful : ", uuid)
 		}
@@ -198,7 +156,7 @@ func createBridge(ovs *libovsdb.OvsdbClient, iter int) {
 		bridge["datapath_id"] = datapathID
 		nbridge["external_ids"] = externalIds
 
-		bridge, err = ovs.Apis["Open_vSwitch"].NewRow("Bridge", nbridge)
+		bridge, err = ovs.API.NewRow("Bridge", nbridge)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -234,11 +192,11 @@ func createBridge(ovs *libovsdb.OvsdbClient, iter int) {
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
 	if *api == "native" {
 		// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
-		mutation, err = ovs.Apis["Open_vSwitch"].NewMutation("Open_vSwitch", "bridges", "insert", []string{namedUUID})
+		mutation, err = ovs.API.NewMutation("Open_vSwitch", "bridges", "insert", []string{namedUUID})
 		if err != nil {
 			log.Fatalf("Mutation Error: %s", err.Error())
 		}
-		condition, err = ovs.Apis["Open_vSwitch"].NewCondition("Open_vSwitch", "_uuid", "==", rootUUID)
+		condition, err = ovs.API.NewCondition("Open_vSwitch", "_uuid", "==", rootUUID)
 		if err != nil {
 			log.Fatalf("Condition Error: %s", err.Error())
 		}
@@ -261,7 +219,6 @@ func createBridge(ovs *libovsdb.OvsdbClient, iter int) {
 	operations := []libovsdb.Operation{insertOp, mutateOp}
 	ok, uuid := transact(ovs, operations)
 	if ok {
-		summary["insertions"]++
 		if *verbose {
 			fmt.Println("Bridge Addition Successful : ", uuid)
 		}
@@ -281,12 +238,10 @@ func main() {
 	}
 
 	run()
-	list()
 
 	fmt.Printf("Summary:\n")
-	fmt.Printf("\tInsertions: %d\n", summary["insertions"])
-	fmt.Printf("\tDeletions: %d\n", summary["deletions"])
-	fmt.Printf("\tLintings: %d\n", summary["listings"])
+	fmt.Printf("\tInsertions: %d\n", insertions)
+	fmt.Printf("\tDeletions: %d\n", deletions)
 
 	if *memprofile != "" {
 		f, err := os.Create(*memprofile)
