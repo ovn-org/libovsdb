@@ -2,6 +2,7 @@ package ovsdb
 
 import (
 	"encoding/json"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
@@ -53,12 +54,11 @@ func TestNewMonitorArgs(t *testing.T) {
 	value := 1
 	r := MonitorRequest{
 		Columns: []string{"name", "ports", "external_ids"},
-		Select: MonitorSelect{
-			Initial: true,
-			Insert:  true,
-			Delete:  true,
-			Modify:  true,
-		},
+		Select: &MonitorSelect{
+			Initial: NewMonitorSelectValue(true),
+			Insert:  NewMonitorSelectValue(true),
+			Delete:  NewMonitorSelectValue(true),
+			Modify:  NewMonitorSelectValue(true)},
 	}
 	requests := make(map[string]MonitorRequest)
 	requests["Bridge"] = r
@@ -66,9 +66,7 @@ func TestNewMonitorArgs(t *testing.T) {
 	args := NewMonitorArgs(database, value, requests)
 	argString, _ := json.Marshal(args)
 	expected := `["Open_vSwitch",1,{"Bridge":{"columns":["name","ports","external_ids"],"select":{"initial":true,"insert":true,"delete":true,"modify":true}}}]`
-	if string(argString) != expected {
-		t.Error("Expected: ", expected, " Got: ", string(argString))
-	}
+	assert.JSONEqf(t, expected, string(argString), "they should be equal\n")
 }
 
 func TestNewMonitorCancelArgs(t *testing.T) {

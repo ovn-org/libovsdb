@@ -2,6 +2,7 @@ package ovsdb
 
 import (
 	"encoding/json"
+	"github.com/stretchr/testify/assert"
 	"log"
 	"testing"
 )
@@ -163,4 +164,18 @@ func TestNewMutation(t *testing.T) {
 	if string(mutationStr) != expected {
 		t.Error("mutation is not correctly formatted")
 	}
+}
+
+func TestSelectSerialization(t *testing.T) {
+	monitorSelect := MonitorSelect{Initial: NewMonitorSelectValue(true), Delete: NewMonitorSelectValue(false)}
+	jsonSelect, err := json.Marshal(monitorSelect)
+	assert.Nil(t, err)
+	expected := `{"delete":false,"initial":true}`
+	assert.JSONEqf(t, expected, string(jsonSelect), "they should be equal\n")
+
+	var mSelect MonitorSelect
+	err = json.Unmarshal(jsonSelect, &mSelect)
+	assert.Nil(t, err)
+	assert.Equal(t, monitorSelect, mSelect, "they should be equal\n")
+
 }

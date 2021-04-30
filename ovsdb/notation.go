@@ -1,6 +1,9 @@
 package ovsdb
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // Operation represents an operation according to RFC7047 section 5.2
 type Operation struct {
@@ -53,16 +56,75 @@ type MonitorRequests struct {
 
 // MonitorRequest represents a monitor request according to RFC7047
 type MonitorRequest struct {
-	Columns []string      `json:"columns,omitempty"`
-	Select  MonitorSelect `json:"select,omitempty"`
+	Columns []string       `json:"columns,omitempty"`
+	Select  *MonitorSelect `json:"select,omitempty"`
 }
 
 // MonitorSelect represents a monitor select according to RFC7047
+// We use pointers in order to separate cases, when filed is not set or set to false.
 type MonitorSelect struct {
-	Initial bool `json:"initial,omitempty"`
-	Insert  bool `json:"insert,omitempty"`
-	Delete  bool `json:"delete,omitempty"`
-	Modify  bool `json:"modify,omitempty"`
+	Initial MonitorSelectValue `json:"initial,omitempty"`
+	Insert  MonitorSelectValue `json:"insert,omitempty"`
+	Delete  MonitorSelectValue `json:"delete,omitempty"`
+	Modify  MonitorSelectValue `json:"modify,omitempty"`
+}
+
+func (m MonitorSelect) MarshalJSON() ([]byte, error) {
+	val := map[string]interface{}{}
+	if m.Initial.IsSet() {
+		val["initial"] = m.Initial
+	}
+	if m.Insert.IsSet() {
+		val["insert"] = m.Insert
+	}
+	if m.Delete.IsSet() {
+		val["delete"] = m.Delete
+	}
+	if m.Modify.IsSet() {
+		val["modify"] = m.Modify
+	}
+	return json.Marshal(val)
+}
+
+type MonitorSelectValue struct {
+	value *bool `json:"-"`
+}
+
+// Helper function to check that a MonitorSelectValue is not set or it is true
+// According to RFC7047, if field is unset, it equals to true.
+func (m *MonitorSelectValue) IsTrue() bool {
+	return m.value == nil || *m.value
+}
+
+func (m *MonitorSelectValue) IsSet() bool {
+	return m.value != nil
+}
+
+func (m MonitorSelectValue) String() string {
+	if m.value == nil {
+		return "nil"
+	}
+	return fmt.Sprintf("%v", *m.value)
+}
+
+func (m MonitorSelectValue) MarshalJSON() ([]byte, error) {
+	return json.Marshal(m.value)
+}
+
+func (m *MonitorSelectValue) UnmarshalJSON(data []byte) error {
+	var v bool
+
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	m.value = &v
+	return nil
+}
+
+func NewMonitorSelectValue(value bool) MonitorSelectValue {
+	return MonitorSelectValue{
+		value: &value,
+	}
 }
 
 // TableUpdates is a collection of TableUpdate entries
