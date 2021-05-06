@@ -1,6 +1,7 @@
 package libovsdb
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -80,5 +81,255 @@ func TestSetUUID(t *testing.T) {
 	err = modelSetUUID(&b, "foo")
 	assert.Nilf(t, err, "Setting UUID should succeed")
 	assert.Equal(t, "foo", b.UID)
+
+}
+
+func TestValidate(t *testing.T) {
+	model, err := NewDBModel("TestDB", map[string]Model{
+		"TestTable": &struct {
+			aUUID   string            `ovs:"_uuid"`
+			aString string            `ovs:"aString"`
+			aInt    int               `ovs:"aInt"`
+			aFloat  float64           `ovs:"aFloat"`
+			aSet    []string          `ovs:"aSet"`
+			aMap    map[string]string `ovs:"aMap"`
+		}{},
+	})
+	assert.Nil(t, err)
+
+	tests := []struct {
+		name   string
+		schema []byte
+		err    bool
+	}{
+		{
+			name: "wrong name",
+			schema: []byte(`{
+			    "name": "Wrong"
+			}`),
+			err: true,
+		},
+		{
+			name: "correct",
+			schema: []byte(`{
+			    "name": "TestDB",
+  			    "tables": {
+  			      "TestTable": {
+  			        "columns": {
+  			          "aString": { "type": "string" },
+  			          "aInt": { "type": "integer" },
+  			          "aFloat": { "type": "real" } ,
+  			          "aSet": { "type": {
+  			              "key": "string",
+  			              "max": "unlimited",
+  			              "min": 0
+  			            } },
+  			          "aMap": {
+  			            "type": {
+  			              "key": "string",
+  			              "max": "unlimited",
+  			              "min": 0,
+  			              "value": "string"
+  			            }
+  			          }
+  			        }
+  			      }
+  			    }
+			}`),
+			err: false,
+		},
+		{
+			name: "extra column should be OK",
+			schema: []byte(`{
+			    "name": "TestDB",
+  			    "tables": {
+  			      "TestTable": {
+  			        "columns": {
+  			          "ExtraCol": { "type": "real" } ,
+  			          "aString": { "type": "string" },
+  			          "aInt": { "type": "integer" },
+  			          "aFloat": { "type": "real" } ,
+  			          "aSet": { "type": {
+  			              "key": "string",
+  			              "max": "unlimited",
+  			              "min": 0
+  			            } },
+  			          "aMap": {
+  			            "type": {
+  			              "key": "string",
+  			              "max": "unlimited",
+  			              "min": 0,
+  			              "value": "string"
+  			            }
+  			          }
+  			        }
+  			      }
+  			    }
+			}`),
+			err: false,
+		},
+		{
+			name: "extra table should be OK",
+			schema: []byte(`{
+			    "name": "TestDB",
+  			    "tables": {
+  			      "ExtraTable": {
+  			        "columns": {
+  			          "foo": { "type": "real" }
+				}
+			      },
+  			      "TestTable": {
+  			        "columns": {
+  			          "ExtraCol": { "type": "real" } ,
+  			          "aString": { "type": "string" },
+  			          "aInt": { "type": "integer" },
+  			          "aFloat": { "type": "real" } ,
+  			          "aSet": { "type": {
+  			              "key": "string",
+  			              "max": "unlimited",
+  			              "min": 0
+  			            } },
+  			          "aMap": {
+  			            "type": {
+  			              "key": "string",
+  			              "max": "unlimited",
+  			              "min": 0,
+  			              "value": "string"
+  			            }
+  			          }
+  			        }
+  			      }
+  			    }
+			}`),
+			err: false,
+		},
+		{
+			name: "Less columns should fail",
+			schema: []byte(`{
+			    "name": "TestDB",
+  			    "tables": {
+  			      "TestTable": {
+  			        "columns": {
+  			          "aString": { "type": "string" },
+  			          "aSet": { "type": {
+  			              "key": "string",
+  			              "max": "unlimited",
+  			              "min": 0
+  			            } },
+  			          "aMap": {
+  			            "type": {
+  			              "key": "string",
+  			              "max": "unlimited",
+  			              "min": 0,
+  			              "value": "string"
+  			            }
+  			          }
+  			        }
+  			      }
+  			    }
+			}`),
+			err: true,
+		},
+		{
+			name: "Wrong simple type should fail",
+			schema: []byte(`{
+			    "name": "TestDB",
+  			    "tables": {
+  			      "TestTable": {
+  			        "columns": {
+  			          "aString": { "type": "integer" },
+  			          "aInt": { "type": "integer" },
+  			          "aFloat": { "type": "real" } ,
+  			          "aSet": { "type": {
+  			              "key": "string",
+  			              "max": "unlimited",
+  			              "min": 0
+  			            } },
+  			          "aMap": {
+  			            "type": {
+  			              "key": "string",
+  			              "max": "unlimited",
+  			              "min": 0,
+  			              "value": "string"
+  			            }
+  			          }
+  			        }
+  			      }
+  			    }
+			}`),
+			err: true,
+		},
+		{
+			name: "Wrong set type should fail",
+			schema: []byte(`{
+			    "name": "TestDB",
+  			    "tables": {
+  			      "TestTable": {
+  			        "columns": {
+  			          "aString": { "type": "string" },
+  			          "aInt": { "type": "integer" },
+  			          "aFloat": { "type": "real" } ,
+  			          "aSet": { "type": {
+  			              "key": "integer",
+  			              "max": "unlimited",
+  			              "min": 0
+  			            } },
+  			          "aMap": {
+  			            "type": {
+  			              "key": "string",
+  			              "max": "unlimited",
+  			              "min": 0,
+  			              "value": "string"
+  			            }
+  			          }
+  			        }
+  			      }
+  			    }
+			}`),
+			err: true,
+		},
+		{
+			name: "Wrong map type should fail",
+			schema: []byte(`{
+			    "name": "TestDB",
+  			    "tables": {
+  			      "TestTable": {
+  			        "columns": {
+  			          "aString": { "type": "string" },
+  			          "aInt": { "type": "integer" },
+  			          "aFloat": { "type": "real" } ,
+  			          "aSet": { "type": {
+  			              "key": "integer",
+  			              "max": "unlimited",
+  			              "min": 0
+  			            } },
+  			          "aMap": {
+  			            "type": {
+  			              "key": "string",
+  			              "max": "unlimited",
+  			              "min": 0,
+  			              "value": "boolean"
+  			            }
+  			          }
+  			        }
+  			      }
+  			    }
+			}`),
+			err: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("TestValidate %s", tt.name), func(t *testing.T) {
+			var schema DatabaseSchema
+			err := json.Unmarshal(tt.schema, &schema)
+			assert.Nil(t, err)
+			errors := model.Validate(&schema)
+			if tt.err {
+				assert.Greater(t, len(errors), 0)
+			} else {
+				assert.Len(t, errors, 0)
+			}
+		})
+	}
 
 }

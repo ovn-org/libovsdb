@@ -60,6 +60,33 @@ func (db DBModel) FindTable(mType reflect.Type) string {
 	return ""
 }
 
+// Validate validates the DatabaseModel against the input schema
+// Returns all the errors detected
+func (db DBModel) Validate(schema *DatabaseSchema) []error {
+	var errors []error
+	if db.name != schema.Name {
+		errors = append(errors, fmt.Errorf("Database Model Name (%s) does not match schema (%s)",
+			db.name, schema.Name))
+	}
+
+	for tableName := range db.types {
+		tableSchema := schema.Table(tableName)
+		if tableSchema == nil {
+			errors = append(errors, fmt.Errorf("Database Model contains a model for table %s that does not exist in schema", tableName))
+			continue
+		}
+		model, err := db.newModel(tableName)
+		if err != nil {
+			errors = append(errors, err)
+			continue
+		}
+		if _, err := newORMInfo(tableSchema, model); err != nil {
+			errors = append(errors, err)
+		}
+	}
+	return errors
+}
+
 // NewDBModel constructs a DBModel based on a database name and dictionary of models indexed by table name
 func NewDBModel(name string, models map[string]Model) (*DBModel, error) {
 	types := make(map[string]reflect.Type, len(models))

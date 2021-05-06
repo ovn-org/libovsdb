@@ -115,6 +115,16 @@ func newRPC2Client(conn net.Conn, database *DBModel) (*OvsdbClient, error) {
 	}
 
 	schema, err := ovs.GetSchema(database.Name())
+	errors := database.Validate(schema)
+	if len(errors) > 0 {
+		var combined []string
+		for _, err := range errors {
+			combined = append(combined, err.Error())
+		}
+		return nil, fmt.Errorf("Database Validation Error (%d): %s", len(errors),
+			strings.Join(combined, ". "))
+	}
+
 	if err == nil {
 		ovs.Schema = *schema
 		if cache, err := newTableCache(schema, database); err == nil {
