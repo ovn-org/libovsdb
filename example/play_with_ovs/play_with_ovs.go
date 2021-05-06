@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 
@@ -14,66 +15,73 @@ const (
 	ovsTable    = "Open_vSwitch"
 )
 
+// ORMBridge is the simplified ORM model of the Bridge table
+type ormBridge struct {
+	UUID        string            `ovs:"_uuid"`
+	Name        string            `ovs:"name"`
+	OtherConfig map[string]string `ovs:"other_config"`
+	ExternalIds map[string]string `ovs:"external_ids"`
+	Ports       []string          `ovs:"ports"`
+	Status      map[string]string `ovs:"status"`
+}
+
+// ORMOVS is the simplified ORM model of the Open_vSwitch table
+type ormOvs struct {
+	UUID    string   `ovs:"_uuid"`
+	Bridges []string `ovs:"bridges"`
+}
+
 var quit chan bool
-var update chan libovsdb.Row
+var update chan libovsdb.Model
+
 var rootUUID string
+var connection = flag.String("ovsdb", "unix:/var/run/openvswitch/db.sock", "OVSDB connection string")
 
 func play(ovs *libovsdb.OvsdbClient) {
 	go processInput(ovs)
-	for row := range update {
-		rowData, err := ovs.API.GetRowData(bridgeTable, &row)
-		if err != nil {
-			fmt.Println("ERROR getting Bridge Data", err)
-		}
-		if _, ok := rowData["name"]; ok {
-			name := rowData["name"].(string)
-			if name == "stop" {
-				fmt.Println("Bridge stop detected : ", rowData["_uuid"])
-				ovs.Disconnect()
-				quit <- true
+	for model := range update {
+		bridge := model.(*ormBridge)
+		if bridge.Name == "stop" {
+			fmt.Printf("Bridge stop detected: %+v\n", *bridge)
+			ovs.Disconnect()
+			quit <- true
+		} else {
+			fmt.Printf("Current list of bridges:\n")
+			var bridges []ormBridge
+			if err := ovs.API.List(&bridges); err != nil {
+				log.Fatal(err)
+			}
+			for _, b := range bridges {
+				fmt.Printf("UUID: %s  Name: %s\n", b.UUID, b.Name)
 			}
 		}
 	}
 }
 
 func createBridge(ovs *libovsdb.OvsdbClient, bridgeName string) {
-	namedUUID := "gopher"
-	// bridge row to insert
-	bridge := make(map[string]interface{})
-	bridge["name"] = bridgeName
-	bridge["external_ids"] = map[string]string{"purpose": "fun"}
-
-	brow, err := ovs.API.NewRow(bridgeTable, bridge)
+	bridge := ormBridge{
+		UUID: "gopher",
+		Name: bridgeName,
+	}
+	insertOp, err := ovs.API.Create(&bridge)
 	if err != nil {
-		log.Fatalf("Row Error: %s", err.Error())
-	}
-	// simple insert operation
-	insertOp := libovsdb.Operation{
-		Op:       "insert",
-		Table:    bridgeTable,
-		Row:      brow,
-		UUIDName: namedUUID,
+		log.Fatal(err)
 	}
 
-	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
-	mutation, err := ovs.API.NewMutation(ovsTable, "bridges", "insert", []string{namedUUID})
+	ovsRow := ormOvs{
+		UUID: rootUUID,
+	}
+	mutateOps, err := ovs.API.Where(ovs.API.ConditionFromModel(&ovsRow)).Mutate(&ovsRow, []libovsdb.Mutation{
+		{
+			Field:   &ovsRow.Bridges,
+			Mutator: "insert",
+			Value:   []string{bridge.UUID},
+		}})
 	if err != nil {
-		log.Fatalf("Mutation Error: %s", err.Error())
-	}
-	condition, err := ovs.API.NewCondition(ovsTable, "_uuid", "==", rootUUID)
-	if err != nil {
-		log.Fatalf("Condition Error: %s", err.Error())
+		log.Fatal(err)
 	}
 
-	// simple mutate operation
-	mutateOp := libovsdb.Operation{
-		Op:        "mutate",
-		Table:     ovsTable,
-		Mutations: []interface{}{mutation},
-		Where:     []interface{}{condition},
-	}
-
-	operations := []libovsdb.Operation{insertOp, mutateOp}
+	operations := []libovsdb.Operation{*insertOp, mutateOps[0]}
 	reply, err := ovs.Transact(operations...)
 	if err != nil {
 		log.Fatal(err)
@@ -102,15 +110,25 @@ func processInput(ovs *libovsdb.OvsdbClient) {
 		fmt.Printf("\n Enter a Bridge Name : ")
 		var bridgeName string
 		fmt.Scanf("%s", &bridgeName)
+		if bridgeName == "" {
+			continue
+		}
 		createBridge(ovs, bridgeName)
 	}
 }
 
 func main() {
+	flag.Parse()
 	quit = make(chan bool)
-	update = make(chan libovsdb.Row)
+	update = make(chan libovsdb.Model)
+
+	dbmodel, err := libovsdb.NewDBModel("Open_vSwitch",
+		map[string]libovsdb.Model{bridgeTable: &ormBridge{}, ovsTable: &ormOvs{}})
+	if err != nil {
+		log.Fatal("Unable to create DB model ", err)
+	}
 	// By default libovsdb connects to 127.0.0.0:6400.
-	ovs, err := libovsdb.Connect("tcp:", ovsTable, nil)
+	ovs, err := libovsdb.Connect(*connection, dbmodel, nil)
 
 	// If you prefer to connect to OVS in a specific location :
 	// ovs, err := libovsdb.Connect("tcp:192.168.56.101:6640", nil)
@@ -120,9 +138,9 @@ func main() {
 	}
 
 	ovs.Cache.AddEventHandler(&libovsdb.EventHandlerFuncs{
-		AddFunc: func(table string, row libovsdb.Row) {
+		AddFunc: func(table string, model libovsdb.Model) {
 			if table == bridgeTable {
-				update <- row
+				update <- model
 			}
 		},
 	})

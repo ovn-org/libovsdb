@@ -14,29 +14,29 @@ type DatabaseSchema struct {
 	Tables  map[string]TableSchema `json:"tables"`
 }
 
-// GetColumn returns a Column Schema for a given table and column name
-func (schema DatabaseSchema) GetColumn(tableName, columnName string) (*ColumnSchema, error) {
-	table, ok := schema.Tables[tableName]
-	if !ok {
-		return nil, fmt.Errorf("table not found in schema %s", tableName)
+// UUIDColumn is a static column that represents the _uuid column, common to all tables
+var UUIDColumn = ColumnSchema{
+	Type: TypeUUID,
+}
+
+// Table returns a TableSchema Schema for a given table and column name
+func (schema DatabaseSchema) Table(tableName string) *TableSchema {
+	if table, ok := schema.Tables[tableName]; ok {
+		return &table
 	}
-	if columnName == "_uuid" {
-		return &ColumnSchema{
-			Type: TypeUUID,
-		}, nil
-	}
-	column, ok := table.Columns[columnName]
-	if !ok {
-		return nil, fmt.Errorf("column not found in schema %s", columnName)
-	}
-	return column, nil
+	return nil
 }
 
 // Print will print the contents of the DatabaseSchema
 func (schema DatabaseSchema) Print(w io.Writer) {
 	fmt.Fprintf(w, "%s, (%s)\n", schema.Name, schema.Version)
 	for table, tableSchema := range schema.Tables {
-		fmt.Fprintf(w, "\t %s\n", table)
+		fmt.Fprintf(w, "\t %s", table)
+		if len(tableSchema.Indexes) > 0 {
+			fmt.Fprintf(w, "(%v)\n", tableSchema.Indexes)
+		} else {
+			fmt.Fprintf(w, "\n")
+		}
 		for column, columnSchema := range tableSchema.Columns {
 			fmt.Fprintf(w, "\t\t %s => %s\n", column, columnSchema)
 		}
@@ -82,6 +82,17 @@ func (schema DatabaseSchema) validateOperations(operations ...Operation) bool {
 type TableSchema struct {
 	Columns map[string]*ColumnSchema `json:"columns"`
 	Indexes [][]string               `json:"indexes,omitempty"`
+}
+
+// Column returns the Column object for a specific column name
+func (t TableSchema) Column(columnName string) *ColumnSchema {
+	if columnName == "_uuid" {
+		return &UUIDColumn
+	}
+	if column, ok := t.Columns[columnName]; ok {
+		return column
+	}
+	return nil
 }
 
 /*RFC7047 defines some atomic-types (e.g: integer, string, etc). However, the Column's type
@@ -220,7 +231,9 @@ func (column *ColumnSchema) UnmarshalJSON(data []byte) error {
 		Ephemeral  bool            `json:"ephemeral,omitempty"`
 		Mutable    bool            `json:"mutable,omitempty"`
 	}
-	var colJSON ColumnJSON
+	colJSON := ColumnJSON{
+		Mutable: true,
+	}
 
 	// Unmarshall known keys
 	if err := json.Unmarshal(data, &colJSON); err != nil {

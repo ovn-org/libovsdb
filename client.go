@@ -18,19 +18,17 @@ import (
 type OvsdbClient struct {
 	rpcClient     *rpc2.Client
 	Schema        DatabaseSchema
-	API           NativeAPI
 	handlers      []NotificationHandler
 	handlersMutex *sync.Mutex
 	Cache         *TableCache
 	stopCh        chan struct{}
+	API           API
 }
 
 func newOvsdbClient() *OvsdbClient {
-	cache := newTableCache()
+	// Cache initialization is delayed because we first need to obtain the schema
 	ovs := &OvsdbClient{
 		handlersMutex: &sync.Mutex{},
-		handlers:      []NotificationHandler{cache},
-		Cache:         cache,
 		stopCh:        make(chan struct{}),
 	}
 	return ovs
@@ -47,7 +45,7 @@ const (
 
 // Connect to ovn, using endpoint in format ovsdb Connection Methods
 // If address is empty, use default address for specified protocol
-func Connect(endpoints string, database string, tlsConfig *tls.Config) (*OvsdbClient, error) {
+func Connect(endpoints string, database *DBModel, tlsConfig *tls.Config) (*OvsdbClient, error) {
 	var c net.Conn
 	var err error
 	var u *url.URL
@@ -85,7 +83,7 @@ func Connect(endpoints string, database string, tlsConfig *tls.Config) (*OvsdbCl
 	return nil, fmt.Errorf("failed to connect to endpoints %q: %v", endpoints, err)
 }
 
-func newRPC2Client(conn net.Conn, database string) (*OvsdbClient, error) {
+func newRPC2Client(conn net.Conn, database *DBModel) (*OvsdbClient, error) {
 	ovs := newOvsdbClient()
 	ovs.rpcClient = rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
 	ovs.rpcClient.SetBlocking(true)
@@ -106,7 +104,7 @@ func newRPC2Client(conn net.Conn, database string) (*OvsdbClient, error) {
 
 	found := false
 	for _, db := range dbs {
-		if db == database {
+		if db == database.Name() {
 			found = true
 			break
 		}
@@ -116,10 +114,27 @@ func newRPC2Client(conn net.Conn, database string) (*OvsdbClient, error) {
 		return nil, fmt.Errorf("target database not found")
 	}
 
-	schema, err := ovs.GetSchema(database)
+	schema, err := ovs.GetSchema(database.Name())
+	errors := database.Validate(schema)
+	if len(errors) > 0 {
+		var combined []string
+		for _, err := range errors {
+			combined = append(combined, err.Error())
+		}
+		return nil, fmt.Errorf("Database Validation Error (%d): %s", len(errors),
+			strings.Join(combined, ". "))
+	}
+
 	if err == nil {
 		ovs.Schema = *schema
-		ovs.API = NewNativeAPI(schema)
+		if cache, err := newTableCache(schema, database); err == nil {
+			ovs.Cache = cache
+			ovs.Register(ovs.Cache)
+			ovs.API = newAPI(ovs.Cache)
+		} else {
+			ovs.rpcClient.Close()
+			return nil, err
+		}
 	} else {
 		ovs.rpcClient.Close()
 		return nil, err
