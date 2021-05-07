@@ -6,7 +6,7 @@ local: install-deps fmt lint build-local test-local bench-local
 
 build-local: 
 	@echo "+ $@"
-	@go build -v .
+	@go build -v ./...
 
 test-local:
 	@echo "+ $@"
