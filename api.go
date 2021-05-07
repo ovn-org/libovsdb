@@ -106,7 +106,7 @@ func (c ConditionError) String() string {
 }
 
 // ErrNotFound is used to inform the object or table was not found in the cache
-var ErrNotFound = errors.New("Object not found")
+var ErrNotFound = errors.New("object not found")
 
 // api struct implements both API and ConditionalAPI
 // Where() can be used to create a ConditionalAPI api
@@ -293,7 +293,7 @@ func (a api) Mutate(model Model, mutationObjs []Mutation) ([]ovsdb.Operation, er
 	tableName := a.cache.dbModel.FindTable(reflect.ValueOf(model).Type())
 	table := a.cache.orm.schema.Table(tableName)
 	if table == nil {
-		return nil, fmt.Errorf("Schema error: table not found in Database Model for type %s", reflect.TypeOf(model))
+		return nil, fmt.Errorf("schema error: table not found in Database Model for type %s", reflect.TypeOf(model))
 	}
 
 	conditions, err := a.cond.Generate()

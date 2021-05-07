@@ -20,7 +20,7 @@ type ormInfo struct {
 func (oi *ormInfo) fieldByColumn(column string) (interface{}, error) {
 	fieldName, ok := oi.fields[column]
 	if !ok {
-		return nil, fmt.Errorf("Column %s not found in ORM info", column)
+		return nil, fmt.Errorf("column %s not found in orm info", column)
 	}
 	return reflect.ValueOf(oi.obj).Elem().FieldByName(fieldName).Interface(), nil
 }
@@ -35,12 +35,12 @@ func (oi *ormInfo) hasColumn(column string) bool {
 func (oi *ormInfo) setField(column string, value interface{}) error {
 	fieldName, ok := oi.fields[column]
 	if !ok {
-		return fmt.Errorf("Column %s not found in ORM info", column)
+		return fmt.Errorf("column %s not found in orm info", column)
 	}
 	fieldValue := reflect.ValueOf(oi.obj).Elem().FieldByName(fieldName)
 
 	if !fieldValue.Type().AssignableTo(reflect.TypeOf(value)) {
-		return fmt.Errorf("Column %s: Native value %v (%s) is not assignable to field %s (%s)",
+		return fmt.Errorf("column %s: native value %v (%s) is not assignable to field %s (%s)",
 			column, value, reflect.TypeOf(value), fieldName, fieldValue.Type())
 	}
 	fieldValue.Set(reflect.ValueOf(value))
@@ -59,12 +59,12 @@ func (oi *ormInfo) columnByPtr(fieldPtr interface{}) (string, error) {
 		if objType.Field(i).Offset == offset {
 			column := objType.Field(i).Tag.Get("ovs")
 			if _, ok := oi.fields[column]; !ok {
-				return "", fmt.Errorf("Field does not have ORM column information")
+				return "", fmt.Errorf("field does not have orm column information")
 			}
 			return column, nil
 		}
 	}
-	return "", fmt.Errorf("Field pointer does not correspond to ORM struct")
+	return "", fmt.Errorf("field pointer does not correspond to orm struct")
 }
 
 // getValidORMIndexes inspects the object and returns the a list of indexes (set of columns) for witch

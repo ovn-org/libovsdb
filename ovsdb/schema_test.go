@@ -332,7 +332,7 @@ func TestSchema(t *testing.T) {
 				return
 			}
 			if !reflect.DeepEqual(test.expectedSchema, schema) {
-				t.Errorf("Expected schema to be %+#v, but got: %+#v", test.expectedSchema, schema)
+				t.Errorf("expected schema to be %+#v, but got: %+#v", test.expectedSchema, schema)
 				// Struct Instrospection for debugging purpuses
 				for tname, table := range schema.Tables {
 					for n, c := range table.Columns {

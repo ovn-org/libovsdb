@@ -227,20 +227,20 @@ func validateMutationAtomic(atype string, mutator Mutator, value interface{}) er
 
 	switch atype {
 	case TypeUUID, TypeString, TypeBoolean:
-		return fmt.Errorf("AtomicType %s does not support mutation", atype)
+		return fmt.Errorf("atomictype %s does not support mutation", atype)
 	case TypeReal:
 		switch mutator {
 		case MutateOperationAdd, MutateOperationSubstract, MutateOperationMultiply, MutateOperationDivide:
 			return nil
 		default:
-			return fmt.Errorf("Wrong mutator for real type %s", mutator)
+			return fmt.Errorf("wrong mutator for real type %s", mutator)
 		}
 	case TypeInteger:
 		switch mutator {
 		case MutateOperationAdd, MutateOperationSubstract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo:
 			return nil
 		default:
-			return fmt.Errorf("Wrong mutator for integer type: %s", mutator)
+			return fmt.Errorf("wrong mutator for integer type: %s", mutator)
 		}
 	default:
 		panic("Unsupported Atomic Type")
@@ -251,7 +251,7 @@ func validateMutationAtomic(atype string, mutator Mutator, value interface{}) er
 // for a given column based on the rules specified RFC7047
 func ValidateMutation(column *ColumnSchema, mutator Mutator, value interface{}) error {
 	if !column.Mutable {
-		return fmt.Errorf("Column is not mutable")
+		return fmt.Errorf("column is not mutable")
 	}
 	switch column.Type {
 	case TypeSet:
@@ -284,11 +284,11 @@ func ValidateMutation(column *ColumnSchema, mutator Mutator, value interface{}) 
 			return nil
 
 		default:
-			return fmt.Errorf("Wrong mutator for map type: %s", mutator)
+			return fmt.Errorf("wrong mutator for map type: %s", mutator)
 		}
 	case TypeEnum:
 		// RFC does not clarify what to do with enums.
-		return fmt.Errorf("Enums do not support mutation")
+		return fmt.Errorf("enums do not support mutation")
 	default:
 		return validateMutationAtomic(column.Type, mutator, value)
 	}

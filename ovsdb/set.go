@@ -34,7 +34,7 @@ func NewOvsSet(obj interface{}) (*OvsSet, error) {
 	case reflect.ValueOf(UUID{}).Kind():
 		ovsSet = append(ovsSet, v.Interface())
 	default:
-		return nil, fmt.Errorf("OvsSet supports only Go Slice/string/numbers/uuid types")
+		return nil, fmt.Errorf("ovsset supports only go slice/string/numbers/uuid types")
 	}
 	return &OvsSet{ovsSet}, nil
 }

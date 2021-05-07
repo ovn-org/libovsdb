@@ -454,12 +454,12 @@ func TestOvsToNative(t *testing.T) {
 
 			res, err := OvsToNative(&column, trans["ovs"])
 			if err != nil {
-				t.Errorf("Failed to convert %s: %s", trans, err)
+				t.Errorf("failed to convert %s: %s", trans, err)
 				t.Logf("Testing %v", string(trans["schema"].([]byte)))
 			}
 
 			if !reflect.DeepEqual(res, trans["ovs2native"]) {
-				t.Errorf("Fail to convert ovs2native. OVS: %v(%s). Expected %v(%s). Got %v (%s)",
+				t.Errorf("fail to convert ovs2native. ovs: %v(%s). expected %v(%s). got %v (%s)",
 					trans["ovs"], reflect.TypeOf(trans["ovs"]),
 					trans["ovs2native"], reflect.TypeOf(trans["ovs2native"]),
 					res, reflect.TypeOf(res))
@@ -479,12 +479,12 @@ func TestNativeToOvs(t *testing.T) {
 
 			res, err := NativeToOvs(&column, trans["native"])
 			if err != nil {
-				t.Errorf("Failed to convert %s: %s", trans, err)
+				t.Errorf("failed to convert %s: %s", trans, err)
 				t.Logf("Testing %v", string(trans["schema"].([]byte)))
 			}
 
 			if !reflect.DeepEqual(res, trans["native2ovs"]) {
-				t.Errorf("Fail to convert native2ovs. Native: %v(%s). Expected %v(%s). Got %v (%s)",
+				t.Errorf("fail to convert native2ovs. native: %v(%s). expected %v(%s). got %v (%s)",
 					trans["native"], reflect.TypeOf(trans["native"]),
 					trans["native2ovs"], reflect.TypeOf(trans["native2ovs"]),
 					res, reflect.TypeOf(res))
@@ -507,7 +507,7 @@ func TestOvsToNativeErr(t *testing.T) {
 
 			res, err := OvsToNative(&column, trans["ovs"])
 			if err == nil {
-				t.Errorf("Convertion %s should have failed, instead it has returned %v (%s)", trans, res, reflect.TypeOf(res))
+				t.Errorf("convertion %s should have failed, instead it has returned %v (%s)", trans, res, reflect.TypeOf(res))
 				t.Logf("Conversion schema %v", string(trans["schema"].([]byte)))
 			}
 		})
@@ -528,7 +528,7 @@ func TestNativeToOvsErr(t *testing.T) {
 
 			res, err := NativeToOvs(&column, trans["native"])
 			if err == nil {
-				t.Errorf("Convertion %s should have failed, instead it has returned %v (%s)", trans, res, reflect.TypeOf(res))
+				t.Errorf("convertion %s should have failed, instead it has returned %v (%s)", trans, res, reflect.TypeOf(res))
 				t.Logf("Conversion schema %v", string(trans["schema"].([]byte)))
 			}
 		})
@@ -727,7 +727,7 @@ func TestIsDefault(t *testing.T) {
 
 			result := IsDefaultValue(&column, test.elem)
 			if result != test.expected {
-				t.Errorf("Failed to determine if %v is default. Expected %t got %t", test, test.expected, result)
+				t.Errorf("failed to determine if %v is default. expected %t got %t", test, test.expected, result)
 				t.Logf("Conversion schema %v", string(test.column))
 			}
 

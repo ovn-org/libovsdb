@@ -584,7 +584,7 @@ func TestORMCondition(t *testing.T) {
 			conds, err := orm.newCondition("TestTable", &testObj, tt.index...)
 			if tt.err {
 				if err == nil {
-					t.Errorf("Expected an error but got none")
+					t.Errorf("expected an error but got none")
 				}
 			} else {
 				if err != nil {
@@ -1002,7 +1002,7 @@ func TestORMMutation(t *testing.T) {
 			mutation, err := orm.newMutation("TestTable", &test.obj, test.column, test.mutator, test.value)
 			if test.err {
 				if err == nil {
-					t.Errorf("Expected an error but got none")
+					t.Errorf("expected an error but got none")
 				}
 			} else {
 				if err != nil {

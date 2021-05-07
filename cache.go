@@ -106,7 +106,7 @@ type TableCache struct {
 
 func newTableCache(schema *ovsdb.DatabaseSchema, dbModel *DBModel) (*TableCache, error) {
 	if schema == nil || dbModel == nil {
-		return nil, fmt.Errorf("TableCache without DatabaseModel cannot be populated")
+		return nil, fmt.Errorf("tablecache without databasemodel cannot be populated")
 	}
 	eventProcessor := newEventProcessor(bufferSize)
 	return &TableCache{
@@ -308,7 +308,7 @@ func (e *eventProcessor) Run(stopCh <-chan struct{}) {
 func (t *TableCache) createModel(tableName string, row *ovsdb.Row, uuid string) (Model, error) {
 	table := t.orm.schema.Table(tableName)
 	if table == nil {
-		return nil, fmt.Errorf("Table %s not found", tableName)
+		return nil, fmt.Errorf("table %s not found", tableName)
 	}
 	model, err := t.dbModel.newModel(tableName)
 	if err != nil {

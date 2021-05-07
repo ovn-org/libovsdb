@@ -122,7 +122,7 @@ func newRPC2Client(conn net.Conn, database *DBModel) (*OvsdbClient, error) {
 		for _, err := range errors {
 			combined = append(combined, err.Error())
 		}
-		return nil, fmt.Errorf("Database Validation Error (%d): %s", len(errors),
+		return nil, fmt.Errorf("database validation error (%d): %s", len(errors),
 			strings.Join(combined, ". "))
 	}
 
@@ -239,7 +239,7 @@ func (ovs OvsdbClient) ListDbs() ([]string, error) {
 	var dbs []string
 	err := ovs.rpcClient.Call("list_dbs", nil, &dbs)
 	if err != nil {
-		return nil, fmt.Errorf("ListDbs failure - %v", err)
+		return nil, fmt.Errorf("listdbs failure - %v", err)
 	}
 	return dbs, err
 }
@@ -293,7 +293,7 @@ func (ovs OvsdbClient) MonitorCancel(jsonContext interface{}) error {
 		return err
 	}
 	if reply.Error != "" {
-		return fmt.Errorf("Error while executing transaction: %s", reply.Error)
+		return fmt.Errorf("error while executing transaction: %s", reply.Error)
 	}
 	return nil
 }

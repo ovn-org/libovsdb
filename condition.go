@@ -126,6 +126,6 @@ func (e *errorCondition) Generate() ([][]interface{}, error) {
 
 func newErrorCondition(err error) Condition {
 	return &errorCondition{
-		err: fmt.Errorf("ConditionError: %s", err.Error()),
+		err: fmt.Errorf("conditionerror: %s", err.Error()),
 	}
 }

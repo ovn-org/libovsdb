@@ -96,7 +96,7 @@ func (o orm) getData(tableName string, ovsData map[string]interface{}, result in
 
 		nativeElem, err := ovsdb.OvsToNative(column, ovsElem)
 		if err != nil {
-			return fmt.Errorf("Table %s, Column %s: Failed to extract native element: %s",
+			return fmt.Errorf("table %s, column %s: failed to extract native element: %s",
 				tableName, name, err.Error())
 		}
 
@@ -151,7 +151,7 @@ func (o orm) newRow(tableName string, data interface{}, fields ...interface{}) (
 		}
 		ovsElem, err := ovsdb.NativeToOvs(column, nativeElem)
 		if err != nil {
-			return nil, fmt.Errorf("Table %s, Column %s: Failed to generate OvS element. %s", tableName, name, err.Error())
+			return nil, fmt.Errorf("table %s, column %s: failed to generate ovs element. %s", tableName, name, err.Error())
 		}
 		ovsRow[name] = ovsElem
 	}
@@ -200,7 +200,7 @@ func (o orm) newCondition(tableName string, data interface{}, fields ...interfac
 	}
 
 	if len(condIndex) == 0 {
-		return nil, fmt.Errorf("Failed to find a valid index")
+		return nil, fmt.Errorf("failed to find a valid index")
 	}
 
 	// Pick the first valid index
@@ -212,7 +212,7 @@ func (o orm) newCondition(tableName string, data interface{}, fields ...interfac
 
 		column := table.Column(col)
 		if column == nil {
-			return nil, fmt.Errorf("Column %s not found", col)
+			return nil, fmt.Errorf("column %s not found", col)
 		}
 		ovsVal, err := ovsdb.NativeToOvs(column, field)
 		if err != nil {
@@ -263,12 +263,12 @@ func (o orm) newMutation(tableName string, data interface{}, column string, muta
 
 	// Check the column exists in the object
 	if !ormInfo.hasColumn(column) {
-		return nil, fmt.Errorf("Mutation contains column %s that does not exist in object %v", column, data)
+		return nil, fmt.Errorf("mutation contains column %s that does not exist in object %v", column, data)
 	}
 	// Check that the mutation is valid
 	columnSchema := table.Column(column)
 	if columnSchema == nil {
-		return nil, fmt.Errorf("Column %s not found", column)
+		return nil, fmt.Errorf("column %s not found", column)
 	}
 	if err := ovsdb.ValidateMutation(columnSchema, mutator, value); err != nil {
 		return nil, err

@@ -33,7 +33,7 @@ type DBModel struct {
 func (db DBModel) newModel(table string) (Model, error) {
 	mtype, ok := db.types[table]
 	if !ok {
-		return nil, fmt.Errorf("Table %s not found in Database Model", string(table))
+		return nil, fmt.Errorf("table %s not found in database model", string(table))
 	}
 	model := reflect.New(mtype.Elem())
 	return model.Interface().(Model), nil
@@ -67,14 +67,14 @@ func (db DBModel) FindTable(mType reflect.Type) string {
 func (db DBModel) Validate(schema *ovsdb.DatabaseSchema) []error {
 	var errors []error
 	if db.name != schema.Name {
-		errors = append(errors, fmt.Errorf("Database Model Name (%s) does not match schema (%s)",
+		errors = append(errors, fmt.Errorf("database model name (%s) does not match schema (%s)",
 			db.name, schema.Name))
 	}
 
 	for tableName := range db.types {
 		tableSchema := schema.Table(tableName)
 		if tableSchema == nil {
-			errors = append(errors, fmt.Errorf("Database Model contains a model for table %s that does not exist in schema", tableName))
+			errors = append(errors, fmt.Errorf("database model contains a model for table %s that does not exist in schema", tableName))
 			continue
 		}
 		model, err := db.newModel(tableName)
@@ -95,7 +95,7 @@ func NewDBModel(name string, models map[string]Model) (*DBModel, error) {
 	for table, model := range models {
 		modelType := reflect.TypeOf(model)
 		if modelType.Kind() != reflect.Ptr || modelType.Elem().Kind() != reflect.Struct {
-			return nil, fmt.Errorf("Model is expected to be a pointer to struct")
+			return nil, fmt.Errorf("model is expected to be a pointer to struct")
 		}
 		hasUUID := false
 		for i := 0; i < modelType.Elem().NumField(); i++ {
@@ -105,7 +105,7 @@ func NewDBModel(name string, models map[string]Model) (*DBModel, error) {
 			}
 		}
 		if !hasUUID {
-			return nil, fmt.Errorf("Model is expected to have a string field called UUID")
+			return nil, fmt.Errorf("model is expected to have a string field called uuid")
 		}
 
 		types[table] = reflect.TypeOf(model)
@@ -125,5 +125,5 @@ func modelSetUUID(model Model, uuid string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("Model is expected to have a string field mapped to column _uuid")
+	return fmt.Errorf("model is expected to have a string field mapped to column _uuid")
 }
