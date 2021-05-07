@@ -3,6 +3,8 @@ package libovsdb
 import (
 	"fmt"
 	"reflect"
+
+	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
 // ormInfo is a struct that handles ORM information of an object
@@ -11,7 +13,7 @@ type ormInfo struct {
 	// FieldName indexed by column
 	fields map[string]string
 	obj    interface{}
-	table  *TableSchema
+	table  *ovsdb.TableSchema
 }
 
 // FieldByColumn returns the field value that corresponds to a column
@@ -49,7 +51,7 @@ func (oi *ormInfo) setField(column string, value interface{}) error {
 func (oi *ormInfo) columnByPtr(fieldPtr interface{}) (string, error) {
 	fieldPtrVal := reflect.ValueOf(fieldPtr)
 	if fieldPtrVal.Kind() != reflect.Ptr {
-		return "", NewErrWrongType("ColumnByPointer", "pointer to a field in the struct", fieldPtr)
+		return "", ovsdb.NewErrWrongType("ColumnByPointer", "pointer to a field in the struct", fieldPtr)
 	}
 	offset := fieldPtrVal.Pointer() - reflect.ValueOf(oi.obj).Pointer()
 	objType := reflect.TypeOf(oi.obj).Elem()
@@ -89,7 +91,7 @@ OUTER:
 			if err != nil {
 				return nil, err
 			}
-			if !reflect.ValueOf(field).IsValid() || IsDefaultValue(columnSchema, field) {
+			if !reflect.ValueOf(field).IsValid() || ovsdb.IsDefaultValue(columnSchema, field) {
 				continue OUTER
 			}
 		}
@@ -99,14 +101,14 @@ OUTER:
 }
 
 // newORMInfo creates a ormInfo structure around an object based on a given table schema
-func newORMInfo(table *TableSchema, obj interface{}) (*ormInfo, error) {
+func newORMInfo(table *ovsdb.TableSchema, obj interface{}) (*ormInfo, error) {
 	objPtrVal := reflect.ValueOf(obj)
 	if objPtrVal.Type().Kind() != reflect.Ptr {
-		return nil, NewErrWrongType("NewORMInfo", "pointer to a struct", obj)
+		return nil, ovsdb.NewErrWrongType("NewORMInfo", "pointer to a struct", obj)
 	}
 	objVal := reflect.Indirect(objPtrVal)
 	if objVal.Kind() != reflect.Struct {
-		return nil, NewErrWrongType("NewORMInfo", "pointer to a struct", obj)
+		return nil, ovsdb.NewErrWrongType("NewORMInfo", "pointer to a struct", obj)
 	}
 	objType := objVal.Type()
 
@@ -130,7 +132,7 @@ func newORMInfo(table *TableSchema, obj interface{}) (*ormInfo, error) {
 		}
 
 		// Perform schema-based type checking
-		expType := nativeType(column)
+		expType := ovsdb.NativeType(column)
 		if expType != field.Type {
 			return nil, &ErrORM{
 				objType:   objType.String(),

@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"encoding/json"
+
+	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -289,7 +291,7 @@ func TestTableCache_populate(t *testing.T) {
 	t.Log("Create")
 	db, err := NewDBModel("Open_vSwitch", map[string]Model{"Open_vSwitch": &testModel{}})
 	assert.Nil(t, err)
-	var schema DatabaseSchema
+	var schema ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(`
 		 {"name": "TestDB",
 		  "tables": {
@@ -307,14 +309,14 @@ func TestTableCache_populate(t *testing.T) {
 	tc, err := newTableCache(&schema, db)
 	assert.Nil(t, err)
 
-	testRow := Row{Fields: map[string]interface{}{"_uuid": "test", "foo": "bar"}}
+	testRow := ovsdb.Row{Fields: map[string]interface{}{"_uuid": "test", "foo": "bar"}}
 	testRowModel := &testModel{UUID: "test", Foo: "bar"}
-	updates := TableUpdates{
-		Updates: map[string]TableUpdate{
+	updates := ovsdb.TableUpdates{
+		Updates: map[string]ovsdb.TableUpdate{
 			"Open_vSwitch": {
-				Rows: map[string]RowUpdate{
+				Rows: map[string]ovsdb.RowUpdate{
 					"test": {
-						Old: Row{},
+						Old: ovsdb.Row{},
 						New: testRow,
 					},
 				},
@@ -327,12 +329,12 @@ func TestTableCache_populate(t *testing.T) {
 	assert.Equal(t, testRowModel, got)
 
 	t.Log("Update")
-	updatedRow := Row{Fields: map[string]interface{}{"_uuid": "test", "foo": "quux"}}
+	updatedRow := ovsdb.Row{Fields: map[string]interface{}{"_uuid": "test", "foo": "quux"}}
 	updatedRowModel := &testModel{UUID: "test", Foo: "quux"}
-	updates = TableUpdates{
-		Updates: map[string]TableUpdate{
+	updates = ovsdb.TableUpdates{
+		Updates: map[string]ovsdb.TableUpdate{
 			"Open_vSwitch": {
-				Rows: map[string]RowUpdate{
+				Rows: map[string]ovsdb.RowUpdate{
 					"test": {
 						Old: testRow,
 						New: updatedRow,
@@ -347,13 +349,13 @@ func TestTableCache_populate(t *testing.T) {
 	assert.Equal(t, updatedRowModel, got)
 
 	t.Log("Delete")
-	updates = TableUpdates{
-		Updates: map[string]TableUpdate{
+	updates = ovsdb.TableUpdates{
+		Updates: map[string]ovsdb.TableUpdate{
 			"Open_vSwitch": {
-				Rows: map[string]RowUpdate{
+				Rows: map[string]ovsdb.RowUpdate{
 					"test": {
 						Old: updatedRow,
-						New: Row{},
+						New: ovsdb.Row{},
 					},
 				},
 			},

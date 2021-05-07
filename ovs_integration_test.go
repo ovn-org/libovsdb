@@ -7,6 +7,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
 const (
@@ -163,7 +165,7 @@ func TestInsertTransactIntegration(t *testing.T) {
 	externalIds := make(map[string]string)
 	externalIds["go"] = "awesome"
 	externalIds["docker"] = "made-for-each-other"
-	oMap, err := NewOvsMap(externalIds)
+	oMap, err := ovsdb.NewOvsMap(externalIds)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +175,7 @@ func TestInsertTransactIntegration(t *testing.T) {
 	bridge["external_ids"] = oMap
 
 	// simple insert operation
-	insertOp := Operation{
+	insertOp := ovsdb.Operation{
 		Op:       "insert",
 		Table:    "Bridge",
 		Row:      bridge,
@@ -181,21 +183,21 @@ func TestInsertTransactIntegration(t *testing.T) {
 	}
 
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
-	mutateUUID := []UUID{{namedUUID}}
-	mutateSet, _ := NewOvsSet(mutateUUID)
-	mutation := NewMutation("bridges", "insert", mutateSet)
+	mutateUUID := []ovsdb.UUID{{GoUUID: namedUUID}}
+	mutateSet, _ := ovsdb.NewOvsSet(mutateUUID)
+	mutation := ovsdb.NewMutation("bridges", "insert", mutateSet)
 	// hacked Condition till we get Monitor / Select working
-	condition := NewCondition("_uuid", "!=", UUID{"2f77b348-9768-4866-b761-89d5177ecdab"})
+	condition := ovsdb.NewCondition("_uuid", "!=", ovsdb.UUID{GoUUID: "2f77b348-9768-4866-b761-89d5177ecdab"})
 
 	// simple mutate operation
-	mutateOp := Operation{
+	mutateOp := ovsdb.Operation{
 		Op:        "mutate",
 		Table:     "Open_vSwitch",
 		Mutations: []interface{}{mutation},
 		Where:     []interface{}{condition},
 	}
 
-	operations := []Operation{insertOp, mutateOp}
+	operations := []ovsdb.Operation{insertOp, mutateOp}
 	reply, err := ovs.Transact(operations...)
 	if err != nil {
 		t.Fatal(err)
@@ -241,29 +243,29 @@ func TestDeleteTransactIntegration(t *testing.T) {
 	}
 
 	// simple delete operation
-	condition := NewCondition("name", "==", bridgeName)
-	deleteOp := Operation{
+	condition := ovsdb.NewCondition("name", "==", bridgeName)
+	deleteOp := ovsdb.Operation{
 		Op:    "delete",
 		Table: "Bridge",
 		Where: []interface{}{condition},
 	}
 
 	// Deleting a Bridge row in Bridge table requires mutating the open_vswitch table.
-	mutateUUID := []UUID{{bridgeUUID}}
-	mutateSet, _ := NewOvsSet(mutateUUID)
-	mutation := NewMutation("bridges", "delete", mutateSet)
+	mutateUUID := []ovsdb.UUID{{GoUUID: bridgeUUID}}
+	mutateSet, _ := ovsdb.NewOvsSet(mutateUUID)
+	mutation := ovsdb.NewMutation("bridges", "delete", mutateSet)
 	// hacked Condition till we get Monitor / Select working
-	condition = NewCondition("_uuid", "!=", UUID{"2f77b348-9768-4866-b761-89d5177ecdab"})
+	condition = ovsdb.NewCondition("_uuid", "!=", ovsdb.UUID{GoUUID: "2f77b348-9768-4866-b761-89d5177ecdab"})
 
 	// simple mutate operation
-	mutateOp := Operation{
+	mutateOp := ovsdb.Operation{
 		Op:        "mutate",
 		Table:     "Open_vSwitch",
 		Mutations: []interface{}{mutation},
 		Where:     []interface{}{condition},
 	}
 
-	operations := []Operation{deleteOp, mutateOp}
+	operations := []ovsdb.Operation{deleteOp, mutateOp}
 	reply, err := ovs.Transact(operations...)
 	if err != nil {
 		t.Fatal(err)
@@ -377,7 +379,7 @@ type Notifier struct {
 	echoChan chan bool
 }
 
-func (n Notifier) Update(interface{}, TableUpdates) {
+func (n Notifier) Update(interface{}, ovsdb.TableUpdates) {
 }
 func (n Notifier) Locked([]interface{}) {
 }
@@ -406,7 +408,7 @@ func TestTableSchemaValidationIntegration(t *testing.T) {
 	bridge := make(map[string]interface{})
 	bridge["name"] = "docker-ovs"
 
-	operation := Operation{
+	operation := ovsdb.Operation{
 		Op:    "insert",
 		Table: "InvalidTable",
 		Row:   bridge,
@@ -438,7 +440,7 @@ func TestColumnSchemaInRowValidationIntegration(t *testing.T) {
 	bridge["name"] = "docker-ovs"
 	bridge["invalid_column"] = "invalid_column"
 
-	operation := Operation{
+	operation := ovsdb.Operation{
 		Op:    "insert",
 		Table: "Bridge",
 		Row:   bridge,
@@ -477,7 +479,7 @@ func TestColumnSchemaInMultipleRowsValidationIntegration(t *testing.T) {
 
 	rows[0] = invalidBridge
 	rows[1] = bridge
-	operation := Operation{
+	operation := ovsdb.Operation{
 		Op:    "insert",
 		Table: "Bridge",
 		Rows:  rows,
@@ -505,7 +507,7 @@ func TestColumnSchemaValidationIntegration(t *testing.T) {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
 
-	operation := Operation{
+	operation := ovsdb.Operation{
 		Op:      "select",
 		Table:   "Bridge",
 		Columns: []string{"name", "invalidColumn"},
@@ -535,10 +537,10 @@ func TestMonitorCancelIntegration(t *testing.T) {
 
 	monitorID := "f1b2ca48-aad7-11e7-abc4-cec278b6b50a"
 
-	requests := make(map[string]MonitorRequest)
-	requests["Bridge"] = MonitorRequest{
+	requests := make(map[string]ovsdb.MonitorRequest)
+	requests["Bridge"] = ovsdb.MonitorRequest{
 		Columns: []string{"name"},
-		Select: MonitorSelect{
+		Select: ovsdb.MonitorSelect{
 			Initial: true,
 			Insert:  true,
 			Delete:  true,

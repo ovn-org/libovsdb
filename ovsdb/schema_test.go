@@ -1,4 +1,4 @@
-package libovsdb
+package ovsdb
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"encoding/json"
+
 	"github.com/stretchr/testify/assert"
 )
 

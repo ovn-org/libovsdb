@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ovn-org/libovsdb"
+	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
 func usage() {
@@ -70,7 +70,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var dbSchema libovsdb.DatabaseSchema
+	var dbSchema ovsdb.DatabaseSchema
 	if err := json.Unmarshal(schemaBytes, &dbSchema); err != nil {
 		log.Fatal(err)
 	}

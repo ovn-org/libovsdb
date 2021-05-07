@@ -6,6 +6,8 @@ import (
 	"sync"
 
 	"log"
+
+	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
 const (
@@ -102,7 +104,7 @@ type TableCache struct {
 	dbModel        *DBModel
 }
 
-func newTableCache(schema *DatabaseSchema, dbModel *DBModel) (*TableCache, error) {
+func newTableCache(schema *ovsdb.DatabaseSchema, dbModel *DBModel) (*TableCache, error) {
 	if schema == nil || dbModel == nil {
 		return nil, fmt.Errorf("TableCache without DatabaseModel cannot be populated")
 	}
@@ -138,7 +140,7 @@ func (t *TableCache) Tables() []string {
 
 // Update implements the update method of the NotificationHandler interface
 // this populates the cache with new updates
-func (t *TableCache) Update(context interface{}, tableUpdates TableUpdates) {
+func (t *TableCache) Update(context interface{}, tableUpdates ovsdb.TableUpdates) {
 	if len(tableUpdates.Updates) == 0 {
 		return
 	}
@@ -162,7 +164,7 @@ func (t *TableCache) Disconnected() {
 }
 
 // populate adds data to the cache and places an event on the channel
-func (t *TableCache) populate(tableUpdates TableUpdates) {
+func (t *TableCache) populate(tableUpdates ovsdb.TableUpdates) {
 	t.cacheMutex.Lock()
 	defer t.cacheMutex.Unlock()
 	for table := range t.dbModel.Types() {
@@ -177,7 +179,7 @@ func (t *TableCache) populate(tableUpdates TableUpdates) {
 		}
 		tCache.mutex.Lock()
 		for uuid, row := range updates.Rows {
-			if !reflect.DeepEqual(row.New, Row{}) {
+			if !reflect.DeepEqual(row.New, ovsdb.Row{}) {
 				newModel, err := t.createModel(table, &row.New, uuid)
 				if err != nil {
 					panic(err)
@@ -303,7 +305,7 @@ func (e *eventProcessor) Run(stopCh <-chan struct{}) {
 }
 
 // createModel creates a new Model instance based on the Row information
-func (t *TableCache) createModel(tableName string, row *Row, uuid string) (Model, error) {
+func (t *TableCache) createModel(tableName string, row *ovsdb.Row, uuid string) (Model, error) {
 	table := t.orm.schema.Table(tableName)
 	if table == nil {
 		return nil, fmt.Errorf("Table %s not found", tableName)

@@ -1,4 +1,4 @@
-package libovsdb
+package ovsdb
 
 // NewGetSchemaArgs creates a new set of arguments for a get_schemas RPC
 func NewGetSchemaArgs(schema string) []interface{} {
@@ -37,4 +37,21 @@ func NewMonitorCancelArgs(value interface{}) []interface{} {
 // NewLockArgs creates a new set of arguments for a lock, steal or unlock RPC
 func NewLockArgs(id interface{}) []interface{} {
 	return []interface{}{id}
+}
+
+// NotificationHandler is the interface that must be implemented to receive notifcations
+type NotificationHandler interface {
+	// RFC 7047 section 4.1.6 Update Notification
+	Update(context interface{}, tableUpdates TableUpdates)
+
+	// RFC 7047 section 4.1.9 Locked Notification
+	Locked([]interface{})
+
+	// RFC 7047 section 4.1.10 Stolen Notification
+	Stolen([]interface{})
+
+	// RFC 7047 section 4.1.11 Echo Notification
+	Echo([]interface{})
+
+	Disconnected()
 }

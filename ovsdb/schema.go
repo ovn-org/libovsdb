@@ -1,4 +1,4 @@
-package libovsdb
+package ovsdb
 
 import (
 	"encoding/json"
@@ -43,8 +43,8 @@ func (schema DatabaseSchema) Print(w io.Writer) {
 	}
 }
 
-// Basic validation for operations against Database Schema
-func (schema DatabaseSchema) validateOperations(operations ...Operation) bool {
+// ValidateOperations performs basic validation for operations against a DatabaseSchema
+func (schema DatabaseSchema) ValidateOperations(operations ...Operation) bool {
 	for _, op := range operations {
 		table, ok := schema.Tables[op.Table]
 		if ok {

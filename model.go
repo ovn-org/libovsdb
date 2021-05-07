@@ -3,6 +3,8 @@ package libovsdb
 import (
 	"fmt"
 	"reflect"
+
+	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
 // A Model is the base interface used to build Database Models. It is used
@@ -62,7 +64,7 @@ func (db DBModel) FindTable(mType reflect.Type) string {
 
 // Validate validates the DatabaseModel against the input schema
 // Returns all the errors detected
-func (db DBModel) Validate(schema *DatabaseSchema) []error {
+func (db DBModel) Validate(schema *ovsdb.DatabaseSchema) []error {
 	var errors []error
 	if db.name != schema.Name {
 		errors = append(errors, fmt.Errorf("Database Model Name (%s) does not match schema (%s)",

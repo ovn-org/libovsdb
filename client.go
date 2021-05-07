@@ -12,13 +12,14 @@ import (
 
 	"github.com/cenkalti/rpc2"
 	"github.com/cenkalti/rpc2/jsonrpc"
+	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
 // OvsdbClient is an OVSDB client
 type OvsdbClient struct {
 	rpcClient     *rpc2.Client
-	Schema        DatabaseSchema
-	handlers      []NotificationHandler
+	Schema        ovsdb.DatabaseSchema
+	handlers      []ovsdb.NotificationHandler
 	handlersMutex *sync.Mutex
 	Cache         *TableCache
 	stopCh        chan struct{}
@@ -146,14 +147,14 @@ func newRPC2Client(conn net.Conn, database *DBModel) (*OvsdbClient, error) {
 }
 
 // Register registers the supplied NotificationHandler to recieve OVSDB Notifications
-func (ovs *OvsdbClient) Register(handler NotificationHandler) {
+func (ovs *OvsdbClient) Register(handler ovsdb.NotificationHandler) {
 	ovs.handlersMutex.Lock()
 	defer ovs.handlersMutex.Unlock()
 	ovs.handlers = append(ovs.handlers, handler)
 }
 
 //Get Handler by index
-func getHandlerIndex(handler NotificationHandler, handlers []NotificationHandler) (int, error) {
+func getHandlerIndex(handler ovsdb.NotificationHandler, handlers []ovsdb.NotificationHandler) (int, error) {
 	for i, h := range handlers {
 		if reflect.DeepEqual(h, handler) {
 			return i, nil
@@ -163,7 +164,7 @@ func getHandlerIndex(handler NotificationHandler, handlers []NotificationHandler
 }
 
 // Unregister the supplied NotificationHandler to not recieve OVSDB Notifications anymore
-func (ovs *OvsdbClient) Unregister(handler NotificationHandler) error {
+func (ovs *OvsdbClient) Unregister(handler ovsdb.NotificationHandler) error {
 	ovs.handlersMutex.Lock()
 	defer ovs.handlersMutex.Unlock()
 	i, err := getHandlerIndex(handler, ovs.handlers)
@@ -172,23 +173,6 @@ func (ovs *OvsdbClient) Unregister(handler NotificationHandler) error {
 	}
 	ovs.handlers = append(ovs.handlers[:i], ovs.handlers[i+1:]...)
 	return nil
-}
-
-// NotificationHandler is the interface that must be implemented to receive notifcations
-type NotificationHandler interface {
-	// RFC 7047 section 4.1.6 Update Notification
-	Update(context interface{}, tableUpdates TableUpdates)
-
-	// RFC 7047 section 4.1.9 Locked Notification
-	Locked([]interface{})
-
-	// RFC 7047 section 4.1.10 Stolen Notification
-	Stolen([]interface{})
-
-	// RFC 7047 section 4.1.11 Echo Notification
-	Echo([]interface{})
-
-	Disconnected()
 }
 
 // RFC 7047 : Section 4.1.6 : Echo
@@ -214,7 +198,7 @@ func (ovs *OvsdbClient) update(params []interface{}) error {
 	if !ok {
 		return fmt.Errorf("invalid update message")
 	}
-	var rowUpdates map[string]map[string]RowUpdate
+	var rowUpdates map[string]map[string]ovsdb.RowUpdate
 
 	b, err := json.Marshal(raw)
 	if err != nil {
@@ -238,9 +222,9 @@ func (ovs *OvsdbClient) update(params []interface{}) error {
 
 // GetSchema returns the schema in use for the provided database name
 // RFC 7047 : get_schema
-func (ovs OvsdbClient) GetSchema(dbName string) (*DatabaseSchema, error) {
-	args := NewGetSchemaArgs(dbName)
-	var reply DatabaseSchema
+func (ovs OvsdbClient) GetSchema(dbName string) (*ovsdb.DatabaseSchema, error) {
+	args := ovsdb.NewGetSchemaArgs(dbName)
+	var reply ovsdb.DatabaseSchema
 	err := ovs.rpcClient.Call("get_schema", args, &reply)
 	if err != nil {
 		return nil, err
@@ -262,14 +246,14 @@ func (ovs OvsdbClient) ListDbs() ([]string, error) {
 
 // Transact performs the provided Operation's on the database
 // RFC 7047 : transact
-func (ovs OvsdbClient) Transact(operation ...Operation) ([]OperationResult, error) {
-	var reply []OperationResult
+func (ovs OvsdbClient) Transact(operation ...ovsdb.Operation) ([]ovsdb.OperationResult, error) {
+	var reply []ovsdb.OperationResult
 
-	if ok := ovs.Schema.validateOperations(operation...); !ok {
+	if ok := ovs.Schema.ValidateOperations(operation...); !ok {
 		return nil, fmt.Errorf("validation failed for the operation")
 	}
 
-	args := NewTransactArgs(ovs.Schema.Name, operation...)
+	args := ovsdb.NewTransactArgs(ovs.Schema.Name, operation...)
 	err := ovs.rpcClient.Call("transact", args, &reply)
 	if err != nil {
 		return nil, err
@@ -279,15 +263,15 @@ func (ovs OvsdbClient) Transact(operation ...Operation) ([]OperationResult, erro
 
 // MonitorAll is a convenience method to monitor every table/column
 func (ovs OvsdbClient) MonitorAll(jsonContext interface{}) error {
-	requests := make(map[string]MonitorRequest)
+	requests := make(map[string]ovsdb.MonitorRequest)
 	for table, tableSchema := range ovs.Schema.Tables {
 		var columns []string
 		for column := range tableSchema.Columns {
 			columns = append(columns, column)
 		}
-		requests[table] = MonitorRequest{
+		requests[table] = ovsdb.MonitorRequest{
 			Columns: columns,
-			Select: MonitorSelect{
+			Select: ovsdb.MonitorSelect{
 				Initial: true,
 				Insert:  true,
 				Delete:  true,
@@ -300,9 +284,9 @@ func (ovs OvsdbClient) MonitorAll(jsonContext interface{}) error {
 // MonitorCancel will request cancel a previously issued monitor request
 // RFC 7047 : monitor_cancel
 func (ovs OvsdbClient) MonitorCancel(jsonContext interface{}) error {
-	var reply OperationResult
+	var reply ovsdb.OperationResult
 
-	args := NewMonitorCancelArgs(jsonContext)
+	args := ovsdb.NewMonitorCancelArgs(jsonContext)
 
 	err := ovs.rpcClient.Call("monitor_cancel", args, &reply)
 	if err != nil {
@@ -318,13 +302,13 @@ func (ovs OvsdbClient) MonitorCancel(jsonContext interface{}) error {
 // and populate the cache with them. Subsequent updates will be processed
 // by the Update Notifications
 // RFC 7047 : monitor
-func (ovs OvsdbClient) Monitor(jsonContext interface{}, requests map[string]MonitorRequest) error {
-	var reply TableUpdates
+func (ovs OvsdbClient) Monitor(jsonContext interface{}, requests map[string]ovsdb.MonitorRequest) error {
+	var reply ovsdb.TableUpdates
 
-	args := NewMonitorArgs(ovs.Schema.Name, jsonContext, requests)
+	args := ovsdb.NewMonitorArgs(ovs.Schema.Name, jsonContext, requests)
 
 	// This totally sucks. Refer to golang JSON issue #6213
-	var response map[string]map[string]RowUpdate
+	var response map[string]map[string]ovsdb.RowUpdate
 	err := ovs.rpcClient.Call("monitor", args, &response)
 	reply = getTableUpdatesFromRawUnmarshal(response)
 	if err != nil {
@@ -334,11 +318,11 @@ func (ovs OvsdbClient) Monitor(jsonContext interface{}, requests map[string]Moni
 	return nil
 }
 
-func getTableUpdatesFromRawUnmarshal(raw map[string]map[string]RowUpdate) TableUpdates {
-	var tableUpdates TableUpdates
-	tableUpdates.Updates = make(map[string]TableUpdate)
+func getTableUpdatesFromRawUnmarshal(raw map[string]map[string]ovsdb.RowUpdate) ovsdb.TableUpdates {
+	var tableUpdates ovsdb.TableUpdates
+	tableUpdates.Updates = make(map[string]ovsdb.TableUpdate)
 	for table, update := range raw {
-		tableUpdate := TableUpdate{update}
+		tableUpdate := ovsdb.TableUpdate{Rows: update}
 		tableUpdates.Updates[table] = tableUpdate
 	}
 	return tableUpdates

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -53,7 +54,7 @@ func TestNewOrmInfo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("NewOrm_%s", tt.name), func(t *testing.T) {
-			var table TableSchema
+			var table ovsdb.TableSchema
 			err := json.Unmarshal(tt.table, &table)
 			assert.Nil(t, err)
 
@@ -136,7 +137,7 @@ func TestOrmInfoSet(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("SetField_%s", tt.name), func(t *testing.T) {
-			var table TableSchema
+			var table ovsdb.TableSchema
 			err := json.Unmarshal(tt.table, &table)
 			assert.Nil(t, err)
 
@@ -217,7 +218,7 @@ func TestOrmInfoColByPtr(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("GetFieldByPtr_%s", tt.name), func(t *testing.T) {
-			var table TableSchema
+			var table ovsdb.TableSchema
 			err := json.Unmarshal(tt.table, &table)
 			assert.Nil(t, err)
 
@@ -263,7 +264,7 @@ func TestOrmGetIndex(t *testing.T) {
 	}
       }
    }`)
-	var table TableSchema
+	var table ovsdb.TableSchema
 	err := json.Unmarshal(tableSchema, &table)
 	assert.Nil(t, err)
 

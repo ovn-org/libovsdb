@@ -9,6 +9,7 @@ import (
 	"runtime/pprof"
 
 	"github.com/ovn-org/libovsdb"
+	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
 // ORMBridge is the simplified ORM model of the Bridge table
@@ -83,7 +84,7 @@ func run() {
 	}
 }
 
-func transact(ovs *libovsdb.OvsdbClient, operations []libovsdb.Operation) (ok bool, uuid string) {
+func transact(ovs *libovsdb.OvsdbClient, operations []ovsdb.Operation) (ok bool, uuid string) {
 	reply, _ := ovs.Transact(operations...)
 
 	if len(reply) < len(operations) {
@@ -161,7 +162,7 @@ func createBridge(ovs *libovsdb.OvsdbClient, iter int) {
 		log.Fatal(err)
 	}
 
-	operations := []libovsdb.Operation{*insertOp, mutateOp[0]}
+	operations := []ovsdb.Operation{*insertOp, mutateOp[0]}
 	ok, uuid := transact(ovs, operations)
 	if ok {
 		if *verbose {

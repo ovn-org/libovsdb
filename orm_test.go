@@ -5,7 +5,44 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
+)
+
+var (
+	aString = "foo"
+	aEnum   = "enum1"
+	aSet    = []string{"a", "set", "of", "strings"}
+	aUUID0  = "2f77b348-9768-4866-b761-89d5177ecda0"
+	aUUID1  = "2f77b348-9768-4866-b761-89d5177ecda1"
+	aUUID2  = "2f77b348-9768-4866-b761-89d5177ecda2"
+	aUUID3  = "2f77b348-9768-4866-b761-89d5177ecda3"
+
+	aUUIDSet = []string{
+		aUUID0,
+		aUUID1,
+		aUUID2,
+		aUUID3,
+	}
+
+	aIntSet = []int{
+		3,
+		2,
+		42,
+	}
+	aFloat = 42.00
+
+	aFloatSet = []float64{
+		3.0,
+		2.0,
+		42.0,
+	}
+
+	aMap = map[string]string{
+		"key1": "value1",
+		"key2": "value2",
+		"key3": "value3",
+	}
 )
 
 var testSchema = []byte(`{
@@ -115,20 +152,20 @@ var testSchema = []byte(`{
   }
 }`)
 
-func getOvsTestRow(t *testing.T) Row {
-	ovsRow := Row{Fields: make(map[string]interface{})}
+func getOvsTestRow(t *testing.T) ovsdb.Row {
+	ovsRow := ovsdb.Row{Fields: make(map[string]interface{})}
 	ovsRow.Fields["aString"] = aString
 	ovsRow.Fields["aSet"] = *testOvsSet(t, aSet)
 	// Set's can hold the value if they have len == 1
 	ovsRow.Fields["aSingleSet"] = aString
 
-	us := make([]UUID, 0)
+	us := make([]ovsdb.UUID, 0)
 	for _, u := range aUUIDSet {
-		us = append(us, UUID{GoUUID: u})
+		us = append(us, ovsdb.UUID{GoUUID: u})
 	}
 	ovsRow.Fields["aUUIDSet"] = *testOvsSet(t, us)
 
-	ovsRow.Fields["aUUID"] = UUID{GoUUID: aUUID0}
+	ovsRow.Fields["aUUID"] = ovsdb.UUID{GoUUID: aUUID0}
 
 	ovsRow.Fields["aIntSet"] = *testOvsSet(t, aIntSet)
 
@@ -178,7 +215,7 @@ func TestORMGetData(t *testing.T) {
 
 	ovsRow := getOvsTestRow(t)
 	/* Code under test */
-	var schema DatabaseSchema
+	var schema ovsdb.DatabaseSchema
 	if err := json.Unmarshal(testSchema, &schema); err != nil {
 		t.Error(err)
 	}
@@ -197,7 +234,7 @@ func TestORMGetData(t *testing.T) {
 }
 
 func TestORMNewRow(t *testing.T) {
-	var schema DatabaseSchema
+	var schema ovsdb.DatabaseSchema
 	if err := json.Unmarshal(testSchema, &schema); err != nil {
 		t.Error(err)
 	}
@@ -238,7 +275,7 @@ func TestORMNewRow(t *testing.T) {
 		}{
 			MyUUID: aUUID0,
 		},
-		expectedRow: map[string]interface{}{"aUUID": UUID{GoUUID: aUUID0}},
+		expectedRow: map[string]interface{}{"aUUID": ovsdb.UUID{GoUUID: aUUID0}},
 	}, {
 		name: "aUUIDSet",
 		objInput: &struct {
@@ -246,7 +283,7 @@ func TestORMNewRow(t *testing.T) {
 		}{
 			MyUUIDSet: []string{aUUID0, aUUID1},
 		},
-		expectedRow: map[string]interface{}{"aUUIDSet": testOvsSet(t, []UUID{{GoUUID: aUUID0}, {GoUUID: aUUID1}})},
+		expectedRow: map[string]interface{}{"aUUIDSet": testOvsSet(t, []ovsdb.UUID{{GoUUID: aUUID0}, {GoUUID: aUUID1}})},
 	}, {
 		name: "aIntSet",
 		objInput: &struct {
@@ -314,7 +351,7 @@ func TestORMNewRow(t *testing.T) {
 }
 
 func TestORMNewRowFields(t *testing.T) {
-	var schema DatabaseSchema
+	var schema ovsdb.DatabaseSchema
 	if err := json.Unmarshal(testSchema, &schema); err != nil {
 		t.Error(err)
 	}
@@ -446,7 +483,7 @@ func TestORMCondition(t *testing.T) {
 		Comp2  string            `ovs:"composed_2"`
 	}
 
-	var schema DatabaseSchema
+	var schema ovsdb.DatabaseSchema
 	if err := json.Unmarshal(testSchema, &schema); err != nil {
 		t.Fatal(err)
 	}
@@ -485,7 +522,7 @@ func TestORMCondition(t *testing.T) {
 				t.Comp2 = ""
 			},
 			index:    []interface{}{},
-			expected: []interface{}{[]interface{}{"_uuid", "==", UUID{GoUUID: aUUID0}}},
+			expected: []interface{}{[]interface{}{"_uuid", "==", ovsdb.UUID{GoUUID: aUUID0}}},
 			err:      false,
 		},
 		{
@@ -616,7 +653,7 @@ func TestORMEqualIndexes(t *testing.T) {
 		Int2   int               `ovs:"int2"`
 	}
 
-	var schema DatabaseSchema
+	var schema ovsdb.DatabaseSchema
 	if err := json.Unmarshal(testSchema, &schema); err != nil {
 		t.Fatal(err)
 	}
@@ -874,7 +911,7 @@ func TestORMMutation(t *testing.T) {
 		UnMutable int               `ovs:"unmutable"`
 	}
 
-	var schema DatabaseSchema
+	var schema ovsdb.DatabaseSchema
 	if err := json.Unmarshal(testSchema, &schema); err != nil {
 		t.Fatal(err)
 	}
@@ -885,7 +922,7 @@ func TestORMMutation(t *testing.T) {
 		column   string
 		obj      testType
 		expected []interface{}
-		mutator  Mutator
+		mutator  ovsdb.Mutator
 		value    interface{}
 		err      bool
 	}
@@ -894,32 +931,32 @@ func TestORMMutation(t *testing.T) {
 			name:    "string",
 			column:  "string",
 			obj:     testType{},
-			mutator: MutateOperationAdd,
+			mutator: ovsdb.MutateOperationAdd,
 			err:     true,
 		},
 		{
 			name:     "Increment integer",
 			column:   "int",
 			obj:      testType{},
-			mutator:  MutateOperationAdd,
+			mutator:  ovsdb.MutateOperationAdd,
 			value:    1,
-			expected: []interface{}{"int", MutateOperationAdd, 1},
+			expected: []interface{}{"int", ovsdb.MutateOperationAdd, 1},
 			err:      false,
 		},
 		{
 			name:     "Increment integer",
 			column:   "int",
 			obj:      testType{},
-			mutator:  MutateOperationModulo,
+			mutator:  ovsdb.MutateOperationModulo,
 			value:    2,
-			expected: []interface{}{"int", MutateOperationModulo, 2},
+			expected: []interface{}{"int", ovsdb.MutateOperationModulo, 2},
 			err:      false,
 		},
 		{
 			name:    "non-mutable",
 			column:  "unmutable",
 			obj:     testType{},
-			mutator: MutateOperationSubstract,
+			mutator: ovsdb.MutateOperationSubstract,
 			value:   2,
 			err:     true,
 		},
@@ -927,36 +964,36 @@ func TestORMMutation(t *testing.T) {
 			name:     "Add elemet to set ",
 			column:   "set",
 			obj:      testType{},
-			mutator:  MutateOperationInsert,
+			mutator:  ovsdb.MutateOperationInsert,
 			value:    []string{"foo"},
-			expected: []interface{}{"set", MutateOperationInsert, testOvsSet(t, []string{"foo"})},
+			expected: []interface{}{"set", ovsdb.MutateOperationInsert, testOvsSet(t, []string{"foo"})},
 			err:      false,
 		},
 		{
 			name:     "Delete element from set ",
 			column:   "set",
 			obj:      testType{},
-			mutator:  MutateOperationDelete,
+			mutator:  ovsdb.MutateOperationDelete,
 			value:    []string{"foo"},
-			expected: []interface{}{"set", MutateOperationDelete, testOvsSet(t, []string{"foo"})},
+			expected: []interface{}{"set", ovsdb.MutateOperationDelete, testOvsSet(t, []string{"foo"})},
 			err:      false,
 		},
 		{
 			name:     "Delete elements from map ",
 			column:   "map",
 			obj:      testType{},
-			mutator:  MutateOperationDelete,
+			mutator:  ovsdb.MutateOperationDelete,
 			value:    []string{"foo", "bar"},
-			expected: []interface{}{"map", MutateOperationDelete, testOvsSet(t, []string{"foo", "bar"})},
+			expected: []interface{}{"map", ovsdb.MutateOperationDelete, testOvsSet(t, []string{"foo", "bar"})},
 			err:      false,
 		},
 		{
 			name:     "Insert elements in map ",
 			column:   "map",
 			obj:      testType{},
-			mutator:  MutateOperationInsert,
+			mutator:  ovsdb.MutateOperationInsert,
 			value:    map[string]string{"foo": "bar"},
-			expected: []interface{}{"map", MutateOperationInsert, testOvsMap(t, map[string]string{"foo": "bar"})},
+			expected: []interface{}{"map", ovsdb.MutateOperationInsert, testOvsMap(t, map[string]string{"foo": "bar"})},
 			err:      false,
 		},
 	}
@@ -976,4 +1013,16 @@ func TestORMMutation(t *testing.T) {
 			assert.Equalf(t, test.expected, mutation, "Mutation must match expected")
 		})
 	}
+}
+
+func testOvsSet(t *testing.T, set interface{}) *ovsdb.OvsSet {
+	oSet, err := ovsdb.NewOvsSet(set)
+	assert.Nil(t, err)
+	return oSet
+}
+
+func testOvsMap(t *testing.T, set interface{}) *ovsdb.OvsMap {
+	oMap, err := ovsdb.NewOvsMap(set)
+	assert.Nil(t, err)
+	return oMap
 }

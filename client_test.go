@@ -1,20 +1,23 @@
 package libovsdb
 
 import (
+	"reflect"
 	"sync"
 	"testing"
+
+	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
 func updateBenchmark(bridges []string, b *testing.B) {
-	bridgeInsert := TableUpdate{
-		Rows: make(map[string]RowUpdate),
+	bridgeInsert := ovsdb.TableUpdate{
+		Rows: make(map[string]ovsdb.RowUpdate),
 	}
 	for _, br := range bridges {
 		r := newBridgeRow(br)
-		bridgeInsert.Rows[br] = RowUpdate{New: r}
+		bridgeInsert.Rows[br] = ovsdb.RowUpdate{New: r}
 	}
-	ovsUpdate := TableUpdate{
-		Rows: map[string]RowUpdate{
+	ovsUpdate := ovsdb.TableUpdate{
+		Rows: map[string]ovsdb.RowUpdate{
 			"829f8534-94a8-468e-9176-132738cf260a": {Old: newOvsRow([]string{}), New: newOvsRow(bridges)},
 		},
 	}
@@ -23,7 +26,7 @@ func updateBenchmark(bridges []string, b *testing.B) {
 		"Bridge":       bridgeInsert,
 	}
 	ovs := OvsdbClient{
-		handlers:      []NotificationHandler{},
+		handlers:      []ovsdb.NotificationHandler{},
 		handlersMutex: &sync.Mutex{},
 	}
 	for n := 0; n < b.N; n++ {
@@ -38,8 +41,8 @@ func updateBenchmark(bridges []string, b *testing.B) {
 	}
 }
 
-func newBridgeRow(name string) Row {
-	return Row{
+func newBridgeRow(name string) ovsdb.Row {
+	return ovsdb.Row{
 		Fields: map[string]interface{}{
 			"connection_mode":       []string{},
 			"controller":            []string{},
@@ -67,8 +70,8 @@ func newBridgeRow(name string) Row {
 	}
 }
 
-func newOvsRow(bridges []string) Row {
-	return Row{
+func newOvsRow(bridges []string) ovsdb.Row {
+	return ovsdb.Row{
 		Fields: map[string]interface{}{
 			"bridges":          bridges,
 			"cur_cfg":          0,
@@ -109,4 +112,49 @@ func BenchmarkUpdate5(b *testing.B) {
 
 func BenchmarkUpdate8(b *testing.B) {
 	updateBenchmark([]string{"foo", "bar", "baz", "quux", "foofoo", "foobar", "foobaz", "fooquux"}, b)
+}
+
+func TestEcho(t *testing.T) {
+	req := []interface{}{"hi"}
+	var reply []interface{}
+	ovs := OvsdbClient{
+		handlers:      []ovsdb.NotificationHandler{},
+		handlersMutex: &sync.Mutex{},
+	}
+	err := ovs.echo(req, &reply)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(req, reply) {
+		t.Error("Expected: ", req, " Got: ", reply)
+	}
+}
+
+func TestUpdate(t *testing.T) {
+	ovs := OvsdbClient{
+		handlers:      []ovsdb.NotificationHandler{},
+		handlersMutex: &sync.Mutex{},
+	}
+	// Update notification should fail for arrays of size < 2
+	err := ovs.update([]interface{}{"hello"})
+	if err == nil {
+		t.Error("Expected: error for a dummy request")
+	}
+
+	// Update notification should fail if arg[1] is not map[string]map[string]RowUpdate type
+	err = ovs.update([]interface{}{"hello", "gophers"})
+	if err == nil {
+		t.Error("Expected: error for a dummy request")
+	}
+
+	// Valid dummy update should pass
+	validUpdate := make(map[string]interface{})
+	validRowUpdate := make(map[string]ovsdb.RowUpdate)
+	validRowUpdate["uuid"] = ovsdb.RowUpdate{}
+	validUpdate["table"] = validRowUpdate
+
+	err = ovs.update([]interface{}{"hello", validUpdate})
+	if err != nil {
+		t.Error(err)
+	}
 }

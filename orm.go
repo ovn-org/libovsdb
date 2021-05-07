@@ -3,6 +3,8 @@ package libovsdb
 import (
 	"fmt"
 	"reflect"
+
+	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
 // ORM offers functions to interact with libovsdb through user-provided native structs.
@@ -17,7 +19,7 @@ import (
 //  	Name string `ovs:"name"`
 //  }
 type orm struct {
-	schema *DatabaseSchema
+	schema *ovsdb.DatabaseSchema
 }
 
 // ErrORM describes an error in an ORM type
@@ -51,7 +53,7 @@ func NewErrNoTable(table string) error {
 }
 
 // newORM returns a new ORM
-func newORM(schema *DatabaseSchema) *orm {
+func newORM(schema *ovsdb.DatabaseSchema) *orm {
 	return &orm{
 		schema: schema,
 	}
@@ -59,7 +61,7 @@ func newORM(schema *DatabaseSchema) *orm {
 
 // GetRowData transforms a Row to a struct based on its tags
 // The result object must be given as pointer to an object with the right tags
-func (o orm) getRowData(tableName string, row *Row, result interface{}) error {
+func (o orm) getRowData(tableName string, row *ovsdb.Row, result interface{}) error {
 	if row == nil {
 		return nil
 	}
@@ -92,7 +94,7 @@ func (o orm) getData(tableName string, ovsData map[string]interface{}, result in
 			continue
 		}
 
-		nativeElem, err := OvsToNative(column, ovsElem)
+		nativeElem, err := ovsdb.OvsToNative(column, ovsElem)
 		if err != nil {
 			return fmt.Errorf("Table %s, Column %s: Failed to extract native element: %s",
 				tableName, name, err.Error())
@@ -144,10 +146,10 @@ func (o orm) newRow(tableName string, data interface{}, fields ...interface{}) (
 			}
 		}
 
-		if len(fields) == 0 && IsDefaultValue(column, nativeElem) {
+		if len(fields) == 0 && ovsdb.IsDefaultValue(column, nativeElem) {
 			continue
 		}
-		ovsElem, err := NativeToOvs(column, nativeElem)
+		ovsElem, err := ovsdb.NativeToOvs(column, nativeElem)
 		if err != nil {
 			return nil, fmt.Errorf("Table %s, Column %s: Failed to generate OvS element. %s", tableName, name, err.Error())
 		}
@@ -212,7 +214,7 @@ func (o orm) newCondition(tableName string, data interface{}, fields ...interfac
 		if column == nil {
 			return nil, fmt.Errorf("Column %s not found", col)
 		}
-		ovsVal, err := NativeToOvs(column, field)
+		ovsVal, err := ovsdb.NativeToOvs(column, field)
 		if err != nil {
 			return nil, err
 		}
@@ -248,7 +250,7 @@ func (o orm) equalFields(tableName string, one, other interface{}, fields ...int
 
 // newMutation creates a RFC7047 mutation object based on an ORM object and the mutation fields (in native format)
 // It takes care of field validation against the column type
-func (o orm) newMutation(tableName string, data interface{}, column string, mutator Mutator, value interface{}) ([]interface{}, error) {
+func (o orm) newMutation(tableName string, data interface{}, column string, mutator ovsdb.Mutator, value interface{}) ([]interface{}, error) {
 	table := o.schema.Table(tableName)
 	if table == nil {
 		return nil, NewErrNoTable(tableName)
@@ -268,20 +270,20 @@ func (o orm) newMutation(tableName string, data interface{}, column string, muta
 	if columnSchema == nil {
 		return nil, fmt.Errorf("Column %s not found", column)
 	}
-	if err := validateMutation(columnSchema, mutator, value); err != nil {
+	if err := ovsdb.ValidateMutation(columnSchema, mutator, value); err != nil {
 		return nil, err
 	}
 
 	var ovsValue interface{}
-	if mutator == "delete" && columnSchema.Type == TypeMap {
+	if mutator == "delete" && columnSchema.Type == ovsdb.TypeMap {
 		// It's OK to cast the value to a list of elemets because validation has passed
-		ovsSet, err := NewOvsSet(value)
+		ovsSet, err := ovsdb.NewOvsSet(value)
 		if err != nil {
 			return nil, err
 		}
 		ovsValue = ovsSet
 	} else {
-		ovsValue, err = NativeToOvs(columnSchema, value)
+		ovsValue, err = ovsdb.NativeToOvs(columnSchema, value)
 		if err != nil {
 			return nil, err
 		}
@@ -296,7 +298,7 @@ func (o orm) newMutation(tableName string, data interface{}, column string, muta
 // For any of the indexes defined in the Table Schema, the values all of its columns are simultaneously equal
 // (as per RFC7047)
 // The values of all of the optional indexes passed as variadic parameter to this function are equal.
-func (o orm) equalIndexes(table *TableSchema, one, other interface{}, indexes ...string) (bool, error) {
+func (o orm) equalIndexes(table *ovsdb.TableSchema, one, other interface{}, indexes ...string) (bool, error) {
 	match := false
 
 	oneOrmInfo, err := newORMInfo(table, one)

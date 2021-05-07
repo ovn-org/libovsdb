@@ -1,4 +1,4 @@
-package libovsdb
+package ovsdb
 
 import (
 	"fmt"
@@ -33,9 +33,9 @@ func NewErrWrongType(from, expected string, got interface{}) error {
 	}
 }
 
-// nativeTypeFromAtomic returns the native type that can hold a value of an
+// NativeTypeFromAtomic returns the native type that can hold a value of an
 // AtomicType
-func nativeTypeFromAtomic(basicType string) reflect.Type {
+func NativeTypeFromAtomic(basicType string) reflect.Type {
 	switch basicType {
 	case TypeInteger:
 		return intType
@@ -52,24 +52,24 @@ func nativeTypeFromAtomic(basicType string) reflect.Type {
 	}
 }
 
-//nativeType returns the reflect.Type that can hold the value of a column
+//NativeType returns the reflect.Type that can hold the value of a column
 //OVS Type to Native Type convertions:
 // OVS sets -> go slices
 // OVS uuid -> go strings
 // OVS map  -> go map
 // OVS enum -> go native type depending on the type of the enum key
-func nativeType(column *ColumnSchema) reflect.Type {
+func NativeType(column *ColumnSchema) reflect.Type {
 	switch column.Type {
 	case TypeInteger, TypeReal, TypeBoolean, TypeUUID, TypeString:
-		return nativeTypeFromAtomic(column.Type)
+		return NativeTypeFromAtomic(column.Type)
 	case TypeEnum:
-		return nativeTypeFromAtomic(column.TypeObj.Key.Type)
+		return NativeTypeFromAtomic(column.TypeObj.Key.Type)
 	case TypeMap:
-		kType := nativeTypeFromAtomic(column.TypeObj.Key.Type)
-		vType := nativeTypeFromAtomic(column.TypeObj.Value.Type)
+		kType := NativeTypeFromAtomic(column.TypeObj.Key.Type)
+		vType := NativeTypeFromAtomic(column.TypeObj.Value.Type)
 		return reflect.MapOf(kType, vType)
 	case TypeSet:
-		kType := nativeTypeFromAtomic(column.TypeObj.Key.Type)
+		kType := NativeTypeFromAtomic(column.TypeObj.Key.Type)
 		return reflect.SliceOf(kType)
 	default:
 		panic(fmt.Errorf("unknown extended type %s", column.Type))
@@ -80,13 +80,13 @@ func nativeType(column *ColumnSchema) reflect.Type {
 func OvsToNativeAtomic(basicType string, ovsElem interface{}) (interface{}, error) {
 	switch basicType {
 	case TypeReal, TypeString, TypeBoolean:
-		naType := nativeTypeFromAtomic(basicType)
+		naType := NativeTypeFromAtomic(basicType)
 		if reflect.TypeOf(ovsElem) != naType {
 			return nil, NewErrWrongType("OvsToNativeAtomic", naType.String(), ovsElem)
 		}
 		return ovsElem, nil
 	case TypeInteger:
-		naType := nativeTypeFromAtomic(basicType)
+		naType := NativeTypeFromAtomic(basicType)
 		// Default decoding of numbers is float64, convert them to int
 		if !reflect.TypeOf(ovsElem).ConvertibleTo(naType) {
 			return nil, NewErrWrongType("OvsToNativeAtomic", fmt.Sprintf("Convertible to %s", naType), ovsElem)
@@ -111,7 +111,7 @@ func OvsToNative(column *ColumnSchema, ovsElem interface{}) (interface{}, error)
 	case TypeEnum:
 		return OvsToNativeAtomic(column.TypeObj.Key.Type, ovsElem)
 	case TypeSet:
-		naType := nativeType(column)
+		naType := NativeType(column)
 		// The inner slice is []interface{}
 		// We need to convert it to the real type os slice
 		var nativeSet reflect.Value
@@ -140,7 +140,7 @@ func OvsToNative(column *ColumnSchema, ovsElem interface{}) (interface{}, error)
 		return nativeSet.Interface(), nil
 
 	case TypeMap:
-		naType := nativeType(column)
+		naType := NativeType(column)
 		ovsMap, ok := ovsElem.(OvsMap)
 		if !ok {
 			return nil, NewErrWrongType("OvsToNative", "OvsMap", ovsElem)
@@ -167,7 +167,7 @@ func OvsToNative(column *ColumnSchema, ovsElem interface{}) (interface{}, error)
 
 // NativeToOvs transforms an native type to a ovs type based on the column type information
 func NativeToOvs(column *ColumnSchema, rawElem interface{}) (interface{}, error) {
-	naType := nativeType(column)
+	naType := NativeType(column)
 
 	if t := reflect.TypeOf(rawElem); t != naType {
 		return nil, NewErrWrongType("NativeToOvs", naType.String(), rawElem)
@@ -218,9 +218,9 @@ func IsDefaultValue(column *ColumnSchema, nativeElem interface{}) bool {
 	}
 }
 
-// validateMutator checks if the mutation is valid for a specific AtomicType
+// ValidateMutationAtomic checks if the mutation is valid for a specific AtomicType
 func validateMutationAtomic(atype string, mutator Mutator, value interface{}) error {
-	nType := nativeTypeFromAtomic(atype)
+	nType := NativeTypeFromAtomic(atype)
 	if reflect.TypeOf(value) != nType {
 		return NewErrWrongType(fmt.Sprintf("Mutation of atomic type %s", atype), nType.String(), value)
 	}
@@ -249,7 +249,7 @@ func validateMutationAtomic(atype string, mutator Mutator, value interface{}) er
 
 // ValidateMutation checks if the mutation value and mutator string area apropriate
 // for a given column based on the rules specified RFC7047
-func validateMutation(column *ColumnSchema, mutator Mutator, value interface{}) error {
+func ValidateMutation(column *ColumnSchema, mutator Mutator, value interface{}) error {
 	if !column.Mutable {
 		return fmt.Errorf("Column is not mutable")
 	}
@@ -257,9 +257,9 @@ func validateMutation(column *ColumnSchema, mutator Mutator, value interface{}) 
 	case TypeSet:
 		switch mutator {
 		case MutateOperationInsert, MutateOperationDelete:
-			if nativeType(column) != reflect.TypeOf(value) {
+			if NativeType(column) != reflect.TypeOf(value) {
 				return NewErrWrongType(fmt.Sprintf("Mutation %s of column %s", mutator, column),
-					nativeType(column).String(), value)
+					NativeType(column).String(), value)
 			}
 			return nil
 		default:
@@ -269,15 +269,15 @@ func validateMutation(column *ColumnSchema, mutator Mutator, value interface{}) 
 		switch mutator {
 		case MutateOperationInsert:
 			// Value must be a map of the same kind
-			if reflect.TypeOf(value) != nativeType(column) {
+			if reflect.TypeOf(value) != NativeType(column) {
 				return NewErrWrongType(fmt.Sprintf("Mutation %s of column %s", mutator, column),
-					nativeType(column).String(), value)
+					NativeType(column).String(), value)
 			}
 			return nil
 		case MutateOperationDelete:
 			// Value must be a map of the same kind or a set of keys to delete
-			if reflect.TypeOf(value) != nativeType(column) &&
-				reflect.TypeOf(value) != reflect.SliceOf(nativeTypeFromAtomic(column.TypeObj.Key.Type)) {
+			if reflect.TypeOf(value) != NativeType(column) &&
+				reflect.TypeOf(value) != reflect.SliceOf(NativeTypeFromAtomic(column.TypeObj.Key.Type)) {
 				return NewErrWrongType(fmt.Sprintf("Mutation %s of column %s", mutator, column),
 					"compatible map type", value)
 			}

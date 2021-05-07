@@ -14,7 +14,7 @@ test-local:
 
 bench-local:
 	@echo "+ $@"
-	@go test -run=XXX -count=3 -bench=. | tee bench.out
+	@go test -run=XXX -count=3 -bench=. ./... | tee bench.out
 	@benchstat bench.out
 
 integration-test-local:

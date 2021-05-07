@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 
-	"github.com/ovn-org/libovsdb"
+	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
 func usage() {
@@ -24,7 +24,7 @@ var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to this file")
 var memprofile = flag.String("memoryprofile", "", "write memory profile to this file")
 var ntimes = flag.Int("ntimes", 1, "Parse the schema N times. Useful for profiling")
 
-var schemas []libovsdb.DatabaseSchema
+var schemas []ovsdb.DatabaseSchema
 
 func main() {
 	log.SetFlags(0)
@@ -58,7 +58,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	schemas = make([]libovsdb.DatabaseSchema, *ntimes)
+	schemas = make([]ovsdb.DatabaseSchema, *ntimes)
 	for i := 0; i < *ntimes; i++ {
 		if err := json.Unmarshal(schemaBytes, &schemas[i]); err != nil {
 			log.Fatal(err)

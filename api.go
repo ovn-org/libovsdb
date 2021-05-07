@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+
+	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
 const (
@@ -45,7 +47,7 @@ type API interface {
 	// Only fields with non-default values will be added to the transaction
 	// If the field associated with column "_uuid" has some content, it will be
 	// treated as named-uuid
-	Create(Model) (*Operation, error)
+	Create(Model) (*ovsdb.Operation, error)
 }
 
 // ConditionalAPI is an interface used to perform operations that require / use Conditions
@@ -57,37 +59,25 @@ type ConditionalAPI interface {
 	// Mutate returns the operations needed to perform the mutation specified
 	// By the model and the list of Mutation objects
 	// Depending on the Condition, it might return one or many operations
-	Mutate(Model, []Mutation) ([]Operation, error)
+	Mutate(Model, []Mutation) ([]ovsdb.Operation, error)
 
 	// Update returns the operations needed to update any number of rows according
 	// to the data in the given model.
 	// By default, all the non-default values contained in model will be updated.
 	// Optional fields can be passed (pointer to fields in the model) to select the
 	// the fields to be updated
-	Update(Model, ...interface{}) ([]Operation, error)
+	Update(Model, ...interface{}) ([]ovsdb.Operation, error)
 
 	// Delete returns the Operations needed to delete the models seleted via the condition
-	Delete() ([]Operation, error)
+	Delete() ([]ovsdb.Operation, error)
 }
-
-type Mutator string
-
-const (
-	MutateOperationDelete    Mutator = "delete"
-	MutateOperationInsert    Mutator = "insert"
-	MutateOperationAdd       Mutator = "+="
-	MutateOperationSubstract Mutator = "-="
-	MutateOperationMultiply  Mutator = "*="
-	MutateOperationDivide    Mutator = "/="
-	MutateOperationModulo    Mutator = "%="
-)
 
 // Mutation is a type that represents a OVSDB Mutation
 type Mutation struct {
 	// Pointer to the field of the model that shall be mutated
 	Field interface{}
 	// String representing the mutator (as per RFC7047)
-	Mutator Mutator
+	Mutator ovsdb.Mutator
 	// Value to use in the mutation
 	Value interface{}
 }
@@ -260,7 +250,7 @@ func (a api) Get(model Model) error {
 
 // Create is a generic function capable of creating any row in the DB
 // A valud Model (pointer to object) must be provided.
-func (a api) Create(model Model) (*Operation, error) {
+func (a api) Create(model Model) (*ovsdb.Operation, error) {
 	var namedUUID string
 	var err error
 
@@ -286,7 +276,7 @@ func (a api) Create(model Model) (*Operation, error) {
 		return nil, err
 	}
 
-	insertOp := Operation{
+	insertOp := ovsdb.Operation{
 		Op:       opInsert,
 		Table:    tableName,
 		Row:      row,
@@ -296,9 +286,9 @@ func (a api) Create(model Model) (*Operation, error) {
 }
 
 // Mutate returns the operations needed to transform the one Model into another one
-func (a api) Mutate(model Model, mutationObjs []Mutation) ([]Operation, error) {
+func (a api) Mutate(model Model, mutationObjs []Mutation) ([]ovsdb.Operation, error) {
 	var mutations []interface{}
-	var operations []Operation
+	var operations []ovsdb.Operation
 
 	tableName := a.cache.dbModel.FindTable(reflect.ValueOf(model).Type())
 	table := a.cache.orm.schema.Table(tableName)
@@ -331,7 +321,7 @@ func (a api) Mutate(model Model, mutationObjs []Mutation) ([]Operation, error) {
 
 	for _, condition := range conditions {
 		operations = append(operations,
-			Operation{
+			ovsdb.Operation{
 				Op:        opMutate,
 				Table:     tableName,
 				Mutations: mutations,
@@ -343,8 +333,8 @@ func (a api) Mutate(model Model, mutationObjs []Mutation) ([]Operation, error) {
 
 // Update is a generic function capable of updating any field in any row in the database
 // Additional fields can be passed (variadic opts) to indicate fields to be updated
-func (a api) Update(model Model, fields ...interface{}) ([]Operation, error) {
-	var operations []Operation
+func (a api) Update(model Model, fields ...interface{}) ([]ovsdb.Operation, error) {
+	var operations []ovsdb.Operation
 	table, err := a.getTableFromModel(model)
 	if err != nil {
 		return nil, err
@@ -361,7 +351,7 @@ func (a api) Update(model Model, fields ...interface{}) ([]Operation, error) {
 	}
 
 	for _, condition := range conditions {
-		operations = append(operations, Operation{
+		operations = append(operations, ovsdb.Operation{
 			Op:    opUpdate,
 			Table: table,
 			Row:   row,
@@ -372,15 +362,15 @@ func (a api) Update(model Model, fields ...interface{}) ([]Operation, error) {
 }
 
 // Delete returns the Operation needed to delete the selected models from the database
-func (a api) Delete() ([]Operation, error) {
-	var operations []Operation
+func (a api) Delete() ([]ovsdb.Operation, error) {
+	var operations []ovsdb.Operation
 	conditions, err := a.cond.Generate()
 	if err != nil {
 		return nil, err
 	}
 
 	for _, condition := range conditions {
-		operations = append(operations, Operation{
+		operations = append(operations, ovsdb.Operation{
 			Op:    opDelete,
 			Table: a.cond.Table(),
 			Where: condition,

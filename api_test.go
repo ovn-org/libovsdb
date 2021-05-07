@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -529,13 +530,13 @@ func TestAPICreate(t *testing.T) {
 	test := []struct {
 		name   string
 		input  Model
-		result *Operation
+		result *ovsdb.Operation
 		err    bool
 	}{
 		{
 			name:  "empty",
 			input: &testLogicalSwitch{},
-			result: &Operation{
+			result: &ovsdb.Operation{
 				Op:       "insert",
 				Table:    "Logical_Switch",
 				Row:      map[string]interface{}{},
@@ -548,7 +549,7 @@ func TestAPICreate(t *testing.T) {
 			input: &testLogicalSwitch{
 				Name: "foo",
 			},
-			result: &Operation{
+			result: &ovsdb.Operation{
 				Op:       "insert",
 				Table:    "Logical_Switch",
 				Row:      map[string]interface{}{"name": "foo"},
@@ -561,7 +562,7 @@ func TestAPICreate(t *testing.T) {
 			input: &testLogicalSwitch{
 				UUID: "foo",
 			},
-			result: &Operation{
+			result: &ovsdb.Operation{
 				Op:       "insert",
 				Table:    "Logical_Switch",
 				Row:      map[string]interface{}{},
@@ -578,7 +579,7 @@ func TestAPICreate(t *testing.T) {
 				assert.NotNil(t, err)
 			} else {
 				assert.Nil(t, err)
-				assert.Equalf(t, tt.result, op, "Operation should match")
+				assert.Equalf(t, tt.result, op, "ovsdb.Operation should match")
 			}
 		})
 	}
@@ -620,7 +621,7 @@ func TestAPIMutate(t *testing.T) {
 		model     Model
 		mutations []Mutation
 		init      map[string]Model
-		result    []Operation
+		result    []ovsdb.Operation
 		err       bool
 	}{
 		{
@@ -633,16 +634,16 @@ func TestAPIMutate(t *testing.T) {
 			mutations: []Mutation{
 				{
 					Field:   &testObj.Tag,
-					Mutator: MutateOperationInsert,
+					Mutator: ovsdb.MutateOperationInsert,
 					Value:   []int{5},
 				},
 			},
-			result: []Operation{
+			result: []ovsdb.Operation{
 				{
 					Op:        opMutate,
 					Table:     "Logical_Switch_Port",
-					Mutations: []interface{}{[]interface{}{"tag", MutateOperationInsert, testOvsSet(t, []int{5})}},
-					Where:     []interface{}{[]interface{}{"_uuid", "==", UUID{aUUID0}}},
+					Mutations: []interface{}{[]interface{}{"tag", ovsdb.MutateOperationInsert, testOvsSet(t, []int{5})}},
+					Where:     []interface{}{[]interface{}{"_uuid", "==", ovsdb.UUID{GoUUID: aUUID0}}},
 				},
 			},
 			err: false,
@@ -657,15 +658,15 @@ func TestAPIMutate(t *testing.T) {
 			mutations: []Mutation{
 				{
 					Field:   &testObj.ExternalIds,
-					Mutator: MutateOperationDelete,
+					Mutator: ovsdb.MutateOperationDelete,
 					Value:   []string{"foo"},
 				},
 			},
-			result: []Operation{
+			result: []ovsdb.Operation{
 				{
 					Op:        opMutate,
 					Table:     "Logical_Switch_Port",
-					Mutations: []interface{}{[]interface{}{"external_ids", MutateOperationDelete, testOvsSet(t, []string{"foo"})}},
+					Mutations: []interface{}{[]interface{}{"external_ids", ovsdb.MutateOperationDelete, testOvsSet(t, []string{"foo"})}},
 					Where:     []interface{}{[]interface{}{"name", "==", "lsp2"}},
 				},
 			},
@@ -681,16 +682,16 @@ func TestAPIMutate(t *testing.T) {
 			mutations: []Mutation{
 				{
 					Field:   &testObj.ExternalIds,
-					Mutator: MutateOperationInsert,
+					Mutator: ovsdb.MutateOperationInsert,
 					Value:   map[string]string{"bar": "baz"},
 				},
 			},
-			result: []Operation{
+			result: []ovsdb.Operation{
 				{
 					Op:        opMutate,
 					Table:     "Logical_Switch_Port",
-					Mutations: []interface{}{[]interface{}{"external_ids", MutateOperationInsert, testOvsMap(t, map[string]string{"bar": "baz"})}},
-					Where:     []interface{}{[]interface{}{"_uuid", "==", UUID{aUUID2}}},
+					Mutations: []interface{}{[]interface{}{"external_ids", ovsdb.MutateOperationInsert, testOvsMap(t, map[string]string{"bar": "baz"})}},
+					Where:     []interface{}{[]interface{}{"_uuid", "==", ovsdb.UUID{GoUUID: aUUID2}}},
 				},
 			},
 			err: false,
@@ -705,22 +706,22 @@ func TestAPIMutate(t *testing.T) {
 			mutations: []Mutation{
 				{
 					Field:   &testObj.ExternalIds,
-					Mutator: MutateOperationInsert,
+					Mutator: ovsdb.MutateOperationInsert,
 					Value:   map[string]string{"bar": "baz"},
 				},
 			},
-			result: []Operation{
+			result: []ovsdb.Operation{
 				{
 					Op:        opMutate,
 					Table:     "Logical_Switch_Port",
-					Mutations: []interface{}{[]interface{}{"external_ids", MutateOperationInsert, testOvsMap(t, map[string]string{"bar": "baz"})}},
-					Where:     []interface{}{[]interface{}{"_uuid", "==", UUID{aUUID0}}},
+					Mutations: []interface{}{[]interface{}{"external_ids", ovsdb.MutateOperationInsert, testOvsMap(t, map[string]string{"bar": "baz"})}},
+					Where:     []interface{}{[]interface{}{"_uuid", "==", ovsdb.UUID{GoUUID: aUUID0}}},
 				},
 				{
 					Op:        opMutate,
 					Table:     "Logical_Switch_Port",
-					Mutations: []interface{}{[]interface{}{"external_ids", MutateOperationInsert, testOvsMap(t, map[string]string{"bar": "baz"})}},
-					Where:     []interface{}{[]interface{}{"_uuid", "==", UUID{aUUID1}}},
+					Mutations: []interface{}{[]interface{}{"external_ids", ovsdb.MutateOperationInsert, testOvsMap(t, map[string]string{"bar": "baz"})}},
+					Where:     []interface{}{[]interface{}{"_uuid", "==", ovsdb.UUID{GoUUID: aUUID1}}},
 				},
 			},
 			err: false,
@@ -735,7 +736,7 @@ func TestAPIMutate(t *testing.T) {
 				assert.NotNil(t, err)
 			} else {
 				assert.Nil(t, err)
-				assert.ElementsMatchf(t, tt.result, ops, "Operations should match")
+				assert.ElementsMatchf(t, tt.result, ops, "ovsdb.Operations should match")
 			}
 		})
 	}
@@ -777,7 +778,7 @@ func TestAPIUpdate(t *testing.T) {
 		condition func(API) ConditionalAPI
 		prepare   func(t *testLogicalSwitchPort)
 		fields    []interface{}
-		result    []Operation
+		result    []ovsdb.Operation
 		err       bool
 	}{
 		{
@@ -792,12 +793,12 @@ func TestAPIUpdate(t *testing.T) {
 				t.Tag = []int{6}
 			},
 			fields: []interface{}{},
-			result: []Operation{
+			result: []ovsdb.Operation{
 				{
 					Op:    opUpdate,
 					Table: "Logical_Switch_Port",
 					Row:   map[string]interface{}{"type": "somethingElse", "tag": testOvsSet(t, []int{6})},
-					Where: []interface{}{[]interface{}{"_uuid", "==", UUID{aUUID0}}},
+					Where: []interface{}{[]interface{}{"_uuid", "==", ovsdb.UUID{GoUUID: aUUID0}}},
 				},
 			},
 			err: false,
@@ -814,7 +815,7 @@ func TestAPIUpdate(t *testing.T) {
 				t.Tag = []int{6}
 			},
 			fields: []interface{}{},
-			result: []Operation{
+			result: []ovsdb.Operation{
 				{
 					Op:    opUpdate,
 					Table: "Logical_Switch_Port",
@@ -837,7 +838,7 @@ func TestAPIUpdate(t *testing.T) {
 				t.Tag = []int{6}
 			},
 			fields: []interface{}{},
-			result: []Operation{
+			result: []ovsdb.Operation{
 				{
 					Op:    opUpdate,
 					Table: "Logical_Switch_Port",
@@ -859,18 +860,18 @@ func TestAPIUpdate(t *testing.T) {
 				t.Tag = []int{6}
 			},
 			fields: []interface{}{},
-			result: []Operation{
+			result: []ovsdb.Operation{
 				{
 					Op:    opUpdate,
 					Table: "Logical_Switch_Port",
 					Row:   map[string]interface{}{"type": "somethingElse", "tag": testOvsSet(t, []int{6})},
-					Where: []interface{}{[]interface{}{"_uuid", "==", UUID{aUUID0}}},
+					Where: []interface{}{[]interface{}{"_uuid", "==", ovsdb.UUID{GoUUID: aUUID0}}},
 				},
 				{
 					Op:    opUpdate,
 					Table: "Logical_Switch_Port",
 					Row:   map[string]interface{}{"type": "somethingElse", "tag": testOvsSet(t, []int{6})},
-					Where: []interface{}{[]interface{}{"_uuid", "==", UUID{aUUID1}}},
+					Where: []interface{}{[]interface{}{"_uuid", "==", ovsdb.UUID{GoUUID: aUUID1}}},
 				},
 			},
 			err: false,
@@ -888,7 +889,7 @@ func TestAPIUpdate(t *testing.T) {
 				assert.NotNil(t, err)
 			} else {
 				assert.Nil(t, err)
-				assert.ElementsMatchf(t, tt.result, ops, "Operations should match")
+				assert.ElementsMatchf(t, tt.result, ops, "ovsdb.Operations should match")
 			}
 		})
 	}
@@ -926,7 +927,7 @@ func TestAPIDelete(t *testing.T) {
 	test := []struct {
 		name      string
 		condition func(API) ConditionalAPI
-		result    []Operation
+		result    []ovsdb.Operation
 		err       bool
 	}{
 		{
@@ -936,11 +937,11 @@ func TestAPIDelete(t *testing.T) {
 					UUID: aUUID0,
 				}))
 			},
-			result: []Operation{
+			result: []ovsdb.Operation{
 				{
 					Op:    opDelete,
 					Table: "Logical_Switch",
-					Where: []interface{}{[]interface{}{"_uuid", "==", UUID{aUUID0}}},
+					Where: []interface{}{[]interface{}{"_uuid", "==", ovsdb.UUID{GoUUID: aUUID0}}},
 				},
 			},
 			err: false,
@@ -952,7 +953,7 @@ func TestAPIDelete(t *testing.T) {
 					Name: "lsp1",
 				}))
 			},
-			result: []Operation{
+			result: []ovsdb.Operation{
 				{
 					Op:    opDelete,
 					Table: "Logical_Switch_Port",
@@ -970,7 +971,7 @@ func TestAPIDelete(t *testing.T) {
 				}
 				return a.Where(a.ConditionFromModel(&t, &t.Type))
 			},
-			result: []Operation{
+			result: []ovsdb.Operation{
 				{
 					Op:    opDelete,
 					Table: "Logical_Switch_Port",
@@ -986,16 +987,16 @@ func TestAPIDelete(t *testing.T) {
 					return t.Enabled != nil && t.Enabled[0] == true
 				}))
 			},
-			result: []Operation{
+			result: []ovsdb.Operation{
 				{
 					Op:    opDelete,
 					Table: "Logical_Switch_Port",
-					Where: []interface{}{[]interface{}{"_uuid", "==", UUID{aUUID0}}},
+					Where: []interface{}{[]interface{}{"_uuid", "==", ovsdb.UUID{GoUUID: aUUID0}}},
 				},
 				{
 					Op:    opDelete,
 					Table: "Logical_Switch_Port",
-					Where: []interface{}{[]interface{}{"_uuid", "==", UUID{aUUID1}}},
+					Where: []interface{}{[]interface{}{"_uuid", "==", ovsdb.UUID{GoUUID: aUUID1}}},
 				},
 			},
 			err: false,
@@ -1010,7 +1011,7 @@ func TestAPIDelete(t *testing.T) {
 				assert.NotNil(t, err)
 			} else {
 				assert.Nil(t, err)
-				assert.ElementsMatchf(t, tt.result, ops, "Operations should match")
+				assert.ElementsMatchf(t, tt.result, ops, "ovsdb.Operations should match")
 			}
 		})
 	}

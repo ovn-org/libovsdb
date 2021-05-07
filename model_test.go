@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -320,7 +321,7 @@ func TestValidate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("TestValidate %s", tt.name), func(t *testing.T) {
-			var schema DatabaseSchema
+			var schema ovsdb.DatabaseSchema
 			err := json.Unmarshal(tt.schema, &schema)
 			assert.Nil(t, err)
 			errors := model.Validate(&schema)

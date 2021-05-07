@@ -1,4 +1,4 @@
-package libovsdb
+package ovsdb
 
 import "encoding/json"
 
@@ -143,4 +143,14 @@ func ovsSliceToGoNotation(val interface{}) (interface{}, error) {
 	return val, nil
 }
 
-// TODO : add Condition, Function, Mutation and Mutator notations
+type Mutator string
+
+const (
+	MutateOperationDelete    Mutator = "delete"
+	MutateOperationInsert    Mutator = "insert"
+	MutateOperationAdd       Mutator = "+="
+	MutateOperationSubstract Mutator = "-="
+	MutateOperationMultiply  Mutator = "*="
+	MutateOperationDivide    Mutator = "/="
+	MutateOperationModulo    Mutator = "%="
+)

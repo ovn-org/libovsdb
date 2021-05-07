@@ -1,4 +1,4 @@
-package libovsdb
+package ovsdb
 
 import "encoding/json"
 

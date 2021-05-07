@@ -1,9 +1,7 @@
-package libovsdb
+package ovsdb
 
 import (
 	"encoding/json"
-	"reflect"
-	"sync"
 	"testing"
 )
 
@@ -90,50 +88,5 @@ func TestNewLockArgs(t *testing.T) {
 	expected := `["testId"]`
 	if string(argString) != expected {
 		t.Error("Expected: ", expected, " Got: ", string(argString))
-	}
-}
-
-func TestEcho(t *testing.T) {
-	req := []interface{}{"hi"}
-	var reply []interface{}
-	ovs := OvsdbClient{
-		handlers:      []NotificationHandler{},
-		handlersMutex: &sync.Mutex{},
-	}
-	err := ovs.echo(req, &reply)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(req, reply) {
-		t.Error("Expected: ", req, " Got: ", reply)
-	}
-}
-
-func TestUpdate(t *testing.T) {
-	ovs := OvsdbClient{
-		handlers:      []NotificationHandler{},
-		handlersMutex: &sync.Mutex{},
-	}
-	// Update notification should fail for arrays of size < 2
-	err := ovs.update([]interface{}{"hello"})
-	if err == nil {
-		t.Error("Expected: error for a dummy request")
-	}
-
-	// Update notification should fail if arg[1] is not map[string]map[string]RowUpdate type
-	err = ovs.update([]interface{}{"hello", "gophers"})
-	if err == nil {
-		t.Error("Expected: error for a dummy request")
-	}
-
-	// Valid dummy update should pass
-	validUpdate := make(map[string]interface{})
-	validRowUpdate := make(map[string]RowUpdate)
-	validRowUpdate["uuid"] = RowUpdate{}
-	validUpdate["table"] = validRowUpdate
-
-	err = ovs.update([]interface{}{"hello", validUpdate})
-	if err != nil {
-		t.Error(err)
 	}
 }
