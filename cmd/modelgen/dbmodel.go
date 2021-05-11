@@ -13,12 +13,12 @@ const MODEL_TEMPLATE = `
 package {{ .PackageName }}
 
 import (
-	goovn "github.com/ovn-org/libovsdb"
+	"github.com/ovn-org/libovsdb/client"
 )
 
 // FullDatabaseModel() returns the DatabaseModel object to be used in libovsdb
-func FullDatabaseModel() (*goovn.DBModel, error) {
-	return goovn.NewDBModel("{{ .DatabaseName }}", map[string]goovn.Model{
+func FullDatabaseModel() (*client.DBModel, error) {
+	return client.NewDBModel("{{ .DatabaseName }}", map[string]client.Model{
     {{ range $tableName, $structName := .Tables }} "{{ $tableName }}" : &{{ $structName }}{}, 
     {{ end }}
 	})
