@@ -1,4 +1,4 @@
-package libovsdb
+package client
 
 import (
 	"bytes"

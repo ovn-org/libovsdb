@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/ovn-org/libovsdb"
+	"github.com/ovn-org/libovsdb/client"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
@@ -33,12 +33,12 @@ type ormOvs struct {
 }
 
 var quit chan bool
-var update chan libovsdb.Model
+var update chan client.Model
 
 var rootUUID string
 var connection = flag.String("ovsdb", "unix:/var/run/openvswitch/db.sock", "OVSDB connection string")
 
-func play(ovs *libovsdb.OvsdbClient) {
+func play(ovs *client.OvsdbClient) {
 	go processInput(ovs)
 	for model := range update {
 		bridge := model.(*ormBridge)
@@ -59,7 +59,7 @@ func play(ovs *libovsdb.OvsdbClient) {
 	}
 }
 
-func createBridge(ovs *libovsdb.OvsdbClient, bridgeName string) {
+func createBridge(ovs *client.OvsdbClient, bridgeName string) {
 	bridge := ormBridge{
 		UUID: "gopher",
 		Name: bridgeName,
@@ -72,7 +72,7 @@ func createBridge(ovs *libovsdb.OvsdbClient, bridgeName string) {
 	ovsRow := ormOvs{
 		UUID: rootUUID,
 	}
-	mutateOps, err := ovs.API.Where(ovs.API.ConditionFromModel(&ovsRow)).Mutate(&ovsRow, []libovsdb.Mutation{
+	mutateOps, err := ovs.API.Where(ovs.API.ConditionFromModel(&ovsRow)).Mutate(&ovsRow, []client.Mutation{
 		{
 			Field:   &ovsRow.Bridges,
 			Mutator: "insert",
@@ -106,7 +106,7 @@ func createBridge(ovs *libovsdb.OvsdbClient, bridgeName string) {
 	}
 }
 
-func processInput(ovs *libovsdb.OvsdbClient) {
+func processInput(ovs *client.OvsdbClient) {
 	for {
 		fmt.Printf("\n Enter a Bridge Name : ")
 		var bridgeName string
@@ -121,25 +121,25 @@ func processInput(ovs *libovsdb.OvsdbClient) {
 func main() {
 	flag.Parse()
 	quit = make(chan bool)
-	update = make(chan libovsdb.Model)
+	update = make(chan client.Model)
 
-	dbmodel, err := libovsdb.NewDBModel("Open_vSwitch",
-		map[string]libovsdb.Model{bridgeTable: &ormBridge{}, ovsTable: &ormOvs{}})
+	dbmodel, err := client.NewDBModel("Open_vSwitch",
+		map[string]client.Model{bridgeTable: &ormBridge{}, ovsTable: &ormOvs{}})
 	if err != nil {
 		log.Fatal("Unable to create DB model ", err)
 	}
 	// By default libovsdb connects to 127.0.0.0:6400.
-	ovs, err := libovsdb.Connect(*connection, dbmodel, nil)
+	ovs, err := client.Connect(*connection, dbmodel, nil)
 
 	// If you prefer to connect to OVS in a specific location :
-	// ovs, err := libovsdb.Connect("tcp:192.168.56.101:6640", nil)
+	// ovs, err := client.Connect("tcp:192.168.56.101:6640", nil)
 
 	if err != nil {
 		log.Fatal("Unable to Connect ", err)
 	}
 
-	ovs.Cache.AddEventHandler(&libovsdb.EventHandlerFuncs{
-		AddFunc: func(table string, model libovsdb.Model) {
+	ovs.Cache.AddEventHandler(&client.EventHandlerFuncs{
+		AddFunc: func(table string, model client.Model) {
 			if table == bridgeTable {
 				update <- model
 			}
