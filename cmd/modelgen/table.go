@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"text/template"
 	"unicode"
@@ -53,7 +54,16 @@ func NewTableGenerator(pkg string, name string, table *ovsdb.TableSchema) Genera
 			Tag:  Tag("_uuid"),
 		})
 
-	for columnName, columnSchema := range table.Columns {
+	// Map iteration order is random, so for predictable generation
+	// lets sort fields by name
+	var order sort.StringSlice
+	for columnName := range table.Columns {
+		order = append(order, columnName)
+	}
+	order.Sort()
+
+	for _, columnName := range order {
+		columnSchema := table.Columns[columnName]
 		templateData.Fields = append(templateData.Fields, Field{
 			Name: FieldName(columnName),
 			Type: FieldType(columnSchema),
