@@ -50,7 +50,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(outDir, pkgName), 0700); err != nil {
+	if err := os.MkdirAll(outDir, 0755); err != nil {
 		log.Fatal(err)
 	}
 
@@ -86,7 +86,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		outFile := filepath.Join(outDir, pkgName, gen.FileName())
+		outFile := filepath.Join(outDir, gen.FileName())
 		if err := writeFile(outFile, code); err != nil {
 			log.Fatal(err)
 		}
