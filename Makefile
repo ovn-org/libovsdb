@@ -6,7 +6,7 @@ local: install-deps fmt lint build-local test-local bench-local
 
 build-local: 
 	@echo "+ $@"
-	@go build -v .
+	@go build -v ./...
 
 test-local:
 	@echo "+ $@"
@@ -14,7 +14,7 @@ test-local:
 
 bench-local:
 	@echo "+ $@"
-	@go test -run=XXX -count=3 -bench=. | tee bench.out
+	@go test -run=XXX -count=3 -bench=. ./... | tee bench.out
 	@benchstat bench.out
 
 integration-test-local:

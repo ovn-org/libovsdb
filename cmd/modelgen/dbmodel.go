@@ -3,7 +3,7 @@ package main
 import (
 	"text/template"
 
-	"github.com/ovn-org/libovsdb"
+	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
 const MODEL_TEMPLATE = `
@@ -33,7 +33,7 @@ type DBModelTemplateData struct {
 }
 
 //NewDBModelGenerator returns a new DBModel generator
-func NewDBModelGenerator(pkg string, schema *libovsdb.DatabaseSchema) Generator {
+func NewDBModelGenerator(pkg string, schema *ovsdb.DatabaseSchema) Generator {
 	templateData := DBModelTemplateData{
 		PackageName:  pkg,
 		DatabaseName: schema.Name,
