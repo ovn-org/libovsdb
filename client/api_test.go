@@ -529,52 +529,77 @@ func TestAPICreate(t *testing.T) {
 
 	test := []struct {
 		name   string
-		input  Model
-		result *ovsdb.Operation
+		input  []Model
+		result []ovsdb.Operation
 		err    bool
 	}{
 		{
 			name:  "empty",
-			input: &testLogicalSwitch{},
-			result: &ovsdb.Operation{
+			input: []Model{&testLogicalSwitch{}},
+			result: []ovsdb.Operation{{
 				Op:       "insert",
 				Table:    "Logical_Switch",
 				Row:      map[string]interface{}{},
 				UUIDName: "",
-			},
+			}},
 			err: false,
 		},
 		{
 			name: "With some values",
-			input: &testLogicalSwitch{
+			input: []Model{&testLogicalSwitch{
 				Name: "foo",
-			},
-			result: &ovsdb.Operation{
+			}},
+			result: []ovsdb.Operation{{
 				Op:       "insert",
 				Table:    "Logical_Switch",
 				Row:      map[string]interface{}{"name": "foo"},
 				UUIDName: "",
-			},
+			}},
 			err: false,
 		},
 		{
 			name: "With named UUID ",
-			input: &testLogicalSwitch{
+			input: []Model{&testLogicalSwitch{
 				UUID: "foo",
-			},
-			result: &ovsdb.Operation{
+			}},
+			result: []ovsdb.Operation{{
 				Op:       "insert",
 				Table:    "Logical_Switch",
 				Row:      map[string]interface{}{},
 				UUIDName: "foo",
+			}},
+			err: false,
+		},
+		{
+			name: "Multiple",
+			input: []Model{
+				&testLogicalSwitch{
+					UUID: "fooUUID",
+					Name: "foo",
+				},
+				&testLogicalSwitch{
+					UUID: "barUUID",
+					Name: "bar",
+				},
 			},
+			result: []ovsdb.Operation{{
+				Op:       "insert",
+				Table:    "Logical_Switch",
+				Row:      map[string]interface{}{"name": "foo"},
+				UUIDName: "fooUUID",
+			}, {
+				Op:       "insert",
+				Table:    "Logical_Switch",
+				Row:      map[string]interface{}{"name": "bar"},
+				UUIDName: "barUUID",
+			}},
 			err: false,
 		},
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiCreate: %s", tt.name), func(t *testing.T) {
 			api := newAPI(cache)
-			op, err := api.Create(tt.input)
+			op, err := api.Create(tt.input...)
 			if tt.err {
 				assert.NotNil(t, err)
 			} else {

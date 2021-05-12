@@ -43,11 +43,11 @@ type API interface {
 	// preferred way is Where({condition}).List()
 	Get(Model) error
 
-	// Create returns the operation needed to add a model to the Database
+	// Create returns the operation needed to add the model(s) to the Database
 	// Only fields with non-default values will be added to the transaction
 	// If the field associated with column "_uuid" has some content, it will be
 	// treated as named-uuid
-	Create(Model) (*ovsdb.Operation, error)
+	Create(...Model) ([]ovsdb.Operation, error)
 }
 
 // ConditionalAPI is an interface used to perform operations that require / use Conditions
@@ -250,39 +250,44 @@ func (a api) Get(model Model) error {
 
 // Create is a generic function capable of creating any row in the DB
 // A valud Model (pointer to object) must be provided.
-func (a api) Create(model Model) (*ovsdb.Operation, error) {
-	var namedUUID string
-	var err error
+func (a api) Create(models ...Model) ([]ovsdb.Operation, error) {
+	var operations []ovsdb.Operation
 
-	tableName, err := a.getTableFromModel(model)
-	if err != nil {
-		return nil, err
-	}
-	table := a.cache.orm.schema.Table(tableName)
+	for _, model := range models {
+		var namedUUID string
+		var err error
 
-	// Read _uuid field, and use it as named-uuid
-	info, err := newORMInfo(table, model)
-	if err != nil {
-		return nil, err
-	}
-	if uuid, err := info.fieldByColumn("_uuid"); err == nil {
-		namedUUID = uuid.(string)
-	} else {
-		return nil, err
-	}
+		tableName, err := a.getTableFromModel(model)
+		if err != nil {
+			return nil, err
+		}
 
-	row, err := a.cache.orm.newRow(tableName, model)
-	if err != nil {
-		return nil, err
-	}
+		table := a.cache.orm.schema.Table(tableName)
 
-	insertOp := ovsdb.Operation{
-		Op:       opInsert,
-		Table:    tableName,
-		Row:      row,
-		UUIDName: namedUUID,
+		// Read _uuid field, and use it as named-uuid
+		info, err := newORMInfo(table, model)
+		if err != nil {
+			return nil, err
+		}
+		if uuid, err := info.fieldByColumn("_uuid"); err == nil {
+			namedUUID = uuid.(string)
+		} else {
+			return nil, err
+		}
+
+		row, err := a.cache.orm.newRow(tableName, model)
+		if err != nil {
+			return nil, err
+		}
+
+		operations = append(operations, ovsdb.Operation{
+			Op:       opInsert,
+			Table:    tableName,
+			Row:      row,
+			UUIDName: namedUUID,
+		})
 	}
-	return &insertOp, nil
+	return operations, nil
 }
 
 // Mutate returns the operations needed to transform the one Model into another one

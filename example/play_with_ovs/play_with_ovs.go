@@ -6,7 +6,6 @@ import (
 	"log"
 
 	"github.com/ovn-org/libovsdb/client"
-	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
 // Silly game that detects creation of Bridge named "stop" and exits
@@ -82,7 +81,7 @@ func createBridge(ovs *client.OvsdbClient, bridgeName string) {
 		log.Fatal(err)
 	}
 
-	operations := []ovsdb.Operation{*insertOp, mutateOps[0]}
+	operations := append(insertOp, mutateOps...)
 	reply, err := ovs.Transact(operations...)
 	if err != nil {
 		log.Fatal(err)
