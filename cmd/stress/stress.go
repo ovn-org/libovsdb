@@ -162,7 +162,7 @@ func createBridge(ovs *client.OvsdbClient, iter int) {
 		log.Fatal(err)
 	}
 
-	operations := []ovsdb.Operation{*insertOp, mutateOp[0]}
+	operations := append(insertOp, mutateOp...)
 	ok, uuid := transact(ovs, operations)
 	if ok {
 		if *verbose {
