@@ -23,7 +23,7 @@ type OvsdbClient struct {
 	handlersMutex *sync.Mutex
 	Cache         *TableCache
 	stopCh        chan struct{}
-	API           API
+	api           API
 }
 
 func newOvsdbClient() *OvsdbClient {
@@ -131,7 +131,7 @@ func newRPC2Client(conn net.Conn, database *DBModel) (*OvsdbClient, error) {
 		if cache, err := newTableCache(schema, database); err == nil {
 			ovs.Cache = cache
 			ovs.Register(ovs.Cache)
-			ovs.API = newAPI(ovs.Cache)
+			ovs.api = newAPI(ovs.Cache)
 		} else {
 			ovs.rpcClient.Close()
 			return nil, err
@@ -346,4 +346,41 @@ func (ovs *OvsdbClient) handleDisconnectNotification() {
 func (ovs OvsdbClient) Disconnect() {
 	close(ovs.stopCh)
 	ovs.rpcClient.Close()
+}
+
+// Client API interface wrapper functions
+// We add this wrapper to allow users to access the API directly on the
+// client object
+
+// Ensure client implementes API
+var _ API = OvsdbClient{}
+
+//Get implements the API interface's Get function
+func (ovs OvsdbClient) Get(model Model) error {
+	return ovs.api.Get(model)
+}
+
+//Create implementes the API interface's Create function
+func (ovs OvsdbClient) Create(model Model) (*ovsdb.Operation, error) {
+	return ovs.api.Create(model)
+}
+
+//List implements the API interface's List function
+func (ovs OvsdbClient) List(result interface{}) error {
+	return ovs.api.List(result)
+}
+
+//Where implements the API interface's Where function
+func (ovs OvsdbClient) Where(condition Condition) ConditionalAPI {
+	return ovs.api.Where(condition)
+}
+
+//ConditionFromFunc implements the API interface's ConditionFromFunc function
+func (ovs OvsdbClient) ConditionFromFunc(predicate interface{}) Condition {
+	return ovs.api.ConditionFromFunc(predicate)
+}
+
+//ConditionFromModel implements the API interface's ConditionFromModel function
+func (ovs OvsdbClient) ConditionFromModel(m Model, fields ...interface{}) Condition {
+	return ovs.api.ConditionFromModel(m, fields...)
 }
