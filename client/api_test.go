@@ -108,6 +108,14 @@ func TestAPIListSimple(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Len(t, result, 0, "Should be empty since cache is empty")
 	})
+
+	t.Run("ApiList: Empty List", func(t *testing.T) {
+		result := []testLogicalSwitch{}
+		api := newAPI(cache)
+		err := api.List(&result)
+		assert.Nil(t, err)
+		assert.Len(t, result, len(lscacheList))
+	})
 }
 
 func TestAPIListPredicate(t *testing.T) {
