@@ -104,19 +104,6 @@ func (e *InputTypeError) Error() string {
 	return fmt.Sprintf("Wrong parameter type (%s): %s", e.inputType, e.reason)
 }
 
-// ConditionError is a wrapper around an error that is used to
-// indicate the error occurred during condition creation
-type ConditionError struct {
-	err string
-}
-
-func (c ConditionError) Error() string {
-	return fmt.Sprintf("Condition Error: %s", c.err)
-}
-func (c ConditionError) String() string {
-	return c.Error()
-}
-
 // ErrNotFound is used to inform the object or table was not found in the cache
 var ErrNotFound = errors.New("object not found")
 
