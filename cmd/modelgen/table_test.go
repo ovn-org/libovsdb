@@ -66,9 +66,18 @@ type test struct {
 }
 
 func TestFieldName(t *testing.T) {
-	if s := FieldName("foo"); s != "Foo" {
-		t.Fatalf("got %s, wanted Foo", s)
+	cases := []struct {
+		in       string
+		expected string
+	}{
+		{"foo", "Foo"},
 	}
+	for _, tt := range cases {
+		if s := FieldName(tt.in); s != tt.expected {
+			t.Fatalf("got %s, wanted %s", s, tt.expected)
+		}
+	}
+
 }
 
 func TestStructName(t *testing.T) {
@@ -126,7 +135,23 @@ func TestFileName(t *testing.T) {
 }
 
 func TestCamelCase(t *testing.T) {
-	if s := camelCase("foo_bar_baz"); s != "FooBarBaz" {
-		t.Fatalf("got %s, wanted FooBarBaz", s)
+	cases := []struct {
+		in       string
+		expected string
+	}{
+		{"foo_bar_baz", "FooBarBaz"},
+		{"foo-bar-baz", "FooBarBaz"},
+		{"foos-bars-bazs", "FoosBarsBazs"},
+		{"ip_port_mappings", "IPPortMappings"},
+		{"external_ids", "ExternalIDs"},
+		{"ip_prefix", "IPPrefix"},
+		{"dns_records", "DNSRecords"},
+		{"logical_ip", "LogicalIP"},
+		{"ip", "IP"},
+	}
+	for _, tt := range cases {
+		if s := camelCase(tt.in); s != tt.expected {
+			t.Fatalf("got %s, wanted %s", s, tt.expected)
+		}
 	}
 }

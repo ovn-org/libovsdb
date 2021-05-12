@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strings"
 	"text/template"
-	"unicode"
 
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
@@ -127,14 +126,60 @@ func FileName(table string) string {
 	return fmt.Sprintf("%s.go", strings.ToLower(table))
 }
 
+// common initialisms used in ovsdb schemas
+var initialisms = map[string]bool{
+	"ACL":   true,
+	"BFD":   true,
+	"CFM":   true,
+	"CT":    true,
+	"CVLAN": true,
+	"DNS":   true,
+	"DSCP":  true,
+	"ID":    true,
+	"IP":    true,
+	"IPFIX": true,
+	"LACP":  true,
+	"LLDP":  true,
+	"MAC":   true,
+	"MTU":   true,
+	"OVS":   true,
+	"QOS":   true,
+	"RSTP":  true,
+	"SSL":   true,
+	"STP":   true,
+	"TCP":   true,
+	"UDP":   true,
+	"UUID":  true,
+	"VLAN":  true,
+}
+
 func camelCase(field string) string {
-	capNext := true
-	orig := []rune(field)
-	for i, c := range orig {
-		if capNext {
-			orig[i] = unicode.ToUpper(c)
+	s := strings.ToLower(field)
+	parts := strings.FieldsFunc(s, func(r rune) bool {
+		return r == '_' || r == '-'
+	})
+	if len(parts) > 1 {
+		s = ""
+		for _, p := range parts {
+			s += strings.Title(expandInitilaisms(p))
 		}
-		capNext = c == '_' || c == '-'
+	} else {
+		s = strings.Title(expandInitilaisms(s))
 	}
-	return strings.ReplaceAll(string(orig), "_", "")
+	return s
+}
+
+func expandInitilaisms(s string) string {
+	// check initialisms
+	if u := strings.ToUpper(s); initialisms[u] {
+		return strings.ToUpper(s)
+	}
+	// check for plurals too
+	if strings.HasSuffix(s, "s") {
+		sub := s[:len(s)-1]
+		if u := strings.ToUpper(sub); initialisms[u] {
+			return strings.ToUpper(sub) + "s"
+		}
+	}
+	return s
 }
