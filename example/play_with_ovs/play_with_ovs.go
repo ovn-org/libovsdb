@@ -49,7 +49,7 @@ func play(ovs *client.OvsdbClient) {
 		} else {
 			fmt.Printf("Current list of bridges:\n")
 			var bridges []ormBridge
-			if err := ovs.API.List(&bridges); err != nil {
+			if err := ovs.List(&bridges); err != nil {
 				log.Fatal(err)
 			}
 			for _, b := range bridges {
@@ -64,7 +64,7 @@ func createBridge(ovs *client.OvsdbClient, bridgeName string) {
 		UUID: "gopher",
 		Name: bridgeName,
 	}
-	insertOp, err := ovs.API.Create(&bridge)
+	insertOp, err := ovs.Create(&bridge)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func createBridge(ovs *client.OvsdbClient, bridgeName string) {
 	ovsRow := ormOvs{
 		UUID: rootUUID,
 	}
-	mutateOps, err := ovs.API.Where(ovs.API.ConditionFromModel(&ovsRow)).Mutate(&ovsRow, []client.Mutation{
+	mutateOps, err := ovs.Where(ovs.ConditionFromModel(&ovsRow)).Mutate(&ovsRow, []client.Mutation{
 		{
 			Field:   &ovsRow.Bridges,
 			Mutator: "insert",
