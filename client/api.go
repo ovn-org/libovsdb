@@ -94,13 +94,13 @@ type Condition struct {
 	Value interface{}
 }
 
-// InputTypeError is used to report the user provided parameter has the wrong type
-type InputTypeError struct {
+// ErrWrongType is used to report the user provided parameter has the wrong type
+type ErrWrongType struct {
 	inputType reflect.Type
 	reason    string
 }
 
-func (e *InputTypeError) Error() string {
+func (e *ErrWrongType) Error() string {
 	return fmt.Sprintf("Wrong parameter type (%s): %s", e.inputType, e.reason)
 }
 
@@ -118,12 +118,12 @@ type api struct {
 func (a api) List(result interface{}) error {
 	resultPtr := reflect.ValueOf(result)
 	if resultPtr.Type().Kind() != reflect.Ptr {
-		return &InputTypeError{resultPtr.Type(), "Expected pointer to slice of valid Models"}
+		return &ErrWrongType{resultPtr.Type(), "Expected pointer to slice of valid Models"}
 	}
 
 	resultVal := reflect.Indirect(resultPtr)
 	if resultVal.Type().Kind() != reflect.Slice {
-		return &InputTypeError{resultPtr.Type(), "Expected pointer to slice of valid Models"}
+		return &ErrWrongType{resultPtr.Type(), "Expected pointer to slice of valid Models"}
 	}
 
 	table, err := a.getTableFromModel(reflect.New(resultVal.Type().Elem()).Interface())
@@ -132,7 +132,7 @@ func (a api) List(result interface{}) error {
 	}
 
 	if a.cond != nil && a.cond.Table() != table {
-		return &InputTypeError{resultPtr.Type(),
+		return &ErrWrongType{resultPtr.Type(),
 			fmt.Sprintf("Table derived from input type (%s) does not match Table from Condition (%s)", table, a.cond.Table())}
 	}
 
@@ -419,12 +419,12 @@ func (a api) Delete() ([]ovsdb.Operation, error) {
 // type verifications on the model
 func (a api) getTableFromModel(model interface{}) (string, error) {
 	if _, ok := model.(Model); !ok {
-		return "", &InputTypeError{reflect.TypeOf(model), "Type does not implement Model interface"}
+		return "", &ErrWrongType{reflect.TypeOf(model), "Type does not implement Model interface"}
 	}
 
 	table := a.cache.dbModel.FindTable(reflect.TypeOf(model))
 	if table == "" {
-		return "", &InputTypeError{reflect.TypeOf(model), "Model not found in Database Model"}
+		return "", &ErrWrongType{reflect.TypeOf(model), "Model not found in Database Model"}
 	}
 
 	return table, nil
@@ -435,22 +435,22 @@ func (a api) getTableFromModel(model interface{}) (string, error) {
 func (a api) getTableFromFunc(predicate interface{}) (string, error) {
 	predType := reflect.TypeOf(predicate)
 	if predType == nil || predType.Kind() != reflect.Func {
-		return "", &InputTypeError{predType, "Expected function"}
+		return "", &ErrWrongType{predType, "Expected function"}
 	}
 	if predType.NumIn() != 1 || predType.NumOut() != 1 || predType.Out(0).Kind() != reflect.Bool {
-		return "", &InputTypeError{predType, "Expected func(Model) bool"}
+		return "", &ErrWrongType{predType, "Expected func(Model) bool"}
 	}
 
 	modelInterface := reflect.TypeOf((*Model)(nil)).Elem()
 	modelType := predType.In(0)
 	if !modelType.Implements(modelInterface) {
-		return "", &InputTypeError{predType,
+		return "", &ErrWrongType{predType,
 			fmt.Sprintf("Type %s does not implement Model interface", modelType.String())}
 	}
 
 	table := a.cache.dbModel.FindTable(modelType)
 	if table == "" {
-		return "", &InputTypeError{predType,
+		return "", &ErrWrongType{predType,
 			fmt.Sprintf("Model %s not found in Database Model", modelType.String())}
 	}
 	return table, nil
