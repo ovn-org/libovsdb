@@ -361,8 +361,8 @@ func (ovs OvsdbClient) Get(model Model) error {
 }
 
 //Create implementes the API interface's Create function
-func (ovs OvsdbClient) Create(model Model) (*ovsdb.Operation, error) {
-	return ovs.api.Create(model)
+func (ovs OvsdbClient) Create(models ...Model) ([]ovsdb.Operation, error) {
+	return ovs.api.Create(models...)
 }
 
 //List implements the API interface's List function
