@@ -202,7 +202,7 @@ func TestInsertTransactIntegration(t *testing.T) {
 		})
 	assert.Nil(t, err)
 
-	operations := append([]ovsdb.Operation{*insertOp}, mutateOp...)
+	operations := append(insertOp, mutateOp...)
 	reply, err := ovs.Transact(operations...)
 	if err != nil {
 		t.Fatal(err)
