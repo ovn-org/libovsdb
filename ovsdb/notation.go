@@ -11,7 +11,7 @@ type Operation struct {
 	Columns   []string                 `json:"columns,omitempty"`
 	Mutations []interface{}            `json:"mutations,omitempty"`
 	Timeout   int                      `json:"timeout,omitempty"`
-	Where     []interface{}            `json:"where,omitempty"`
+	Where     []Condition              `json:"where,omitempty"`
 	Until     string                   `json:"until,omitempty"`
 	UUIDName  string                   `json:"uuid-name,omitempty"`
 }
@@ -25,10 +25,10 @@ func (o Operation) MarshalJSON() ([]byte, error) {
 	case "select":
 		where := o.Where
 		if where == nil {
-			where = make([]interface{}, 0)
+			where = make([]Condition, 0)
 		}
 		return json.Marshal(&struct {
-			Where []interface{} `json:"where"`
+			Where []Condition `json:"where"`
 			OpAlias
 		}{
 			Where:   where,
@@ -89,11 +89,6 @@ type RowUpdate struct {
 type OvsdbError struct {
 	Error   string `json:"error"`
 	Details string `json:"details,omitempty"`
-}
-
-// NewCondition creates a new condition as specified in RFC7047
-func NewCondition(column string, function string, value interface{}) []interface{} {
-	return []interface{}{column, function, value}
 }
 
 // NewMutation creates a new mutation as specified in RFC7047

@@ -323,16 +323,17 @@ func (a api) Mutate(model Model, mutationObjs []Mutation) ([]ovsdb.Operation, er
 		}
 		mutations = append(mutations, mutation)
 	}
-
 	for _, condition := range conditions {
 		operations = append(operations,
 			ovsdb.Operation{
 				Op:        opMutate,
 				Table:     tableName,
 				Mutations: mutations,
-				Where:     condition,
-			})
+				Where:     []ovsdb.Condition{condition},
+			},
+		)
 	}
+
 	return operations, nil
 }
 
@@ -356,12 +357,14 @@ func (a api) Update(model Model, fields ...interface{}) ([]ovsdb.Operation, erro
 	}
 
 	for _, condition := range conditions {
-		operations = append(operations, ovsdb.Operation{
-			Op:    opUpdate,
-			Table: table,
-			Row:   row,
-			Where: condition,
-		})
+		operations = append(operations,
+			ovsdb.Operation{
+				Op:    opUpdate,
+				Table: table,
+				Row:   row,
+				Where: []ovsdb.Condition{condition},
+			},
+		)
 	}
 	return operations, nil
 }
@@ -375,11 +378,13 @@ func (a api) Delete() ([]ovsdb.Operation, error) {
 	}
 
 	for _, condition := range conditions {
-		operations = append(operations, ovsdb.Operation{
-			Op:    opDelete,
-			Table: a.cond.Table(),
-			Where: condition,
-		})
+		operations = append(operations,
+			ovsdb.Operation{
+				Op:    opDelete,
+				Table: a.cond.Table(),
+				Where: []ovsdb.Condition{condition},
+			},
+		)
 	}
 
 	return operations, nil

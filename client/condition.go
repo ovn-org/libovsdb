@@ -3,13 +3,15 @@ package client
 import (
 	"fmt"
 	"reflect"
+
+	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
 // Condition is the interface used by the ConditionalAPI to match on cache objects
 // and generate operation conditions
 type Condition interface {
 	// Generate returns a list of conditions to be used in Operations
-	Generate() ([][]interface{}, error)
+	Generate() ([]ovsdb.Condition, error)
 	// matches returns true if a model matches the condition
 	Matches(m Model) (bool, error)
 	// returns the table that this condition is associated with
@@ -35,12 +37,12 @@ func (c *indexCond) Table() string {
 }
 
 // Generate returns a condition based on the model and the field pointers
-func (c *indexCond) Generate() ([][]interface{}, error) {
+func (c *indexCond) Generate() ([]ovsdb.Condition, error) {
 	condition, err := c.orm.newCondition(c.tableName, c.model, c.fields...)
 	if err != nil {
 		return nil, err
 	}
-	return [][]interface{}{condition}, nil
+	return condition, nil
 }
 
 // newIndexCondition creates a new indexCond
@@ -74,8 +76,8 @@ func (c *predicateCond) Table() string {
 
 // generate returns a list of conditions that match, by _uuid equality, all the objects that
 // match the predicate
-func (c *predicateCond) Generate() ([][]interface{}, error) {
-	allConditions := make([][]interface{}, 0)
+func (c *predicateCond) Generate() ([]ovsdb.Condition, error) {
+	allConditions := make([]ovsdb.Condition, 0)
 	tableCache := c.cache.Table(c.tableName)
 	if tableCache == nil {
 		return nil, ErrNotFound
@@ -91,7 +93,7 @@ func (c *predicateCond) Generate() ([][]interface{}, error) {
 			if err != nil {
 				return nil, err
 			}
-			allConditions = append(allConditions, elemCond)
+			allConditions = append(allConditions, elemCond...)
 		}
 	}
 	return allConditions, nil
@@ -120,7 +122,7 @@ func (e *errorCondition) Table() string {
 	return ""
 }
 
-func (e *errorCondition) Generate() ([][]interface{}, error) {
+func (e *errorCondition) Generate() ([]ovsdb.Condition, error) {
 	return nil, e.err
 }
 

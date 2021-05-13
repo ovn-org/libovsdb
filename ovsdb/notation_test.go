@@ -156,15 +156,6 @@ func TestNewNamedUUID(t *testing.T) {
 	}
 }
 
-func TestNewCondition(t *testing.T) {
-	cond := NewCondition("uuid", "==", "550e8400-e29b-41d4-a716-446655440000")
-	condStr, _ := json.Marshal(cond)
-	expected := `["uuid","==","550e8400-e29b-41d4-a716-446655440000"]`
-	if string(condStr) != expected {
-		t.Error("condition is not correctly formatted")
-	}
-}
-
 func TestNewMutation(t *testing.T) {
 	mutation := NewMutation("column", "+=", 1)
 	mutationStr, _ := json.Marshal(mutation)
