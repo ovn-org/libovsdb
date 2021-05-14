@@ -31,7 +31,7 @@ type API interface {
 	// Create a Condition from a Model's data. It uses the database indexes
 	// to search the most apropriate field to use for matches and conditions
 	// Optionally, a list of fields can indicate an alternative index
-	ConditionFromModel(Model, ...interface{}) Conditional
+	ConditionFromModel(Model, ...Condition) Conditional
 
 	// Create a ConditionalAPI from a Condition
 	Where(condition Conditional) ConditionalAPI
@@ -79,6 +79,16 @@ type Mutation struct {
 	// String representing the mutator (as per RFC7047)
 	Mutator ovsdb.Mutator
 	// Value to use in the mutation
+	Value interface{}
+}
+
+// Condition is a type that represents a OVSDB Condition
+type Condition struct {
+	// Pointer to the field of the model where the operation applies
+	Field interface{}
+	// Condition function
+	Function ovsdb.ConditionFunction
+	// Value to use in the condition
 	Value interface{}
 }
 
@@ -190,16 +200,28 @@ func (a api) ConditionFromFunc(predicate interface{}) Conditional {
 }
 
 // FromModel returns a Condition from a model and a list of fields
-func (a api) ConditionFromModel(model Model, fields ...interface{}) Conditional {
+func (a api) ConditionFromModel(model Model, cond ...Condition) Conditional {
+	var conditional Conditional
+	var err error
+
 	tableName, err := a.getTableFromModel(model)
 	if tableName == "" {
 		return newErrorConditional(err)
 	}
-	condition, err := newIndexConditional(a.cache.orm, tableName, model, fields...)
-	if err != nil {
-		return newErrorConditional(err)
+
+	if len(cond) == 0 {
+		conditional, err = newEqualityConditional(a.cache.orm, tableName, model)
+		if err != nil {
+			conditional = newErrorConditional(err)
+		}
+
+	} else {
+		conditional, err = newExplicitConditional(a.cache.orm, tableName, model, cond...)
+		if err != nil {
+			conditional = newErrorConditional(err)
+		}
 	}
-	return condition
+	return conditional
 }
 
 // Get is a generic Get function capable of returning (through a provided pointer)

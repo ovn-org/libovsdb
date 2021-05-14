@@ -18,40 +18,77 @@ type Conditional interface {
 	Table() string
 }
 
-// indexConditional uses the information available in a model to generate conditions
+// equalityConditional uses the information available in a model to generate conditions
 // The conditions are based on the equality of the first available index.
-// The priority of indexes is: {user_provided fields}, uuid, {schema index}
-type indexConditional struct {
+// The priority of indexes is: uuid, {schema index}
+type equalityConditional struct {
 	orm       *orm
 	tableName string
 	model     Model
-	fields    []interface{}
 }
 
-func (c *indexConditional) Matches(m Model) (bool, error) {
-	return c.orm.equalFields(c.tableName, c.model, m, c.fields...)
+func (c *equalityConditional) Matches(m Model) (bool, error) {
+	return c.orm.equalFields(c.tableName, c.model, m)
 }
 
-func (c *indexConditional) Table() string {
+func (c *equalityConditional) Table() string {
 	return c.tableName
 }
 
 // Generate returns a condition based on the model and the field pointers
-func (c *indexConditional) Generate() ([]ovsdb.Condition, error) {
-	condition, err := c.orm.newCondition(c.tableName, c.model, c.fields...)
+func (c *equalityConditional) Generate() ([]ovsdb.Condition, error) {
+	condition, err := c.orm.newEqualityCondition(c.tableName, c.model)
 	if err != nil {
 		return nil, err
 	}
 	return condition, nil
 }
 
-// newIndexCondition creates a new indexConditional
-func newIndexConditional(orm *orm, table string, model Model, fields ...interface{}) (Conditional, error) {
-	return &indexConditional{
+// newIndexCondition creates a new equalityConditional
+func newEqualityConditional(orm *orm, table string, model Model, fields ...interface{}) (Conditional, error) {
+	return &equalityConditional{
 		orm:       orm,
 		tableName: table,
 		model:     model,
-		fields:    fields,
+	}, nil
+}
+
+// explicitConditional generates conditions based on the provided Condition list
+type explicitConditional struct {
+	orm        *orm
+	tableName  string
+	model      Model
+	conditions []Condition
+}
+
+func (c *explicitConditional) Matches(m Model) (bool, error) {
+	return false, fmt.Errorf("Cannot perform Cache comparisons using explicit Conditions")
+}
+
+func (c *explicitConditional) Table() string {
+	return c.tableName
+}
+
+// Generate returns a condition based on the model and the field pointers
+func (c *explicitConditional) Generate() ([]ovsdb.Condition, error) {
+	var result []ovsdb.Condition
+	for _, cond := range c.conditions {
+		ovsdbCond, err := c.orm.newCondition(c.tableName, c.model, cond)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, *ovsdbCond)
+	}
+	return result, nil
+}
+
+// newIndexCondition creates a new equalityConditional
+func newExplicitConditional(orm *orm, table string, model Model, cond ...Condition) (Conditional, error) {
+	return &explicitConditional{
+		orm:        orm,
+		tableName:  table,
+		model:      model,
+		conditions: cond,
 	}, nil
 }
 
@@ -89,7 +126,7 @@ func (c *predicateConditional) Generate() ([]ovsdb.Condition, error) {
 			return nil, err
 		}
 		if match {
-			elemCond, err := c.cache.orm.newCondition(c.tableName, elem)
+			elemCond, err := c.cache.orm.newEqualityCondition(c.tableName, elem)
 			if err != nil {
 				return nil, err
 			}
@@ -99,7 +136,7 @@ func (c *predicateConditional) Generate() ([]ovsdb.Condition, error) {
 	return allConditions, nil
 }
 
-// newIndexCondition creates a new predicateConditional
+// newPredicateConditional creates a new predicateConditional
 func newPredicateConditional(table string, cache *TableCache, predicate interface{}) (Conditional, error) {
 	return &predicateConditional{
 		tableName: table,
@@ -108,7 +145,7 @@ func newPredicateConditional(table string, cache *TableCache, predicate interfac
 	}, nil
 }
 
-// errorConditiona  is a conditional that encapsulates an error
+// errorConditional is a conditional that encapsulates an error
 // It is used to delay the reporting of errors from conditional creation to API method call
 type errorConditional struct {
 	err error
