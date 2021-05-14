@@ -166,8 +166,8 @@ func (o orm) newRow(tableName string, data interface{}, fields ...interface{}) (
 // object has valid data. The order in which they are traversed matches the order defined
 // in the schema.
 // By `valid data` we mean non-default data.
-func (o orm) newCondition(tableName string, data interface{}, fields ...interface{}) ([]interface{}, error) {
-	var conditions []interface{}
+func (o orm) newCondition(tableName string, data interface{}, fields ...interface{}) ([]ovsdb.Condition, error) {
+	var conditions []ovsdb.Condition
 	var condIndex [][]string
 
 	table := o.schema.Table(tableName)
@@ -218,7 +218,7 @@ func (o orm) newCondition(tableName string, data interface{}, fields ...interfac
 		if err != nil {
 			return nil, err
 		}
-		conditions = append(conditions, []interface{}{col, "==", ovsVal})
+		conditions = append(conditions, ovsdb.NewCondition(col, ovsdb.ConditionEqual, ovsVal))
 	}
 	return conditions, nil
 }

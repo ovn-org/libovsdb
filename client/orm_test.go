@@ -492,7 +492,7 @@ func TestORMCondition(t *testing.T) {
 	type Test struct {
 		name     string
 		prepare  func(*testType)
-		expected []interface{}
+		expected []ovsdb.Condition
 		index    []interface{}
 		err      bool
 	}
@@ -509,7 +509,7 @@ func TestORMCondition(t *testing.T) {
 				t.Comp2 = ""
 			},
 			index:    []interface{}{},
-			expected: []interface{}{[]interface{}{"name", "==", "foo"}},
+			expected: []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "foo"}},
 			err:      false,
 		},
 		{
@@ -522,7 +522,7 @@ func TestORMCondition(t *testing.T) {
 				t.Comp2 = ""
 			},
 			index:    []interface{}{},
-			expected: []interface{}{[]interface{}{"_uuid", "==", ovsdb.UUID{GoUUID: aUUID0}}},
+			expected: []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID0}}},
 			err:      false,
 		},
 		{
@@ -535,7 +535,7 @@ func TestORMCondition(t *testing.T) {
 				t.Comp2 = ""
 			},
 			index:    []interface{}{&testObj.MyName},
-			expected: []interface{}{[]interface{}{"name", "==", "foo"}},
+			expected: []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "foo"}},
 			err:      false,
 		},
 		{
@@ -547,8 +547,9 @@ func TestORMCondition(t *testing.T) {
 				t.Comp1 = "foo"
 				t.Comp2 = "bar"
 			},
-			expected: []interface{}{[]interface{}{"composed_1", "==", "foo"},
-				[]interface{}{"composed_2", "==", "bar"}},
+			expected: []ovsdb.Condition{
+				{Column: "composed_1", Function: ovsdb.ConditionEqual, Value: "foo"},
+				{Column: "composed_2", Function: ovsdb.ConditionEqual, Value: "bar"}},
 			index: []interface{}{},
 			err:   false,
 		},
@@ -561,7 +562,7 @@ func TestORMCondition(t *testing.T) {
 				t.Comp1 = "foo"
 				t.Comp2 = "bar"
 			},
-			expected: []interface{}{[]interface{}{"name", "==", "something"}},
+			expected: []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "something"}},
 			index:    []interface{}{},
 			err:      false,
 		},
