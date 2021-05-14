@@ -18,40 +18,77 @@ type ConditionFactory interface {
 	Table() string
 }
 
-// indexCond uses the information available in a model to generate conditions
+// equalityCond uses the information available in a model to generate conditions
 // The conditions are based on the equality of the first available index.
-// The priority of indexes is: {user_provided fields}, uuid, {schema index}
-type indexCondFactory struct {
+// The priority of indexes is: uuid, {schema index}
+type equalityCondFactory struct {
 	orm       *orm
 	tableName string
 	model     Model
-	fields    []interface{}
 }
 
-func (c *indexCondFactory) Matches(m Model) (bool, error) {
-	return c.orm.equalFields(c.tableName, c.model, m, c.fields...)
+func (c *equalityCondFactory) Matches(m Model) (bool, error) {
+	return c.orm.equalFields(c.tableName, c.model, m)
 }
 
-func (c *indexCondFactory) Table() string {
+func (c *equalityCondFactory) Table() string {
 	return c.tableName
 }
 
 // Generate returns a condition based on the model and the field pointers
-func (c *indexCondFactory) Generate() ([]ovsdb.Condition, error) {
-	condition, err := c.orm.newCondition(c.tableName, c.model, c.fields...)
+func (c *equalityCondFactory) Generate() ([]ovsdb.Condition, error) {
+	condition, err := c.orm.newEqualityCondition(c.tableName, c.model)
 	if err != nil {
 		return nil, err
 	}
 	return condition, nil
 }
 
-// newIndexCondition creates a new indexCondFactory
-func newIndexCondition(orm *orm, table string, model Model, fields ...interface{}) (ConditionFactory, error) {
-	return &indexCondFactory{
+// newIndexCondition creates a new equalityCondFactory
+func newEqualityConditionFactory(orm *orm, table string, model Model, fields ...interface{}) (ConditionFactory, error) {
+	return &equalityCondFactory{
 		orm:       orm,
 		tableName: table,
 		model:     model,
-		fields:    fields,
+	}, nil
+}
+
+// explicitCondFactory generates conditions based on the provided Condition list
+type explicitCondFactory struct {
+	orm        *orm
+	tableName  string
+	model      Model
+	conditions []Condition
+}
+
+func (c *explicitCondFactory) Matches(m Model) (bool, error) {
+	return false, fmt.Errorf("Cannot perform Cache comparisons using explicit Conditions")
+}
+
+func (c *explicitCondFactory) Table() string {
+	return c.tableName
+}
+
+// Generate returns a condition based on the model and the field pointers
+func (c *explicitCondFactory) Generate() ([]ovsdb.Condition, error) {
+	var result []ovsdb.Condition
+	for _, cond := range c.conditions {
+		ovsdbCond, err := c.orm.newCondition(c.tableName, c.model, cond)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, *ovsdbCond)
+	}
+	return result, nil
+}
+
+// newIndexCondition creates a new equalityCondFactory
+func newExplicitConditionFactory(orm *orm, table string, model Model, cond ...Condition) (ConditionFactory, error) {
+	return &explicitCondFactory{
+		orm:        orm,
+		tableName:  table,
+		model:      model,
+		conditions: cond,
 	}, nil
 }
 
@@ -89,7 +126,7 @@ func (c *predicateCondFactory) Generate() ([]ovsdb.Condition, error) {
 			return nil, err
 		}
 		if match {
-			elemCond, err := c.cache.orm.newCondition(c.tableName, elem)
+			elemCond, err := c.cache.orm.newEqualityCondition(c.tableName, elem)
 			if err != nil {
 				return nil, err
 			}
@@ -100,7 +137,7 @@ func (c *predicateCondFactory) Generate() ([]ovsdb.Condition, error) {
 }
 
 // newIndexCondition creates a new predicateCondFactory
-func newPredicateCondFactory(table string, cache *TableCache, predicate interface{}) (ConditionFactory, error) {
+func newPredicateConditionFactory(table string, cache *TableCache, predicate interface{}) (ConditionFactory, error) {
 	return &predicateCondFactory{
 		tableName: table,
 		predicate: predicate,

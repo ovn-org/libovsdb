@@ -31,7 +31,7 @@ type API interface {
 	// Create a Condition from a Model's data. It uses the database indexes
 	// to search the most apropriate field to use for matches and conditions
 	// Optionally, a list of fields can indicate an alternative index
-	ConditionFromModel(Model, ...interface{}) ConditionFactory
+	ConditionFromModel(Model, ...Condition) ConditionFactory
 
 	// Create a ConditionalAPI from a Condition
 	Where(condition ConditionFactory) ConditionalAPI
@@ -79,6 +79,16 @@ type Mutation struct {
 	// String representing the mutator (as per RFC7047)
 	Mutator ovsdb.Mutator
 	// Value to use in the mutation
+	Value interface{}
+}
+
+// Condition is a type that represents a OVSDB Condition
+type Condition struct {
+	// Pointer to the field of the model where the operation applies
+	Field interface{}
+	// Condition function
+	Function ovsdb.ConditionFunction
+	// Value to use in the condition
 	Value interface{}
 }
 
@@ -182,7 +192,7 @@ func (a api) ConditionFromFunc(predicate interface{}) ConditionFactory {
 		return newErrorConditionFactory(err)
 	}
 
-	condition, err := newPredicateCondFactory(table, a.cache, predicate)
+	condition, err := newPredicateConditionFactory(table, a.cache, predicate)
 	if err != nil {
 		return newErrorConditionFactory(err)
 	}
@@ -190,16 +200,28 @@ func (a api) ConditionFromFunc(predicate interface{}) ConditionFactory {
 }
 
 // FromModel returns a Condition from a model and a list of fields
-func (a api) ConditionFromModel(model Model, fields ...interface{}) ConditionFactory {
+func (a api) ConditionFromModel(model Model, cond ...Condition) ConditionFactory {
+	var condFactory ConditionFactory
+	var err error
+
 	tableName, err := a.getTableFromModel(model)
 	if tableName == "" {
 		return newErrorConditionFactory(err)
 	}
-	condition, err := newIndexCondition(a.cache.orm, tableName, model, fields...)
-	if err != nil {
-		return newErrorConditionFactory(err)
+
+	if len(cond) == 0 {
+		condFactory, err = newEqualityConditionFactory(a.cache.orm, tableName, model)
+		if err != nil {
+			condFactory = newErrorConditionFactory(err)
+		}
+
+	} else {
+		condFactory, err = newExplicitConditionFactory(a.cache.orm, tableName, model, cond...)
+		if err != nil {
+			condFactory = newErrorConditionFactory(err)
+		}
 	}
-	return condition
+	return condFactory
 }
 
 // Get is a generic Get function capable of returning (through a provided pointer)

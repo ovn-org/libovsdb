@@ -381,6 +381,6 @@ func (ovs OvsdbClient) ConditionFromFunc(predicate interface{}) ConditionFactory
 }
 
 //ConditionFromModel implements the API interface's ConditionFromModel function
-func (ovs OvsdbClient) ConditionFromModel(m Model, fields ...interface{}) ConditionFactory {
-	return ovs.api.ConditionFromModel(m, fields...)
+func (ovs OvsdbClient) ConditionFromModel(m Model, conditions ...Condition) ConditionFactory {
+	return ovs.api.ConditionFromModel(m, conditions...)
 }
