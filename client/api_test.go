@@ -371,9 +371,9 @@ func TestConditionFromFunc(t *testing.T) {
 			api := newAPI(cache)
 			condition := api.ConditionFromFunc(tt.arg)
 			if tt.err {
-				assert.IsType(t, &errorCondition{}, condition)
+				assert.IsType(t, &errorConditional{}, condition)
 			} else {
-				assert.IsType(t, &predicateCond{}, condition)
+				assert.IsType(t, &predicateConditional{}, condition)
 			}
 		})
 	}
@@ -419,9 +419,9 @@ func TestConditionFromModel(t *testing.T) {
 			api := newAPI(cache)
 			condition := api.ConditionFromModel(tt.model, tt.fields...)
 			if tt.err {
-				assert.IsType(t, &errorCondition{}, condition)
+				assert.IsType(t, &errorConditional{}, condition)
 			} else {
-				assert.IsType(t, &indexCond{}, condition)
+				assert.IsType(t, &indexConditional{}, condition)
 			}
 		})
 	}

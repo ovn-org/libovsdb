@@ -7,9 +7,9 @@ import (
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
-// ConditionFactory is the interface used by the ConditionalAPI to match on cache objects
-// and generate operation conditions
-type ConditionFactory interface {
+// Conditional is the interface used by the ConditionalAPI to match on cache objects
+// and generate ovsdb conditions
+type Conditional interface {
 	// Generate returns a list of conditions to be used in Operations
 	Generate() ([]ovsdb.Condition, error)
 	// matches returns true if a model matches the condition
@@ -18,26 +18,26 @@ type ConditionFactory interface {
 	Table() string
 }
 
-// indexCond uses the information available in a model to generate conditions
+// indexConditional uses the information available in a model to generate conditions
 // The conditions are based on the equality of the first available index.
 // The priority of indexes is: {user_provided fields}, uuid, {schema index}
-type indexCond struct {
+type indexConditional struct {
 	orm       *orm
 	tableName string
 	model     Model
 	fields    []interface{}
 }
 
-func (c *indexCond) Matches(m Model) (bool, error) {
+func (c *indexConditional) Matches(m Model) (bool, error) {
 	return c.orm.equalFields(c.tableName, c.model, m, c.fields...)
 }
 
-func (c *indexCond) Table() string {
+func (c *indexConditional) Table() string {
 	return c.tableName
 }
 
 // Generate returns a condition based on the model and the field pointers
-func (c *indexCond) Generate() ([]ovsdb.Condition, error) {
+func (c *indexConditional) Generate() ([]ovsdb.Condition, error) {
 	condition, err := c.orm.newCondition(c.tableName, c.model, c.fields...)
 	if err != nil {
 		return nil, err
@@ -45,9 +45,9 @@ func (c *indexCond) Generate() ([]ovsdb.Condition, error) {
 	return condition, nil
 }
 
-// newIndexCondition creates a new indexCond
-func newIndexCondition(orm *orm, table string, model Model, fields ...interface{}) (ConditionFactory, error) {
-	return &indexCond{
+// newIndexCondition creates a new indexConditional
+func newIndexConditional(orm *orm, table string, model Model, fields ...interface{}) (Conditional, error) {
+	return &indexConditional{
 		orm:       orm,
 		tableName: table,
 		model:     model,
@@ -55,9 +55,9 @@ func newIndexCondition(orm *orm, table string, model Model, fields ...interface{
 	}, nil
 }
 
-// predicateCond is a conditionFactory that calls a provided function pointer
+// predicateConditional is a Conditional that calls a provided function pointer
 // to match on models.
-type predicateCond struct {
+type predicateConditional struct {
 	tableName string
 	predicate interface{}
 	cache     *TableCache
@@ -65,18 +65,18 @@ type predicateCond struct {
 
 // matches returns the result of the execution of the predicate
 // Type verifications are not performed
-func (c *predicateCond) Matches(model Model) (bool, error) {
+func (c *predicateConditional) Matches(model Model) (bool, error) {
 	ret := reflect.ValueOf(c.predicate).Call([]reflect.Value{reflect.ValueOf(model)})
 	return ret[0].Bool(), nil
 }
 
-func (c *predicateCond) Table() string {
+func (c *predicateConditional) Table() string {
 	return c.tableName
 }
 
 // generate returns a list of conditions that match, by _uuid equality, all the objects that
 // match the predicate
-func (c *predicateCond) Generate() ([]ovsdb.Condition, error) {
+func (c *predicateConditional) Generate() ([]ovsdb.Condition, error) {
 	allConditions := make([]ovsdb.Condition, 0)
 	tableCache := c.cache.Table(c.tableName)
 	if tableCache == nil {
@@ -99,35 +99,35 @@ func (c *predicateCond) Generate() ([]ovsdb.Condition, error) {
 	return allConditions, nil
 }
 
-// newIndexCondition creates a new predicateCond
-func newPredicateCond(table string, cache *TableCache, predicate interface{}) (ConditionFactory, error) {
-	return &predicateCond{
+// newIndexCondition creates a new predicateConditional
+func newPredicateConditional(table string, cache *TableCache, predicate interface{}) (Conditional, error) {
+	return &predicateConditional{
 		tableName: table,
 		predicate: predicate,
 		cache:     cache,
 	}, nil
 }
 
-// errorCondition is a condition that encapsulates an error
-// It is used to delay the reporting of errors from condition creation to method call
-type errorCondition struct {
+// errorConditiona  is a conditional that encapsulates an error
+// It is used to delay the reporting of errors from conditional creation to API method call
+type errorConditional struct {
 	err error
 }
 
-func (e *errorCondition) Matches(Model) (bool, error) {
+func (e *errorConditional) Matches(Model) (bool, error) {
 	return false, e.err
 }
 
-func (e *errorCondition) Table() string {
+func (e *errorConditional) Table() string {
 	return ""
 }
 
-func (e *errorCondition) Generate() ([]ovsdb.Condition, error) {
+func (e *errorConditional) Generate() ([]ovsdb.Condition, error) {
 	return nil, e.err
 }
 
-func newErrorCondition(err error) ConditionFactory {
-	return &errorCondition{
+func newErrorConditional(err error) Conditional {
+	return &errorConditional{
 		err: fmt.Errorf("conditionerror: %s", err.Error()),
 	}
 }
