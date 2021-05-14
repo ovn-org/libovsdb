@@ -294,6 +294,28 @@ func ValidateMutation(column *ColumnSchema, mutator Mutator, value interface{}) 
 	}
 }
 
+func ValidateCondition(column *ColumnSchema, function ConditionFunction, nativeValue interface{}) error {
+	if NativeType(column) != reflect.TypeOf(nativeValue) {
+		return NewErrWrongType(fmt.Sprintf("Condition for column %s", column),
+			NativeType(column).String(), nativeValue)
+	}
+
+	switch column.Type {
+	case TypeSet, TypeMap, TypeBoolean, TypeString, TypeUUID:
+		switch function {
+		case ConditionEqual, ConditionNotEqual, ConditionIncludes, ConditionExcludes:
+			return nil
+		default:
+			return fmt.Errorf("wrong condition function %s for type: %s", function, column.Type)
+		}
+	case TypeInteger, TypeReal:
+		// All functions are valid
+		return nil
+	default:
+		panic("Unsupported Type")
+	}
+}
+
 func isDefaultBaseValue(elem interface{}, etype ExtendedType) bool {
 	value := reflect.ValueOf(elem)
 	if !value.IsValid() {
