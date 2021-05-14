@@ -7,9 +7,9 @@ import (
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
-// Condition is the interface used by the ConditionalAPI to match on cache objects
+// ConditionFactory is the interface used by the ConditionalAPI to match on cache objects
 // and generate operation conditions
-type Condition interface {
+type ConditionFactory interface {
 	// Generate returns a list of conditions to be used in Operations
 	Generate() ([]ovsdb.Condition, error)
 	// matches returns true if a model matches the condition
@@ -46,7 +46,7 @@ func (c *indexCond) Generate() ([]ovsdb.Condition, error) {
 }
 
 // newIndexCondition creates a new indexCond
-func newIndexCondition(orm *orm, table string, model Model, fields ...interface{}) (Condition, error) {
+func newIndexCondition(orm *orm, table string, model Model, fields ...interface{}) (ConditionFactory, error) {
 	return &indexCond{
 		orm:       orm,
 		tableName: table,
@@ -100,7 +100,7 @@ func (c *predicateCond) Generate() ([]ovsdb.Condition, error) {
 }
 
 // newIndexCondition creates a new predicateCond
-func newPredicateCond(table string, cache *TableCache, predicate interface{}) (Condition, error) {
+func newPredicateCond(table string, cache *TableCache, predicate interface{}) (ConditionFactory, error) {
 	return &predicateCond{
 		tableName: table,
 		predicate: predicate,
@@ -126,7 +126,7 @@ func (e *errorCondition) Generate() ([]ovsdb.Condition, error) {
 	return nil, e.err
 }
 
-func newErrorCondition(err error) Condition {
+func newErrorCondition(err error) ConditionFactory {
 	return &errorCondition{
 		err: fmt.Errorf("conditionerror: %s", err.Error()),
 	}
