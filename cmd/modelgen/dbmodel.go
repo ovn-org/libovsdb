@@ -16,7 +16,7 @@ import (
 	"github.com/ovn-org/libovsdb/client"
 )
 
-// FullDatabaseModel() returns the DatabaseModel object to be used in libovsdb
+// FullDatabaseModel returns the DatabaseModel object to be used in libovsdb
 func FullDatabaseModel() (*client.DBModel, error) {
 	return client.NewDBModel("{{ .DatabaseName }}", map[string]client.Model{
     {{ range $tableName, $structName := .Tables }} "{{ $tableName }}" : &{{ $structName }}{}, 
