@@ -1,11 +1,10 @@
 package ovsdb
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"testing"
-
-	"encoding/json"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -17,7 +16,10 @@ func TestSchema(t *testing.T) {
 		expectedErr    bool
 		expectedSchema DatabaseSchema
 	}
-
+	zero := 0
+	one := 1
+	two := 2
+	boolFalse := false
 	schemaTestSuite := []schemaTest{
 		{
 			name: "Simple AtomicType columns",
@@ -53,19 +55,20 @@ func TestSchema(t *testing.T) {
 						Columns: map[string]*ColumnSchema{
 							"str": {
 								Type:    TypeString,
-								Mutable: true,
+								TypeObj: &ColumnType{Key: &BaseType{Type: TypeString}},
 							},
 							"int": {
 								Type:    TypeInteger,
-								Mutable: true,
+								TypeObj: &ColumnType{Key: &BaseType{Type: TypeInteger}},
 							},
 							"float": {
 								Type:    TypeReal,
-								Mutable: true,
+								TypeObj: &ColumnType{Key: &BaseType{Type: TypeReal}},
 							},
 							"uuid": {
 								Type:    TypeUUID,
-								Mutable: false,
+								TypeObj: &ColumnType{Key: &BaseType{Type: TypeUUID}},
+								mutable: &boolFalse,
 							},
 						},
 					},
@@ -82,28 +85,28 @@ func TestSchema(t *testing.T) {
 		      "columns": {
 		        "single": {
 			  "type": {
-			    "key": "string",
+			    "key": {"type":"string"},
 			    "max": 1,
 			    "min": 1
 			  }
 			},
 		        "oneElem": {
 			  "type": {
-			    "key": "uuid",
+			    "key": {"type":"uuid"},
 			    "max": 1,
 			    "min": 0
 			  }
 			},
 		        "multipleElem": {
 			  "type": {
-			    "key": "real",
+			    "key": {"type":"real"},
 			    "max": 2,
 			    "min": 0
 			  }
 			},
 		        "unlimitedElem": {
 			  "type": {
-			    "key": "integer",
+			    "key": {"type":"integer"},
 			    "max": "unlimited",
 			    "min": 0
 			  }
@@ -130,51 +133,46 @@ func TestSchema(t *testing.T) {
 					"setTable": {
 						Columns: map[string]*ColumnSchema{
 							"single": {
-								Type:    TypeString,
-								Mutable: true,
+								Type: TypeString,
 								TypeObj: &ColumnType{
-									Key: &BaseType{Type: "string"},
-									Max: 1,
-									Min: 1,
+									Key: &BaseType{Type: TypeString},
+									min: &one,
+									max: &one,
 								},
 							},
 							"oneElem": {
-								Type:    TypeSet,
-								Mutable: true,
+								Type: TypeSet,
 								TypeObj: &ColumnType{
 									Key: &BaseType{Type: "uuid"},
-									Max: 1,
-									Min: 0,
+									max: &one,
+									min: &zero,
 								},
 							},
 							"multipleElem": {
-								Type:    TypeSet,
-								Mutable: true,
+								Type: TypeSet,
 								TypeObj: &ColumnType{
 									Key: &BaseType{Type: "real"},
-									Max: 2,
-									Min: 0,
+									max: &two,
+									min: &zero,
 								},
 							},
 							"unlimitedElem": {
-								Type:    TypeSet,
-								Mutable: true,
+								Type: TypeSet,
 								TypeObj: &ColumnType{
 									Key: &BaseType{Type: "integer"},
-									Max: Unlimited,
-									Min: 0,
+									max: &Unlimited,
+									min: &zero,
 								},
 							},
 							"enumSet": {
-								Type:    TypeSet,
-								Mutable: true,
+								Type: TypeSet,
 								TypeObj: &ColumnType{
 									Key: &BaseType{
 										Type: "string",
 										Enum: []interface{}{"one", "two"},
 									},
-									Max: Unlimited,
-									Min: 0,
+									max: &Unlimited,
+									min: &zero,
 								},
 							},
 						},
@@ -192,31 +190,31 @@ func TestSchema(t *testing.T) {
 		      "columns": {
 		        "str_str": {
 			  "type": {
-			    "key": "string",
-			    "value": "string"
+			    "key": {"type":"string"},
+			    "value": {"type":"string"}
 			  }
 			},
 		        "str_int": {
 			  "type": {
-			    "key": "string",
-			    "value": "integer"
+			    "key": {"type":"string"},
+			    "value": {"type":"integer"}
 			  }
 			},
 		        "int_real": {
 			  "type": {
-			    "key": "integer",
-			    "value": "real"
+			    "key": {"type":"integer"},
+			    "value": {"type":"real"}
 			  }
 			},
 		        "str_uuid": {
 			  "type": {
-			    "key": "string",
-			    "value": "uuid"
+			    "key": {"type":"string"},
+			    "value": {"type":"uuid"}
 			  }
 			},
 		        "str_enum": {
 			  "type": {
-			    "key": "string",
+			    "key": {"type":"string"},
 			    "value": {
 			      "type": "string",
 			      "enum": ["set", ["one", "two"]]
@@ -235,48 +233,35 @@ func TestSchema(t *testing.T) {
 					"mapTable": {
 						Columns: map[string]*ColumnSchema{
 							"str_str": {
-								Type:    TypeMap,
-								Mutable: true,
+								Type: TypeMap,
 								TypeObj: &ColumnType{
 									Key:   &BaseType{Type: "string"},
 									Value: &BaseType{Type: "string"},
-									Min:   1,
-									Max:   1,
 								},
 							},
 							"str_int": {
-								Type:    TypeMap,
-								Mutable: true,
+								Type: TypeMap,
 								TypeObj: &ColumnType{
 									Key:   &BaseType{Type: "string"},
 									Value: &BaseType{Type: "integer"},
-									Min:   1,
-									Max:   1,
 								},
 							},
 							"int_real": {
-								Type:    TypeMap,
-								Mutable: true,
+								Type: TypeMap,
 								TypeObj: &ColumnType{
 									Key:   &BaseType{Type: "integer"},
 									Value: &BaseType{Type: "real"},
-									Min:   1,
-									Max:   1,
 								},
 							},
 							"str_uuid": {
-								Type:    TypeMap,
-								Mutable: true,
+								Type: TypeMap,
 								TypeObj: &ColumnType{
 									Key:   &BaseType{Type: "string"},
 									Value: &BaseType{Type: "uuid"},
-									Min:   1,
-									Max:   1,
 								},
 							},
 							"str_enum": {
-								Type:    TypeMap,
-								Mutable: true,
+								Type: TypeMap,
 								TypeObj: &ColumnType{
 									Key: &BaseType{
 										Type: "string",
@@ -285,8 +270,6 @@ func TestSchema(t *testing.T) {
 										Type: "string",
 										Enum: []interface{}{"one", "two"},
 									},
-									Min: 1,
-									Max: 1,
 								},
 							},
 						},
@@ -363,6 +346,9 @@ func TestSchema(t *testing.T) {
 					}
 				}
 			}
+			b, err := json.Marshal(schema)
+			assert.Nil(t, err)
+			assert.JSONEq(t, string(test.schema), string(b))
 		})
 	}
 }
@@ -417,4 +403,280 @@ func TestTable(t *testing.T) {
 		column := table.Column("_uuid")
 		assert.NotNil(t, column)
 	})
+}
+
+func TestBaseTypeMarshalUnmarshalJSON(t *testing.T) {
+	datapath := "Datapath"
+	zero := 0
+	max := 4294967295
+	strong := "strong"
+	tests := []struct {
+		name         string
+		in           []byte
+		expected     BaseType
+		expectedJSON []byte
+		wantErr      bool
+	}{
+		{
+			"string",
+			[]byte(`"string"`),
+			BaseType{Type: TypeString},
+			[]byte(`{"type":"string"}`),
+			false,
+		},
+		{
+			"integer",
+			[]byte(`"integer"`),
+			BaseType{Type: TypeInteger},
+			[]byte(`{"type":"integer"}`),
+			false,
+		},
+		{
+			"boolean",
+			[]byte(`"boolean"`),
+			BaseType{Type: TypeBoolean},
+			[]byte(`{"type":"boolean"}`),
+			false,
+		},
+		{
+			"real",
+			[]byte(`"real"`),
+			BaseType{Type: TypeReal},
+			[]byte(`{"type":"real"}`),
+			false,
+		},
+		{
+			"uuid",
+			[]byte(`"uuid"`),
+			BaseType{Type: TypeUUID},
+			[]byte(`{"type":"uuid"}`),
+			false,
+		},
+		{
+			"uuid",
+			[]byte(`{"type": "uuid", "refTable": "Datapath", "refType": "strong"}`),
+			BaseType{Type: TypeUUID, RefTable: &datapath, RefType: &strong},
+			[]byte(`{"type": "uuid", "refTable": "Datapath", "refType": "strong"}`),
+			false,
+		},
+		{
+			"enum",
+			[]byte(`{"type": "string","enum": ["set", ["OpenFlow10","OpenFlow11","OpenFlow12","OpenFlow13","OpenFlow14","OpenFlow15"]]}`),
+			BaseType{Type: TypeString, Enum: []interface{}{"OpenFlow10", "OpenFlow11", "OpenFlow12", "OpenFlow13", "OpenFlow14", "OpenFlow15"}},
+			[]byte(`{"type": "string","enum": ["set", ["OpenFlow10","OpenFlow11","OpenFlow12","OpenFlow13","OpenFlow14","OpenFlow15"]]}`),
+			false,
+		},
+		{
+			"int with min and max",
+			[]byte(`{"type":"integer","minInteger":0,"maxInteger": 4294967295}`),
+			BaseType{Type: TypeInteger, MinInteger: &zero, MaxInteger: &max},
+			[]byte(`{"type":"integer","minInteger":0,"maxInteger": 4294967295}`),
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var b BaseType
+			err := b.UnmarshalJSON(tt.in)
+			assert.Nil(t, err)
+			assert.Equal(t, tt.expected, b)
+			raw, err := b.MarshalJSON()
+			assert.Nil(t, err)
+			assert.JSONEq(t, string(tt.expectedJSON), string(raw))
+		})
+	}
+}
+
+func TestColumnTypeMarshalUnmarshalJSON(t *testing.T) {
+	one := 1
+	tests := []struct {
+		name         string
+		in           []byte
+		expected     ColumnType
+		expectedJSON []byte
+	}{
+		{
+			"string",
+			[]byte(`"string"`),
+			ColumnType{
+				Key: &BaseType{Type: "string"},
+			},
+			[]byte(`"string"`),
+		},
+		{
+			"map string string",
+			[]byte(`{"value":"string","key":{"type":"string"},"min":1,"max":1}`),
+			ColumnType{
+				Key:   &BaseType{Type: "string"},
+				Value: &BaseType{Type: "string"},
+				min:   &one,
+				max:   &one,
+			},
+			[]byte(`{"key":{"type":"string"},"value":{"type":"string"},"min":1,"max":1}`),
+		},
+		{
+			"map str int",
+			[]byte(`{"key":"string","value":"integer","min":1,"max":1}`),
+			ColumnType{
+				Key:   &BaseType{Type: "string"},
+				Value: &BaseType{Type: "integer"},
+				min:   &one,
+				max:   &one,
+			},
+			[]byte(`{"key":{"type": "string"},"value":{"type":"integer"},"min":1,"max":1}`),
+		},
+		{
+			"map int real",
+			[]byte(`{"key":{"type":"integer"},"value":{"type":"real"},"min":1,"max":"unlimited"}`),
+			ColumnType{
+				Key:   &BaseType{Type: "integer"},
+				Value: &BaseType{Type: "real"},
+				min:   &one,
+				max:   &Unlimited,
+			},
+			[]byte(`{"key":{"type":"integer"},"value":{"type":"real"},"min":1,"max":"unlimited"}`),
+		},
+		{
+			"map str uuid",
+			[]byte(`{"key":{"type":"string"},"value":{"type":"uuid"},"min":1,"max":"unlimited"}`),
+			ColumnType{
+				Key:   &BaseType{Type: "string"},
+				Value: &BaseType{Type: "uuid"},
+				min:   &one,
+				max:   &Unlimited,
+			},
+			[]byte(`{"key":{"type":"string"},"value":{"type":"uuid"},"min":1,"max":"unlimited"}`),
+		},
+		{
+			"string enum",
+			[]byte(`{"key":{"type":"string"},"value":{"type":"string","enum":["set", ["one","two"]]},"min":1,"max":1}`),
+			ColumnType{
+				Key: &BaseType{
+					Type: "string",
+				},
+				Value: &BaseType{
+					Type: "string",
+					Enum: []interface{}{"one", "two"},
+				},
+				min: &one,
+				max: &one,
+			},
+			[]byte(`{"key":{"type":"string"},"value":{"type":"string","enum":["set",["one","two"]]},"min":1,"max":1}`),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var c ColumnType
+			err := c.UnmarshalJSON(tt.in)
+			assert.Nil(t, err)
+			assert.Equal(t, tt.expected, c)
+			raw, err := c.MarshalJSON()
+			assert.Nil(t, err)
+			assert.JSONEq(t, string(tt.expectedJSON), string(raw))
+		})
+	}
+}
+
+func TestColumnSchemaMutable(t *testing.T) {
+	boolTrue := true
+	boolFalse := false
+	m1 := ColumnSchema{mutable: nil}
+	m2 := ColumnSchema{mutable: &boolTrue}
+	m3 := ColumnSchema{mutable: &boolFalse}
+	assert.True(t, m1.Mutable())
+	assert.True(t, m2.Mutable())
+	assert.False(t, m3.Mutable())
+}
+
+func TestColumnSchemaEphemeral(t *testing.T) {
+	boolTrue := true
+	boolFalse := false
+	e1 := ColumnSchema{ephemeral: nil}
+	e2 := ColumnSchema{ephemeral: &boolTrue}
+	e3 := ColumnSchema{ephemeral: &boolFalse}
+	assert.False(t, e1.Ephemeral())
+	assert.True(t, e2.Ephemeral())
+	assert.False(t, e3.Ephemeral())
+}
+
+func TestColumnSchemaMarshalUnmarshalJSON(t *testing.T) {
+	datapath := "Datapath"
+	unlimted := -1
+	zero := 0
+	one := 1
+	tests := []struct {
+		name         string
+		in           []byte
+		expected     ColumnSchema
+		expectedJSON []byte
+	}{
+		{
+			"simple string",
+			[]byte(`{"type": "string"}`),
+			ColumnSchema{
+				Type:    TypeString,
+				TypeObj: &ColumnType{Key: &BaseType{Type: TypeString}},
+			},
+			[]byte(`{"type": "string"}`),
+		},
+		{
+			"map",
+			[]byte(`{"type":{"key": {"type": "string"},"value": {"type": "uuid","refTable": "Datapath"},"min": 0, "max": "unlimited"}}`),
+			ColumnSchema{
+				Type: TypeMap,
+				TypeObj: &ColumnType{
+					Key:   &BaseType{Type: TypeString},
+					Value: &BaseType{Type: TypeUUID, RefTable: &datapath},
+					min:   &zero,
+					max:   &unlimted,
+				},
+			},
+			[]byte(`{"type":{"key": {"type": "string"},"value": {"type": "uuid","refTable": "Datapath"},"min": 0, "max": "unlimited"}}`),
+		},
+		{
+			"set",
+			[]byte(`{"type": {"key": {"type": "uuid","refTable": "Datapath"},"min": 0, "max": "unlimited"}}`),
+			ColumnSchema{
+				Type: TypeSet,
+				TypeObj: &ColumnType{
+					Key: &BaseType{Type: TypeUUID, RefTable: &datapath},
+					min: &zero,
+					max: &unlimted,
+				}},
+			[]byte(`{"type": {"key": {"type": "uuid","refTable": "Datapath"},"min": 0, "max": "unlimited"}}`),
+		},
+		{
+			"enum",
+			[]byte(`{"type": {"key": {"type": "string","enum": ["set", ["one", "two"]]},"max": 1,"min": 1}}`),
+			ColumnSchema{
+				Type: TypeEnum,
+				TypeObj: &ColumnType{
+					Key: &BaseType{Type: TypeString, Enum: []interface{}{"one", "two"}},
+					max: &one,
+					min: &one,
+				},
+			},
+			[]byte(`{"type": {"key": {"type": "string","enum": ["set", ["one", "two"]]},"max": 1,"min": 1}}`),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var c ColumnSchema
+			err := c.UnmarshalJSON(tt.in)
+			assert.Nil(t, err)
+			assert.Equal(t, tt.expected, c)
+			assert.True(t, c.Mutable())
+			raw, err := c.MarshalJSON()
+			assert.Nil(t, err)
+			assert.JSONEq(t, string(tt.expectedJSON), string(raw))
+		})
+	}
+}
+
+func TestBaseTypesimpleAtomic(t *testing.T) {
+	b := BaseType{Type: TypeString}
+	assert.True(t, b.simpleAtomic())
+	max := 1024
+	b1 := BaseType{Type: TypeInteger, MaxInteger: &max}
+	assert.False(t, b1.simpleAtomic())
 }
