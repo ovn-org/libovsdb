@@ -47,6 +47,7 @@ func TestEqualityCondFactory(t *testing.T) {
 		model     Model
 		condition [][]ovsdb.Condition
 		matches   map[Model]bool
+		all       bool
 		err       bool
 	}{
 		{
@@ -66,6 +67,23 @@ func TestEqualityCondFactory(t *testing.T) {
 			},
 		},
 		{
+			name:  "by uuid all",
+			model: &testLogicalSwitchPort{UUID: aUUID0, Name: "different"},
+			condition: [][]ovsdb.Condition{
+				{
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID0},
+					}}},
+			matches: map[Model]bool{
+				&testLogicalSwitchPort{UUID: aUUID0}:              true,
+				&testLogicalSwitchPort{UUID: aUUID1}:              false,
+				&testLogicalSwitchPort{UUID: aUUID0, Name: "foo"}: true,
+			},
+			all: true,
+		},
+		{
 			name:  "by index",
 			model: &testLogicalSwitchPort{Name: "lsp1"},
 			condition: [][]ovsdb.Condition{
@@ -82,6 +100,23 @@ func TestEqualityCondFactory(t *testing.T) {
 			},
 		},
 		{
+			name:  "by index all",
+			model: &testLogicalSwitchPort{Name: "lsp1"},
+			condition: [][]ovsdb.Condition{
+				{
+					{
+						Column:   "name",
+						Function: ovsdb.ConditionEqual,
+						Value:    "lsp1",
+					}}},
+			matches: map[Model]bool{
+				&testLogicalSwitchPort{UUID: aUUID1}:               false,
+				&testLogicalSwitchPort{UUID: aUUID1, Name: "lsp1"}: true,
+				&testLogicalSwitchPort{UUID: aUUID0, Name: "lsp1"}: true,
+			},
+			all: true,
+		},
+		{
 			name:  "by non index",
 			model: &testLogicalSwitchPort{ExternalIds: map[string]string{"foo": "baz"}},
 			err:   true,
@@ -89,7 +124,7 @@ func TestEqualityCondFactory(t *testing.T) {
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("Equality Condition: %s", tt.name), func(t *testing.T) {
-			cond, err := newEqualityConditionFactory(cache.orm, "Logical_Switch_Port", tt.model)
+			cond, err := newEqualityConditionFactory(cache.orm, "Logical_Switch_Port", tt.all, tt.model)
 			assert.Nil(t, err)
 			for model, shouldMatch := range tt.matches {
 				matches, err := cond.Matches(model)
@@ -258,6 +293,7 @@ func TestExplicitCondFactory(t *testing.T) {
 		name   string
 		args   []Condition
 		result [][]ovsdb.Condition
+		all    bool
 		err    bool
 	}{
 		{
@@ -276,6 +312,24 @@ func TestExplicitCondFactory(t *testing.T) {
 						Function: ovsdb.ConditionNotEqual,
 						Value:    "lsp0",
 					}}},
+		},
+		{
+			name: "inequality comparison all",
+			args: []Condition{
+				{
+					Field:    &testObj.Name,
+					Function: ovsdb.ConditionNotEqual,
+					Value:    "lsp0",
+				},
+			},
+			result: [][]ovsdb.Condition{
+				{
+					{
+						Column:   "name",
+						Function: ovsdb.ConditionNotEqual,
+						Value:    "lsp0",
+					}}},
+			all: true,
 		},
 		{
 			name: "map comparison",
@@ -339,10 +393,37 @@ func TestExplicitCondFactory(t *testing.T) {
 						Value:    "foo",
 					}}},
 		},
+		{
+			name: "multiple conditions all",
+			args: []Condition{
+				{
+					Field:    &testObj.Enabled,
+					Function: ovsdb.ConditionEqual,
+					Value:    []bool{true},
+				},
+				{
+					Field:    &testObj.Name,
+					Function: ovsdb.ConditionNotEqual,
+					Value:    "foo",
+				},
+			},
+			result: [][]ovsdb.Condition{{
+				{
+					Column:   "enabled",
+					Function: ovsdb.ConditionEqual,
+					Value:    testOvsSet(t, []bool{true}),
+				},
+				{
+					Column:   "name",
+					Function: ovsdb.ConditionNotEqual,
+					Value:    "foo",
+				}}},
+			all: true,
+		},
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("Explicit Condition: %s", tt.name), func(t *testing.T) {
-			cond, err := newExplicitConditionFactory(cache.orm, "Logical_Switch_Port", testObj, tt.args...)
+			cond, err := newExplicitConditionFactory(cache.orm, "Logical_Switch_Port", tt.all, testObj, tt.args...)
 			assert.Nil(t, err)
 			_, err = cond.Matches(testObj)
 			assert.NotNilf(t, err, "Explicit conditions should fail to match on cache")

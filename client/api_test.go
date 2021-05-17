@@ -398,7 +398,7 @@ func TestConditionFromModel(t *testing.T) {
 		t.Run(fmt.Sprintf("conditionFromModel: %s", tt.name), func(t *testing.T) {
 			cache := apiTestCache(t)
 			apiIface := newAPI(cache)
-			condition := apiIface.(api).conditionFromModel(tt.model, tt.conds...)
+			condition := apiIface.(api).conditionFromModel(false, tt.model, tt.conds...)
 			if tt.err {
 				assert.IsType(t, &errorConditionFactory{}, condition)
 			} else {
@@ -868,6 +868,73 @@ func TestAPIUpdate(t *testing.T) {
 			err: false,
 		},
 		{
+			name: "multiple select any by field change multiple field",
+			condition: func(a API) ConditionalAPI {
+				t := testLogicalSwitchPort{}
+				return a.Where(&t,
+					Condition{
+						Field:    &t.Type,
+						Function: ovsdb.ConditionEqual,
+						Value:    "sometype",
+					},
+					Condition{
+						Field:    &t.Enabled,
+						Function: ovsdb.ConditionIncludes,
+						Value:    []bool{true},
+					})
+			},
+			prepare: func(t *testLogicalSwitchPort) {
+				t.Tag = []int{6}
+			},
+			result: []ovsdb.Operation{
+				{
+					Op:    opUpdate,
+					Table: "Logical_Switch_Port",
+					Row:   map[string]interface{}{"tag": testOvsSet(t, []int{6})},
+					Where: []ovsdb.Condition{{Column: "type", Function: ovsdb.ConditionEqual, Value: "sometype"}},
+				},
+				{
+					Op:    opUpdate,
+					Table: "Logical_Switch_Port",
+					Row:   map[string]interface{}{"tag": testOvsSet(t, []int{6})},
+					Where: []ovsdb.Condition{{Column: "enabled", Function: ovsdb.ConditionIncludes, Value: testOvsSet(t, []bool{true})}},
+				},
+			},
+			err: false,
+		},
+		{
+			name: "multiple select all by field change multiple field",
+			condition: func(a API) ConditionalAPI {
+				t := testLogicalSwitchPort{}
+				return a.WhereAll(&t,
+					Condition{
+						Field:    &t.Type,
+						Function: ovsdb.ConditionEqual,
+						Value:    "sometype",
+					},
+					Condition{
+						Field:    &t.Enabled,
+						Function: ovsdb.ConditionIncludes,
+						Value:    []bool{true},
+					})
+			},
+			prepare: func(t *testLogicalSwitchPort) {
+				t.Tag = []int{6}
+			},
+			result: []ovsdb.Operation{
+				{
+					Op:    opUpdate,
+					Table: "Logical_Switch_Port",
+					Row:   map[string]interface{}{"tag": testOvsSet(t, []int{6})},
+					Where: []ovsdb.Condition{
+						{Column: "type", Function: ovsdb.ConditionEqual, Value: "sometype"},
+						{Column: "enabled", Function: ovsdb.ConditionIncludes, Value: testOvsSet(t, []bool{true})},
+					},
+				},
+			},
+			err: false,
+		},
+		{
 			name: "select by field inequality change multiple field",
 			condition: func(a API) ConditionalAPI {
 				t := testLogicalSwitchPort{
@@ -1023,6 +1090,66 @@ func TestAPIDelete(t *testing.T) {
 					Op:    opDelete,
 					Table: "Logical_Switch_Port",
 					Where: []ovsdb.Condition{{Column: "type", Function: ovsdb.ConditionEqual, Value: "sometype"}},
+				},
+			},
+			err: false,
+		},
+		{
+			name: "select any by field ",
+			condition: func(a API) ConditionalAPI {
+				t := testLogicalSwitchPort{
+					Enabled: []bool{true},
+				}
+				return a.Where(&t,
+					Condition{
+						Field:    &t.Type,
+						Function: ovsdb.ConditionEqual,
+						Value:    "sometype",
+					}, Condition{
+						Field:    &t.Name,
+						Function: ovsdb.ConditionEqual,
+						Value:    "foo",
+					})
+			},
+			result: []ovsdb.Operation{
+				{
+					Op:    opDelete,
+					Table: "Logical_Switch_Port",
+					Where: []ovsdb.Condition{{Column: "type", Function: ovsdb.ConditionEqual, Value: "sometype"}},
+				},
+				{
+					Op:    opDelete,
+					Table: "Logical_Switch_Port",
+					Where: []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "foo"}},
+				},
+			},
+			err: false,
+		},
+		{
+			name: "select all by field ",
+			condition: func(a API) ConditionalAPI {
+				t := testLogicalSwitchPort{
+					Enabled: []bool{true},
+				}
+				return a.WhereAll(&t,
+					Condition{
+						Field:    &t.Type,
+						Function: ovsdb.ConditionEqual,
+						Value:    "sometype",
+					}, Condition{
+						Field:    &t.Name,
+						Function: ovsdb.ConditionEqual,
+						Value:    "foo",
+					})
+			},
+			result: []ovsdb.Operation{
+				{
+					Op:    opDelete,
+					Table: "Logical_Switch_Port",
+					Where: []ovsdb.Condition{
+						{Column: "type", Function: ovsdb.ConditionEqual, Value: "sometype"},
+						{Column: "name", Function: ovsdb.ConditionEqual, Value: "foo"},
+					},
 				},
 			},
 			err: false,
