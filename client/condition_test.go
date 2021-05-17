@@ -45,19 +45,20 @@ func TestEqualityConditional(t *testing.T) {
 	test := []struct {
 		name      string
 		model     Model
-		condition []ovsdb.Condition
+		condition [][]ovsdb.Condition
 		matches   map[Model]bool
 		err       bool
 	}{
 		{
 			name:  "by uuid",
 			model: &testLogicalSwitchPort{UUID: aUUID0, Name: "different"},
-			condition: []ovsdb.Condition{
+			condition: [][]ovsdb.Condition{
 				{
-					Column:   "_uuid",
-					Function: ovsdb.ConditionEqual,
-					Value:    ovsdb.UUID{GoUUID: aUUID0},
-				}},
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID0},
+					}}},
 			matches: map[Model]bool{
 				&testLogicalSwitchPort{UUID: aUUID0}:              true,
 				&testLogicalSwitchPort{UUID: aUUID1}:              false,
@@ -67,12 +68,13 @@ func TestEqualityConditional(t *testing.T) {
 		{
 			name:  "by index",
 			model: &testLogicalSwitchPort{Name: "lsp1"},
-			condition: []ovsdb.Condition{
+			condition: [][]ovsdb.Condition{
 				{
-					Column:   "name",
-					Function: ovsdb.ConditionEqual,
-					Value:    "lsp1",
-				}},
+					{
+						Column:   "name",
+						Function: ovsdb.ConditionEqual,
+						Value:    "lsp1",
+					}}},
 			matches: map[Model]bool{
 				&testLogicalSwitchPort{UUID: aUUID1}:               false,
 				&testLogicalSwitchPort{UUID: aUUID1, Name: "lsp1"}: true,
@@ -146,7 +148,7 @@ func TestPredicateConditional(t *testing.T) {
 	test := []struct {
 		name      string
 		predicate interface{}
-		condition []ovsdb.Condition
+		condition [][]ovsdb.Condition
 		matches   map[Model]bool
 		err       bool
 	}{
@@ -155,12 +157,13 @@ func TestPredicateConditional(t *testing.T) {
 			predicate: func(lsp *testLogicalSwitchPort) bool {
 				return lsp.UUID == aUUID0
 			},
-			condition: []ovsdb.Condition{
+			condition: [][]ovsdb.Condition{
 				{
-					Column:   "_uuid",
-					Function: ovsdb.ConditionEqual,
-					Value:    ovsdb.UUID{GoUUID: aUUID0},
-				}},
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID0},
+					}}},
 			matches: map[Model]bool{
 				&testLogicalSwitchPort{UUID: aUUID0}:              true,
 				&testLogicalSwitchPort{UUID: aUUID1}:              false,
@@ -172,17 +175,19 @@ func TestPredicateConditional(t *testing.T) {
 			predicate: func(lsp *testLogicalSwitchPort) bool {
 				return lsp.Enabled[0] == false
 			},
-			condition: []ovsdb.Condition{
+			condition: [][]ovsdb.Condition{
 				{
-					Column:   "_uuid",
-					Function: ovsdb.ConditionEqual,
-					Value:    ovsdb.UUID{GoUUID: aUUID1},
-				},
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID1},
+					}},
 				{
-					Column:   "_uuid",
-					Function: ovsdb.ConditionEqual,
-					Value:    ovsdb.UUID{GoUUID: aUUID2},
-				}},
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID2},
+					}}},
 			matches: map[Model]bool{
 				&testLogicalSwitchPort{UUID: aUUID1, Enabled: []bool{true}}:  false,
 				&testLogicalSwitchPort{UUID: aUUID1, Enabled: []bool{false}}: true,
@@ -252,7 +257,7 @@ func TestExplicitConditional(t *testing.T) {
 	test := []struct {
 		name   string
 		args   []Condition
-		result []ovsdb.Condition
+		result [][]ovsdb.Condition
 		err    bool
 	}{
 		{
@@ -264,12 +269,13 @@ func TestExplicitConditional(t *testing.T) {
 					Value:    "lsp0",
 				},
 			},
-			result: []ovsdb.Condition{
+			result: [][]ovsdb.Condition{
 				{
-					Column:   "name",
-					Function: ovsdb.ConditionNotEqual,
-					Value:    "lsp0",
-				}},
+					{
+						Column:   "name",
+						Function: ovsdb.ConditionNotEqual,
+						Value:    "lsp0",
+					}}},
 		},
 		{
 			name: "map comparison",
@@ -280,12 +286,13 @@ func TestExplicitConditional(t *testing.T) {
 					Value:    map[string]string{"foo": "baz"},
 				},
 			},
-			result: []ovsdb.Condition{
+			result: [][]ovsdb.Condition{
 				{
-					Column:   "external_ids",
-					Function: ovsdb.ConditionIncludes,
-					Value:    testOvsMap(t, map[string]string{"foo": "baz"}),
-				}},
+					{
+						Column:   "external_ids",
+						Function: ovsdb.ConditionIncludes,
+						Value:    testOvsMap(t, map[string]string{"foo": "baz"}),
+					}}},
 		},
 		{
 			name: "set comparison",
@@ -296,12 +303,13 @@ func TestExplicitConditional(t *testing.T) {
 					Value:    []bool{true},
 				},
 			},
-			result: []ovsdb.Condition{
+			result: [][]ovsdb.Condition{
 				{
-					Column:   "enabled",
-					Function: ovsdb.ConditionEqual,
-					Value:    testOvsSet(t, []bool{true}),
-				}},
+					{
+						Column:   "enabled",
+						Function: ovsdb.ConditionEqual,
+						Value:    testOvsSet(t, []bool{true}),
+					}}},
 		},
 		{
 			name: "multiple conditions",
@@ -317,17 +325,19 @@ func TestExplicitConditional(t *testing.T) {
 					Value:    "foo",
 				},
 			},
-			result: []ovsdb.Condition{
+			result: [][]ovsdb.Condition{
 				{
-					Column:   "enabled",
-					Function: ovsdb.ConditionEqual,
-					Value:    testOvsSet(t, []bool{true}),
-				},
+					{
+						Column:   "enabled",
+						Function: ovsdb.ConditionEqual,
+						Value:    testOvsSet(t, []bool{true}),
+					}},
 				{
-					Column:   "name",
-					Function: ovsdb.ConditionNotEqual,
-					Value:    "foo",
-				}},
+					{
+						Column:   "name",
+						Function: ovsdb.ConditionNotEqual,
+						Value:    "foo",
+					}}},
 		},
 	}
 	for _, tt := range test {

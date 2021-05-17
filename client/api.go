@@ -351,7 +351,7 @@ func (a api) Mutate(model Model, mutationObjs []Mutation) ([]ovsdb.Operation, er
 				Op:        opMutate,
 				Table:     tableName,
 				Mutations: mutations,
-				Where:     []ovsdb.Condition{condition},
+				Where:     condition,
 			},
 		)
 	}
@@ -384,7 +384,7 @@ func (a api) Update(model Model, fields ...interface{}) ([]ovsdb.Operation, erro
 				Op:    opUpdate,
 				Table: table,
 				Row:   row,
-				Where: []ovsdb.Condition{condition},
+				Where: condition,
 			},
 		)
 	}
@@ -404,7 +404,7 @@ func (a api) Delete() ([]ovsdb.Operation, error) {
 			ovsdb.Operation{
 				Op:    opDelete,
 				Table: a.cond.Table(),
-				Where: []ovsdb.Condition{condition},
+				Where: condition,
 			},
 		)
 	}
