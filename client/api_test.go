@@ -196,7 +196,7 @@ func TestAPIListPredicate(t *testing.T) {
 		t.Run(fmt.Sprintf("ApiListPredicate: %s", tt.name), func(t *testing.T) {
 			var result []testLogicalSwitch
 			api := newAPI(cache)
-			cond := api.Where(api.ConditionFromFunc(tt.predicate))
+			cond := api.WhereCache(tt.predicate)
 			err := cond.List(&result)
 			if tt.err {
 				assert.NotNil(t, err)
@@ -283,7 +283,7 @@ func TestAPIListFields(t *testing.T) {
 			// Clean object
 			testObj = testLogicalSwitchPort{}
 			api := newAPI(cache)
-			err := api.Where(api.ConditionFromModel(&testObj)).List(&result)
+			err := api.Where(&testObj).List(&result)
 			if tt.err {
 				assert.NotNil(t, err)
 			} else {
@@ -301,7 +301,7 @@ func TestAPIListFields(t *testing.T) {
 			UUID: aUUID0,
 		}
 
-		err := api.Where(api.ConditionFromModel(&obj)).List(&result)
+		err := api.Where(&obj).List(&result)
 		assert.NotNil(t, err)
 	})
 }
@@ -336,10 +336,10 @@ func TestConditionFromFunc(t *testing.T) {
 	}
 
 	for _, tt := range test {
-		t.Run(fmt.Sprintf("ConditionFromFunc: %s", tt.name), func(t *testing.T) {
+		t.Run(fmt.Sprintf("conditionFromFunc: %s", tt.name), func(t *testing.T) {
 			cache := apiTestCache(t)
-			api := newAPI(cache)
-			condition := api.ConditionFromFunc(tt.arg)
+			apiIface := newAPI(cache)
+			condition := apiIface.(api).conditionFromFunc(tt.arg)
 			if tt.err {
 				assert.IsType(t, &errorConditionFactory{}, condition)
 			} else {
@@ -395,10 +395,10 @@ func TestConditionFromModel(t *testing.T) {
 	}
 
 	for _, tt := range test {
-		t.Run(fmt.Sprintf("ConditionFromModel: %s", tt.name), func(t *testing.T) {
+		t.Run(fmt.Sprintf("conditionFromModel: %s", tt.name), func(t *testing.T) {
 			cache := apiTestCache(t)
-			api := newAPI(cache)
-			condition := api.ConditionFromModel(tt.model, tt.conds...)
+			apiIface := newAPI(cache)
+			condition := apiIface.(api).conditionFromModel(tt.model, tt.conds...)
 			if tt.err {
 				assert.IsType(t, &errorConditionFactory{}, condition)
 			} else {
@@ -646,9 +646,9 @@ func TestAPIMutate(t *testing.T) {
 		{
 			name: "select by UUID addElement to set",
 			condition: func(a API) ConditionalAPI {
-				return a.Where(a.ConditionFromModel(&testLogicalSwitch{
+				return a.Where(&testLogicalSwitch{
 					UUID: aUUID0,
-				}))
+				})
 			},
 			mutations: []Mutation{
 				{
@@ -670,9 +670,9 @@ func TestAPIMutate(t *testing.T) {
 		{
 			name: "select by name delete element from map",
 			condition: func(a API) ConditionalAPI {
-				return a.Where(a.ConditionFromModel(&testLogicalSwitchPort{
+				return a.Where(&testLogicalSwitchPort{
 					Name: "lsp2",
-				}))
+				})
 			},
 			mutations: []Mutation{
 				{
@@ -694,9 +694,9 @@ func TestAPIMutate(t *testing.T) {
 		{
 			name: "select single by predicate name insert element in map",
 			condition: func(a API) ConditionalAPI {
-				return a.Where(a.ConditionFromFunc(func(lsp *testLogicalSwitchPort) bool {
+				return a.WhereCache(func(lsp *testLogicalSwitchPort) bool {
 					return lsp.Name == "lsp2"
-				}))
+				})
 			},
 			mutations: []Mutation{
 				{
@@ -718,9 +718,9 @@ func TestAPIMutate(t *testing.T) {
 		{
 			name: "select many by predicate name insert element in map",
 			condition: func(a API) ConditionalAPI {
-				return a.Where(a.ConditionFromFunc(func(lsp *testLogicalSwitchPort) bool {
+				return a.WhereCache(func(lsp *testLogicalSwitchPort) bool {
 					return lsp.Type == "someType"
-				}))
+				})
 			},
 			mutations: []Mutation{
 				{
@@ -802,9 +802,9 @@ func TestAPIUpdate(t *testing.T) {
 		{
 			name: "select by UUID change multiple field",
 			condition: func(a API) ConditionalAPI {
-				return a.Where(a.ConditionFromModel(&testLogicalSwitch{
+				return a.Where(&testLogicalSwitch{
 					UUID: aUUID0,
-				}))
+				})
 			},
 			prepare: func(t *testLogicalSwitchPort) {
 				t.Type = "somethingElse"
@@ -823,9 +823,9 @@ func TestAPIUpdate(t *testing.T) {
 		{
 			name: "select by index change multiple field",
 			condition: func(a API) ConditionalAPI {
-				return a.Where(a.ConditionFromModel(&testLogicalSwitchPort{
+				return a.Where(&testLogicalSwitchPort{
 					Name: "lsp1",
-				}))
+				})
 			},
 			prepare: func(t *testLogicalSwitchPort) {
 				t.Type = "somethingElse"
@@ -848,11 +848,11 @@ func TestAPIUpdate(t *testing.T) {
 					Type:    "sometype",
 					Enabled: []bool{true},
 				}
-				return a.Where(a.ConditionFromModel(&t, Condition{
+				return a.Where(&t, Condition{
 					Field:    &t.Type,
 					Function: ovsdb.ConditionEqual,
 					Value:    "sometype",
-				}))
+				})
 			},
 			prepare: func(t *testLogicalSwitchPort) {
 				t.Tag = []int{6}
@@ -874,11 +874,11 @@ func TestAPIUpdate(t *testing.T) {
 					Type:    "sometype",
 					Enabled: []bool{true},
 				}
-				return a.Where(a.ConditionFromModel(&t, Condition{
+				return a.Where(&t, Condition{
 					Field:    &t.Type,
 					Function: ovsdb.ConditionNotEqual,
 					Value:    "sometype",
-				}))
+				})
 			},
 			prepare: func(t *testLogicalSwitchPort) {
 				t.Tag = []int{6}
@@ -896,9 +896,9 @@ func TestAPIUpdate(t *testing.T) {
 		{
 			name: "select multiple by predicate change multiple field",
 			condition: func(a API) ConditionalAPI {
-				return a.Where(a.ConditionFromFunc(func(t *testLogicalSwitchPort) bool {
+				return a.WhereCache(func(t *testLogicalSwitchPort) bool {
 					return t.Enabled != nil && t.Enabled[0] == true
-				}))
+				})
 			},
 			prepare: func(t *testLogicalSwitchPort) {
 				t.Type = "somethingElse"
@@ -977,9 +977,9 @@ func TestAPIDelete(t *testing.T) {
 		{
 			name: "select by UUID",
 			condition: func(a API) ConditionalAPI {
-				return a.Where(a.ConditionFromModel(&testLogicalSwitch{
+				return a.Where(&testLogicalSwitch{
 					UUID: aUUID0,
-				}))
+				})
 			},
 			result: []ovsdb.Operation{
 				{
@@ -993,9 +993,9 @@ func TestAPIDelete(t *testing.T) {
 		{
 			name: "select by index",
 			condition: func(a API) ConditionalAPI {
-				return a.Where(a.ConditionFromModel(&testLogicalSwitchPort{
+				return a.Where(&testLogicalSwitchPort{
 					Name: "lsp1",
-				}))
+				})
 			},
 			result: []ovsdb.Operation{
 				{
@@ -1012,11 +1012,11 @@ func TestAPIDelete(t *testing.T) {
 				t := testLogicalSwitchPort{
 					Enabled: []bool{true},
 				}
-				return a.Where(a.ConditionFromModel(&t, Condition{
+				return a.Where(&t, Condition{
 					Field:    &t.Type,
 					Function: ovsdb.ConditionEqual,
 					Value:    "sometype",
-				}))
+				})
 			},
 			result: []ovsdb.Operation{
 				{
@@ -1030,9 +1030,9 @@ func TestAPIDelete(t *testing.T) {
 		{
 			name: "select multiple by predicate",
 			condition: func(a API) ConditionalAPI {
-				return a.Where(a.ConditionFromFunc(func(t *testLogicalSwitchPort) bool {
+				return a.WhereCache(func(t *testLogicalSwitchPort) bool {
 					return t.Enabled != nil && t.Enabled[0] == true
-				}))
+				})
 			},
 			result: []ovsdb.Operation{
 				{
