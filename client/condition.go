@@ -10,8 +10,9 @@ import (
 // ConditionFactory is the interface used by the ConditionalAPI to match on cache objects
 // and generate operation conditions
 type ConditionFactory interface {
-	// Generate returns a list of conditions to be used in Operations
-	Generate() ([]ovsdb.Condition, error)
+	// Generate returns a list of lists of conditions to be used in Operations
+	// Each element in the (outer) list corrsponds to an operation
+	Generate() ([][]ovsdb.Condition, error)
 	// matches returns true if a model matches the condition
 	Matches(m Model) (bool, error)
 	// returns the table that this condition is associated with
@@ -36,12 +37,16 @@ func (c *equalityCondFactory) Table() string {
 }
 
 // Generate returns a condition based on the model and the field pointers
-func (c *equalityCondFactory) Generate() ([]ovsdb.Condition, error) {
-	condition, err := c.orm.newEqualityCondition(c.tableName, c.model)
+func (c *equalityCondFactory) Generate() ([][]ovsdb.Condition, error) {
+	var result [][]ovsdb.Condition
+	conds, err := c.orm.newEqualityCondition(c.tableName, c.model)
 	if err != nil {
 		return nil, err
 	}
-	return condition, nil
+	for _, c := range conds {
+		result = append(result, []ovsdb.Condition{c})
+	}
+	return result, nil
 }
 
 // newIndexCondition creates a new equalityCondFactory
@@ -70,14 +75,14 @@ func (c *explicitCondFactory) Table() string {
 }
 
 // Generate returns a condition based on the model and the field pointers
-func (c *explicitCondFactory) Generate() ([]ovsdb.Condition, error) {
-	var result []ovsdb.Condition
+func (c *explicitCondFactory) Generate() ([][]ovsdb.Condition, error) {
+	var result [][]ovsdb.Condition
 	for _, cond := range c.conditions {
 		ovsdbCond, err := c.orm.newCondition(c.tableName, c.model, cond)
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, *ovsdbCond)
+		result = append(result, []ovsdb.Condition{*ovsdbCond})
 	}
 	return result, nil
 }
@@ -113,8 +118,8 @@ func (c *predicateCondFactory) Table() string {
 
 // generate returns a list of conditions that match, by _uuid equality, all the objects that
 // match the predicate
-func (c *predicateCondFactory) Generate() ([]ovsdb.Condition, error) {
-	allConditions := make([]ovsdb.Condition, 0)
+func (c *predicateCondFactory) Generate() ([][]ovsdb.Condition, error) {
+	allConditions := make([][]ovsdb.Condition, 0)
 	tableCache := c.cache.Table(c.tableName)
 	if tableCache == nil {
 		return nil, ErrNotFound
@@ -130,7 +135,7 @@ func (c *predicateCondFactory) Generate() ([]ovsdb.Condition, error) {
 			if err != nil {
 				return nil, err
 			}
-			allConditions = append(allConditions, elemCond...)
+			allConditions = append(allConditions, elemCond)
 		}
 	}
 	return allConditions, nil
@@ -159,7 +164,7 @@ func (e *errorConditionFactory) Table() string {
 	return ""
 }
 
-func (e *errorConditionFactory) Generate() ([]ovsdb.Condition, error) {
+func (e *errorConditionFactory) Generate() ([][]ovsdb.Condition, error) {
 	return nil, e.err
 }
 
