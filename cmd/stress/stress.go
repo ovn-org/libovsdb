@@ -85,20 +85,14 @@ func run() {
 }
 
 func transact(ovs *client.OvsdbClient, operations []ovsdb.Operation) (ok bool, uuid string) {
-	reply, _ := ovs.Transact(operations...)
-
-	if len(reply) < len(operations) {
-		fmt.Println("Number of Replies should be atleast equal to number of Operations")
+	reply, err := ovs.Transact(operations...)
+	if err != nil {
+		ok = false
+		return
 	}
-	ok = true
-	for i, o := range reply {
-		if o.Error != "" && i < len(operations) {
-			fmt.Println("Transaction Failed due to an error :", o.Error, " details:", o.Details, " in ", operations[i])
-			ok = false
-		} else if o.Error != "" {
-			fmt.Println("Transaction Failed due to an error :", o.Error)
-			ok = false
-		}
+	if _, err := ovsdb.CheckOperationResults(reply, operations); err != nil {
+		ok = false
+		return
 	}
 	uuid = reply[0].UUID.GoUUID
 	return
