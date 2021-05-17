@@ -192,7 +192,7 @@ func TestInsertTransactIntegration(t *testing.T) {
 
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
 	ovsRow := ovsType{}
-	mutateOp, err := ovs.Where(ovs.ConditionFromFunc(func(*ovsType) bool { return true })).
+	mutateOp, err := ovs.WhereCache(func(*ovsType) bool { return true }).
 		Mutate(&ovsRow, []Mutation{
 			{
 				Field:   &ovsRow.Bridges,
@@ -245,11 +245,11 @@ func TestDeleteTransactIntegration(t *testing.T) {
 	err = ovs.MonitorAll(nil)
 	assert.Nil(t, err)
 
-	deleteOp, err := ovs.Where(ovs.ConditionFromModel(&bridgeType{Name: bridgeName})).Delete()
+	deleteOp, err := ovs.Where(&bridgeType{Name: bridgeName}).Delete()
 	assert.Nil(t, err)
 
 	ovsRow := ovsType{}
-	mutateOp, err := ovs.Where(ovs.ConditionFromFunc(func(*ovsType) bool { return true })).
+	mutateOp, err := ovs.WhereCache(func(*ovsType) bool { return true }).
 		Mutate(&ovsRow, []Mutation{
 			{
 				Field:   &ovsRow.Bridges,
