@@ -26,6 +26,7 @@ type equalityConditional struct {
 	orm       *orm
 	tableName string
 	model     Model
+	singleOp  bool
 }
 
 func (c *equalityConditional) Matches(m Model) (bool, error) {
@@ -44,18 +45,23 @@ func (c *equalityConditional) Generate() ([][]ovsdb.Condition, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, c := range conds {
-		result = append(result, []ovsdb.Condition{c})
+	if c.singleOp {
+		result = append(result, conds)
+	} else {
+		for _, c := range conds {
+			result = append(result, []ovsdb.Condition{c})
+		}
 	}
 	return result, nil
 }
 
 // newIndexCondition creates a new equalityConditional
-func newEqualityConditional(orm *orm, table string, model Model, fields ...interface{}) (Conditional, error) {
+func newEqualityConditional(orm *orm, table string, all bool, model Model, fields ...interface{}) (Conditional, error) {
 	return &equalityConditional{
 		orm:       orm,
 		tableName: table,
 		model:     model,
+		singleOp:  all,
 	}, nil
 }
 
@@ -65,6 +71,7 @@ type explicitConditional struct {
 	tableName  string
 	model      Model
 	conditions []Condition
+	singleOp   bool
 }
 
 func (c *explicitConditional) Matches(m Model) (bool, error) {
@@ -78,23 +85,34 @@ func (c *explicitConditional) Table() string {
 // Generate returns a condition based on the model and the field pointers
 func (c *explicitConditional) Generate() ([][]ovsdb.Condition, error) {
 	var result [][]ovsdb.Condition
+	var conds []ovsdb.Condition
+
 	for _, cond := range c.conditions {
 		ovsdbCond, err := c.orm.newCondition(c.tableName, c.model, cond)
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, []ovsdb.Condition{*ovsdbCond})
+		if c.singleOp {
+			conds = append(conds, *ovsdbCond)
+		} else {
+			result = append(result, []ovsdb.Condition{*ovsdbCond})
+		}
+
+	}
+	if c.singleOp {
+		result = append(result, conds)
 	}
 	return result, nil
 }
 
 // newIndexCondition creates a new equalityConditional
-func newExplicitConditional(orm *orm, table string, model Model, cond ...Condition) (Conditional, error) {
+func newExplicitConditional(orm *orm, table string, all bool, model Model, cond ...Condition) (Conditional, error) {
 	return &explicitConditional{
 		orm:        orm,
 		tableName:  table,
 		model:      model,
 		conditions: cond,
+		singleOp:   all,
 	}, nil
 }
 

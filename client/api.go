@@ -29,7 +29,14 @@ type API interface {
 	WhereCache(predicate interface{}) ConditionalAPI
 
 	// Create a ConditionalAPI from a Model's index data or a list of Conditions
+	// where operations apply to elements that match any of the conditions
+	// If no condition is given, it will match the values provided in Model according
+	// to the database index.
 	Where(Model, ...Condition) ConditionalAPI
+
+	// Create a ConditionalAPI from a Model's index data or a list of Conditions
+	// where operations apply to elements that match all the conditions
+	WhereAll(Model, ...Condition) ConditionalAPI
 
 	// Get retrieves a model from the cache
 	// The way the object will be fetch depends on the data contained in the
@@ -176,7 +183,12 @@ func (a api) List(result interface{}) error {
 
 // Where returns a conditionalAPI based on a Condition list
 func (a api) Where(model Model, cond ...Condition) ConditionalAPI {
-	return newConditionalAPI(a.cache, a.conditionFromModel(model, cond...))
+	return newConditionalAPI(a.cache, a.conditionFromModel(false, model, cond...))
+}
+
+// Where returns a conditionalAPI based on a Condition list
+func (a api) WhereAll(model Model, cond ...Condition) ConditionalAPI {
+	return newConditionalAPI(a.cache, a.conditionFromModel(true, model, cond...))
 }
 
 // Where returns a conditionalAPI based a Predicate
@@ -200,7 +212,7 @@ func (a api) conditionFromFunc(predicate interface{}) Conditional {
 }
 
 // FromModel returns a Condition from a model and a list of fields
-func (a api) conditionFromModel(model Model, cond ...Condition) Conditional {
+func (a api) conditionFromModel(any bool, model Model, cond ...Condition) Conditional {
 	var conditional Conditional
 	var err error
 
@@ -210,13 +222,13 @@ func (a api) conditionFromModel(model Model, cond ...Condition) Conditional {
 	}
 
 	if len(cond) == 0 {
-		conditional, err = newEqualityConditional(a.cache.orm, tableName, model)
+		conditional, err = newEqualityConditional(a.cache.orm, tableName, any, model)
 		if err != nil {
 			conditional = newErrorConditional(err)
 		}
 
 	} else {
-		conditional, err = newExplicitConditional(a.cache.orm, tableName, model, cond...)
+		conditional, err = newExplicitConditional(a.cache.orm, tableName, any, model, cond...)
 		if err != nil {
 			conditional = newErrorConditional(err)
 		}
