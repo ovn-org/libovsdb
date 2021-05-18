@@ -580,9 +580,9 @@ func TestORMCondition(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("newCondition_%s", tt.name), func(t *testing.T) {
+		t.Run(fmt.Sprintf("newEqualityCondition_%s", tt.name), func(t *testing.T) {
 			tt.prepare(&testObj)
-			conds, err := orm.newCondition("TestTable", &testObj, tt.index...)
+			conds, err := orm.newEqualityCondition("TestTable", &testObj, tt.index...)
 			if tt.err {
 				if err == nil {
 					t.Errorf("expected an error but got none")

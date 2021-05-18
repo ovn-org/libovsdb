@@ -939,3 +939,129 @@ func TestMutationValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestConditionValidation(t *testing.T) {
+	type Test struct {
+		name      string
+		column    []byte
+		functions []ConditionFunction
+		value     interface{}
+		valid     bool
+	}
+	tests := []Test{
+		{
+			name:      "string",
+			column:    []byte(`{"type":"string"}`),
+			functions: []ConditionFunction{ConditionEqual, ConditionIncludes, ConditionNotEqual, ConditionExcludes},
+			value:     "foo",
+			valid:     true,
+		},
+		{
+			name:      "uuid",
+			column:    []byte(`{"type":"uuid"}`),
+			functions: []ConditionFunction{ConditionEqual, ConditionIncludes, ConditionNotEqual, ConditionExcludes},
+			value:     "foo",
+			valid:     true,
+		},
+		{
+			name:      "string wrong type",
+			column:    []byte(`{"type":"string"}`),
+			functions: []ConditionFunction{ConditionEqual, ConditionIncludes, ConditionNotEqual, ConditionExcludes},
+			value:     42,
+			valid:     false,
+		},
+		{
+			name:      "numeric",
+			column:    []byte(`{"type":"integer"}`),
+			functions: []ConditionFunction{ConditionGreaterThanOrEqual, ConditionGreaterThan, ConditionLessThan, ConditionLessThanOrEqual, ConditionEqual, ConditionIncludes, ConditionNotEqual, ConditionExcludes},
+			value:     1000,
+			valid:     true,
+		},
+		{
+			name:      "numeric wrong type",
+			column:    []byte(`{"type":"integer"}`),
+			functions: []ConditionFunction{ConditionGreaterThanOrEqual, ConditionGreaterThan, ConditionLessThan, ConditionLessThanOrEqual, ConditionEqual, ConditionIncludes, ConditionNotEqual, ConditionExcludes},
+			value:     "foo",
+			valid:     false,
+		},
+		{
+			name: "set",
+			column: []byte(`{
+				   "type": {
+				     "key": "string",
+				     "max": "unlimited",
+				     "min": 0
+				   }
+				 }`),
+			functions: []ConditionFunction{ConditionEqual, ConditionIncludes, ConditionNotEqual, ConditionExcludes},
+			value:     []string{"foo", "bar"},
+			valid:     true,
+		},
+		{
+			name: "set wrong type",
+			column: []byte(`{
+				   "type": {
+				     "key": "string",
+				     "max": "unlimited",
+				     "min": 0
+				   }
+				 }`),
+			functions: []ConditionFunction{ConditionEqual, ConditionIncludes, ConditionNotEqual, ConditionExcludes},
+			value:     32,
+			valid:     false,
+		},
+		{
+			name: "set wrong type2",
+			column: []byte(`{
+				   "type": {
+				     "key": "string",
+				     "max": "unlimited",
+				     "min": 0
+				   }
+				 }`),
+			functions: []ConditionFunction{ConditionEqual, ConditionIncludes, ConditionNotEqual, ConditionExcludes},
+			value:     "foo",
+			valid:     false,
+		},
+		{
+			name: "map",
+			column: []byte(`{
+				   "type": {
+				     "key": "string",
+				     "value": "string"
+				   }
+				 }`),
+			functions: []ConditionFunction{ConditionEqual, ConditionIncludes, ConditionNotEqual, ConditionExcludes},
+			value:     map[string]string{"foo": "bar"},
+			valid:     true,
+		},
+		{
+			name: "map wrong type",
+			column: []byte(`{
+				   "type": {
+				     "key": "string",
+				     "value": "string"
+				   }
+				 }`),
+			functions: []ConditionFunction{ConditionEqual, ConditionIncludes, ConditionNotEqual, ConditionExcludes},
+			value:     map[string]int{"foo": 42},
+			valid:     false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("ConditionValidation: %s", test.name), func(t *testing.T) {
+			var column ColumnSchema
+			err := json.Unmarshal(test.column, &column)
+			assert.Nil(t, err)
+
+			for _, f := range test.functions {
+				result := ValidateCondition(&column, f, test.value)
+				if test.valid {
+					assert.Nil(t, result)
+				} else {
+					assert.NotNil(t, result)
+				}
+			}
+		})
+	}
+}

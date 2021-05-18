@@ -158,7 +158,7 @@ func (o orm) newRow(tableName string, data interface{}, fields ...interface{}) (
 	return ovsRow, nil
 }
 
-// newCondition returns a list of conditions that match a given object
+// newEquality Condition returns a list of equality conditions that match a given object
 // A list of valid columns that shall be used as a index can be provided.
 // If none are provided, we will try to use object's field that matches the '_uuid' ovs tag
 // If it does not exist or is null (""), then we will traverse all of the table indexes and
@@ -166,7 +166,7 @@ func (o orm) newRow(tableName string, data interface{}, fields ...interface{}) (
 // object has valid data. The order in which they are traversed matches the order defined
 // in the schema.
 // By `valid data` we mean non-default data.
-func (o orm) newCondition(tableName string, data interface{}, fields ...interface{}) ([]ovsdb.Condition, error) {
+func (o orm) newEqualityCondition(tableName string, data interface{}, fields ...interface{}) ([]ovsdb.Condition, error) {
 	var conditions []ovsdb.Condition
 	var condIndex [][]string
 
@@ -246,6 +246,43 @@ func (o orm) equalFields(tableName string, one, other interface{}, fields ...int
 		indexes = append(indexes, col)
 	}
 	return o.equalIndexes(table, one, other, indexes...)
+}
+
+// newCondition returns a ovsdb.Condition based on a client.Condition
+func (o orm) newCondition(tableName string, data interface{}, condition Condition) (*ovsdb.Condition, error) {
+	table := o.schema.Table(tableName)
+	if table == nil {
+		return nil, NewErrNoTable(tableName)
+	}
+
+	ormInfo, err := newORMInfo(table, data)
+	if err != nil {
+		return nil, err
+	}
+
+	column, err := ormInfo.columnByPtr(condition.Field)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check that the condition is valid
+	columnSchema := table.Column(column)
+	if columnSchema == nil {
+		return nil, fmt.Errorf("column %s not found", column)
+	}
+	if err := ovsdb.ValidateCondition(columnSchema, condition.Function, condition.Value); err != nil {
+		return nil, err
+	}
+
+	ovsValue, err := ovsdb.NativeToOvs(columnSchema, condition.Value)
+	if err != nil {
+		return nil, err
+	}
+
+	ovsdbCondition := ovsdb.NewCondition(column, condition.Function, ovsValue)
+
+	return &ovsdbCondition, nil
+
 }
 
 // newMutation creates a RFC7047 mutation object based on an ORM object and the mutation fields (in native format)

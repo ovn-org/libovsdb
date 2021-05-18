@@ -275,24 +275,6 @@ func TestAPIListFields(t *testing.T) {
 			content: []Model{lspcache[aUUID2]},
 			err:     false,
 		},
-		{
-			name: "List unique by extra field",
-			prepare: func(t *testLogicalSwitchPort) {
-				t.ExternalIds = map[string]string{"unique": "id"}
-			},
-			content: []Model{lspcache[aUUID2]},
-			fields:  []interface{}{&testObj.ExternalIds},
-			err:     false,
-		},
-		{
-			name: "List by extra field",
-			prepare: func(t *testLogicalSwitchPort) {
-				t.Enabled = []bool{true}
-			},
-			content: []Model{lspcache[aUUID0], lspcache[aUUID3]},
-			fields:  []interface{}{&testObj.Enabled},
-			err:     false,
-		},
 	}
 
 	for _, tt := range test {
@@ -301,7 +283,7 @@ func TestAPIListFields(t *testing.T) {
 			// Clean object
 			testObj = testLogicalSwitchPort{}
 			api := newAPI(cache)
-			err := api.Where(api.ConditionFromModel(&testObj, tt.fields...)).List(&result)
+			err := api.Where(api.ConditionFromModel(&testObj)).List(&result)
 			if tt.err {
 				assert.NotNil(t, err)
 			} else {
@@ -320,18 +302,6 @@ func TestAPIListFields(t *testing.T) {
 		}
 
 		err := api.Where(api.ConditionFromModel(&obj)).List(&result)
-		assert.NotNil(t, err)
-	})
-
-	t.Run("ApiListFields: Wrong object field", func(t *testing.T) {
-		var result []testLogicalSwitchPort
-		api := newAPI(cache)
-		obj := testLogicalSwitch{}
-		obj2 := testLogicalSwitch{
-			UUID: aUUID0,
-		}
-
-		err := api.Where(api.ConditionFromModel(&obj, &obj2.UUID)).List(&result)
 		assert.NotNil(t, err)
 	})
 }
@@ -371,9 +341,9 @@ func TestConditionFromFunc(t *testing.T) {
 			api := newAPI(cache)
 			condition := api.ConditionFromFunc(tt.arg)
 			if tt.err {
-				assert.IsType(t, &errorCondition{}, condition)
+				assert.IsType(t, &errorConditional{}, condition)
 			} else {
-				assert.IsType(t, &predicateCond{}, condition)
+				assert.IsType(t, &predicateConditional{}, condition)
 			}
 		})
 	}
@@ -382,10 +352,10 @@ func TestConditionFromFunc(t *testing.T) {
 func TestConditionFromModel(t *testing.T) {
 	var testObj testLogicalSwitch
 	test := []struct {
-		name   string
-		model  Model
-		fields []interface{}
-		err    bool
+		name  string
+		model Model
+		conds []Condition
+		err   bool
 	}{
 		{
 			name:  "wrong model must fail",
@@ -393,12 +363,12 @@ func TestConditionFromModel(t *testing.T) {
 			err:   true,
 		},
 		{
-			name: "wrong fields must fail",
+			name: "wrong condition must fail",
 			model: &struct {
 				a string `ovs:"_uuid"`
 			}{},
-			fields: []interface{}{"foo"},
-			err:    true,
+			conds: []Condition{{Field: "foo"}},
+			err:   true,
 		},
 		{
 			name:  "correct model must succeed",
@@ -406,10 +376,21 @@ func TestConditionFromModel(t *testing.T) {
 			err:   false,
 		},
 		{
-			name:   "correct model with fields must succeed",
-			model:  &testObj,
-			fields: []interface{}{&testObj.Name},
-			err:    false,
+			name:  "correct model with valid condition must succeed",
+			model: &testObj,
+			conds: []Condition{
+				{
+					Field:    &testObj.Name,
+					Function: ovsdb.ConditionEqual,
+					Value:    "foo",
+				},
+				{
+					Field:    &testObj.Ports,
+					Function: ovsdb.ConditionIncludes,
+					Value:    []string{"foo"},
+				},
+			},
+			err: false,
 		},
 	}
 
@@ -417,11 +398,16 @@ func TestConditionFromModel(t *testing.T) {
 		t.Run(fmt.Sprintf("ConditionFromModel: %s", tt.name), func(t *testing.T) {
 			cache := apiTestCache(t)
 			api := newAPI(cache)
-			condition := api.ConditionFromModel(tt.model, tt.fields...)
+			condition := api.ConditionFromModel(tt.model, tt.conds...)
 			if tt.err {
-				assert.IsType(t, &errorCondition{}, condition)
+				assert.IsType(t, &errorConditional{}, condition)
 			} else {
-				assert.IsType(t, &indexCond{}, condition)
+				if len(tt.conds) > 0 {
+					assert.IsType(t, &explicitConditional{}, condition)
+				} else {
+					assert.IsType(t, &equalityConditional{}, condition)
+				}
+
 			}
 		})
 	}
@@ -810,7 +796,6 @@ func TestAPIUpdate(t *testing.T) {
 		name      string
 		condition func(API) ConditionalAPI
 		prepare   func(t *testLogicalSwitchPort)
-		fields    []interface{}
 		result    []ovsdb.Operation
 		err       bool
 	}{
@@ -825,7 +810,6 @@ func TestAPIUpdate(t *testing.T) {
 				t.Type = "somethingElse"
 				t.Tag = []int{6}
 			},
-			fields: []interface{}{},
 			result: []ovsdb.Operation{
 				{
 					Op:    opUpdate,
@@ -847,7 +831,6 @@ func TestAPIUpdate(t *testing.T) {
 				t.Type = "somethingElse"
 				t.Tag = []int{6}
 			},
-			fields: []interface{}{},
 			result: []ovsdb.Operation{
 				{
 					Op:    opUpdate,
@@ -865,18 +848,47 @@ func TestAPIUpdate(t *testing.T) {
 					Type:    "sometype",
 					Enabled: []bool{true},
 				}
-				return a.Where(a.ConditionFromModel(&t, &t.Type))
+				return a.Where(a.ConditionFromModel(&t, Condition{
+					Field:    &t.Type,
+					Function: ovsdb.ConditionEqual,
+					Value:    "sometype",
+				}))
 			},
 			prepare: func(t *testLogicalSwitchPort) {
 				t.Tag = []int{6}
 			},
-			fields: []interface{}{},
 			result: []ovsdb.Operation{
 				{
 					Op:    opUpdate,
 					Table: "Logical_Switch_Port",
 					Row:   map[string]interface{}{"tag": testOvsSet(t, []int{6})},
 					Where: []ovsdb.Condition{{Column: "type", Function: ovsdb.ConditionEqual, Value: "sometype"}},
+				},
+			},
+			err: false,
+		},
+		{
+			name: "select by field inequality change multiple field",
+			condition: func(a API) ConditionalAPI {
+				t := testLogicalSwitchPort{
+					Type:    "sometype",
+					Enabled: []bool{true},
+				}
+				return a.Where(a.ConditionFromModel(&t, Condition{
+					Field:    &t.Type,
+					Function: ovsdb.ConditionNotEqual,
+					Value:    "sometype",
+				}))
+			},
+			prepare: func(t *testLogicalSwitchPort) {
+				t.Tag = []int{6}
+			},
+			result: []ovsdb.Operation{
+				{
+					Op:    opUpdate,
+					Table: "Logical_Switch_Port",
+					Row:   map[string]interface{}{"tag": testOvsSet(t, []int{6})},
+					Where: []ovsdb.Condition{{Column: "type", Function: ovsdb.ConditionNotEqual, Value: "sometype"}},
 				},
 			},
 			err: false,
@@ -892,7 +904,6 @@ func TestAPIUpdate(t *testing.T) {
 				t.Type = "somethingElse"
 				t.Tag = []int{6}
 			},
-			fields: []interface{}{},
 			result: []ovsdb.Operation{
 				{
 					Op:    opUpdate,
@@ -996,13 +1007,16 @@ func TestAPIDelete(t *testing.T) {
 			err: false,
 		},
 		{
-			name: "select by field",
+			name: "select by field equality",
 			condition: func(a API) ConditionalAPI {
 				t := testLogicalSwitchPort{
-					Type:    "sometype",
 					Enabled: []bool{true},
 				}
-				return a.Where(a.ConditionFromModel(&t, &t.Type))
+				return a.Where(a.ConditionFromModel(&t, Condition{
+					Field:    &t.Type,
+					Function: ovsdb.ConditionEqual,
+					Value:    "sometype",
+				}))
 			},
 			result: []ovsdb.Operation{
 				{

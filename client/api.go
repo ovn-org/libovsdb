@@ -26,15 +26,15 @@ type API interface {
 	// Create a Condition from a Function that is used to filter cached data
 	// The function must accept a Model implementation and return a boolean. E.g:
 	// ConditionFromFunc(func(l *LogicalSwitch) bool { return l.Enabled })
-	ConditionFromFunc(predicate interface{}) Condition
+	ConditionFromFunc(predicate interface{}) Conditional
 
 	// Create a Condition from a Model's data. It uses the database indexes
 	// to search the most apropriate field to use for matches and conditions
 	// Optionally, a list of fields can indicate an alternative index
-	ConditionFromModel(Model, ...interface{}) Condition
+	ConditionFromModel(Model, ...Condition) Conditional
 
 	// Create a ConditionalAPI from a Condition
-	Where(condition Condition) ConditionalAPI
+	Where(condition Conditional) ConditionalAPI
 
 	// Get retrieves a model from the cache
 	// The way the object will be fetch depends on the data contained in the
@@ -82,6 +82,16 @@ type Mutation struct {
 	Value interface{}
 }
 
+// Condition is a type that represents a OVSDB Condition
+type Condition struct {
+	// Pointer to the field of the model where the operation applies
+	Field interface{}
+	// Condition function
+	Function ovsdb.ConditionFunction
+	// Value to use in the condition
+	Value interface{}
+}
+
 // InputTypeError is used to report the user provided parameter has the wrong type
 type InputTypeError struct {
 	inputType reflect.Type
@@ -112,7 +122,7 @@ var ErrNotFound = errors.New("object not found")
 // Where() can be used to create a ConditionalAPI api
 type api struct {
 	cache *TableCache
-	cond  Condition
+	cond  Conditional
 }
 
 // List populates a slice of Models given as parameter based on the configured Condition
@@ -170,36 +180,48 @@ func (a api) List(result interface{}) error {
 }
 
 // Where returns a conditionalAPI based a Condition
-func (a api) Where(condition Condition) ConditionalAPI {
+func (a api) Where(condition Conditional) ConditionalAPI {
 	return newConditionalAPI(a.cache, condition)
 }
 
-// ConditionFactory interface implementation
+// Conditional interface implementation
 // FromFunc returns a Condition from a function
-func (a api) ConditionFromFunc(predicate interface{}) Condition {
+func (a api) ConditionFromFunc(predicate interface{}) Conditional {
 	table, err := a.getTableFromFunc(predicate)
 	if err != nil {
-		return newErrorCondition(err)
+		return newErrorConditional(err)
 	}
 
-	condition, err := newPredicateCond(table, a.cache, predicate)
+	condition, err := newPredicateConditional(table, a.cache, predicate)
 	if err != nil {
-		return newErrorCondition(err)
+		return newErrorConditional(err)
 	}
 	return condition
 }
 
 // FromModel returns a Condition from a model and a list of fields
-func (a api) ConditionFromModel(model Model, fields ...interface{}) Condition {
+func (a api) ConditionFromModel(model Model, cond ...Condition) Conditional {
+	var conditional Conditional
+	var err error
+
 	tableName, err := a.getTableFromModel(model)
 	if tableName == "" {
-		return newErrorCondition(err)
+		return newErrorConditional(err)
 	}
-	condition, err := newIndexCondition(a.cache.orm, tableName, model, fields...)
-	if err != nil {
-		return newErrorCondition(err)
+
+	if len(cond) == 0 {
+		conditional, err = newEqualityConditional(a.cache.orm, tableName, model)
+		if err != nil {
+			conditional = newErrorConditional(err)
+		}
+
+	} else {
+		conditional, err = newExplicitConditional(a.cache.orm, tableName, model, cond...)
+		if err != nil {
+			conditional = newErrorConditional(err)
+		}
 	}
-	return condition
+	return conditional
 }
 
 // Get is a generic Get function capable of returning (through a provided pointer)
@@ -439,7 +461,7 @@ func newAPI(cache *TableCache) API {
 }
 
 // newConditionalAPI returns a new ConditionalAPI to interact with the database
-func newConditionalAPI(cache *TableCache, cond Condition) ConditionalAPI {
+func newConditionalAPI(cache *TableCache, cond Conditional) ConditionalAPI {
 	return api{
 		cache: cache,
 		cond:  cond,
