@@ -23,18 +23,13 @@ type API interface {
 	// If it has a capacity != 0, only 'capacity' elements will be filled in
 	List(result interface{}) error
 
-	// Create a Condition from a Function that is used to filter cached data
+	// Create a Conditional API from a Function that is used to filter cached data
 	// The function must accept a Model implementation and return a boolean. E.g:
 	// ConditionFromFunc(func(l *LogicalSwitch) bool { return l.Enabled })
-	ConditionFromFunc(predicate interface{}) Conditional
+	WhereCache(predicate interface{}) ConditionalAPI
 
-	// Create a Condition from a Model's data. It uses the database indexes
-	// to search the most apropriate field to use for matches and conditions
-	// Optionally, a list of fields can indicate an alternative index
-	ConditionFromModel(Model, ...Condition) Conditional
-
-	// Create a ConditionalAPI from a Condition
-	Where(condition Conditional) ConditionalAPI
+	// Create a ConditionalAPI from a Model's index data or a list of Conditions
+	Where(Model, ...Condition) ConditionalAPI
 
 	// Get retrieves a model from the cache
 	// The way the object will be fetch depends on the data contained in the
@@ -179,14 +174,19 @@ func (a api) List(result interface{}) error {
 	return nil
 }
 
-// Where returns a conditionalAPI based a Condition
-func (a api) Where(condition Conditional) ConditionalAPI {
-	return newConditionalAPI(a.cache, condition)
+// Where returns a conditionalAPI based on a Condition list
+func (a api) Where(model Model, cond ...Condition) ConditionalAPI {
+	return newConditionalAPI(a.cache, a.conditionFromModel(model, cond...))
+}
+
+// Where returns a conditionalAPI based a Predicate
+func (a api) WhereCache(predicate interface{}) ConditionalAPI {
+	return newConditionalAPI(a.cache, a.conditionFromFunc(predicate))
 }
 
 // Conditional interface implementation
 // FromFunc returns a Condition from a function
-func (a api) ConditionFromFunc(predicate interface{}) Conditional {
+func (a api) conditionFromFunc(predicate interface{}) Conditional {
 	table, err := a.getTableFromFunc(predicate)
 	if err != nil {
 		return newErrorConditional(err)
@@ -200,7 +200,7 @@ func (a api) ConditionFromFunc(predicate interface{}) Conditional {
 }
 
 // FromModel returns a Condition from a model and a list of fields
-func (a api) ConditionFromModel(model Model, cond ...Condition) Conditional {
+func (a api) conditionFromModel(model Model, cond ...Condition) Conditional {
 	var conditional Conditional
 	var err error
 

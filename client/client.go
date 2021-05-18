@@ -371,16 +371,11 @@ func (ovs OvsdbClient) List(result interface{}) error {
 }
 
 //Where implements the API interface's Where function
-func (ovs OvsdbClient) Where(condition Conditional) ConditionalAPI {
-	return ovs.api.Where(condition)
+func (ovs OvsdbClient) Where(m Model, conditions ...Condition) ConditionalAPI {
+	return ovs.api.Where(m, conditions...)
 }
 
-//ConditionFromFunc implements the API interface's ConditionFromFunc function
-func (ovs OvsdbClient) ConditionFromFunc(predicate interface{}) Conditional {
-	return ovs.api.ConditionFromFunc(predicate)
-}
-
-//ConditionFromModel implements the API interface's ConditionFromModel function
-func (ovs OvsdbClient) ConditionFromModel(m Model, conditions ...Condition) Conditional {
-	return ovs.api.ConditionFromModel(m, conditions...)
+//WhereCache implements the API interface's WhereCache function
+func (ovs OvsdbClient) WhereCache(predicate interface{}) ConditionalAPI {
+	return ovs.api.WhereCache(predicate)
 }

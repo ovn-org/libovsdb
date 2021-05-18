@@ -105,7 +105,7 @@ func transact(ovs *client.OvsdbClient, operations []ovsdb.Operation) (ok bool, u
 }
 
 func deleteBridge(ovs *client.OvsdbClient, bridge *ormBridge) {
-	deleteOp, err := ovs.Where(ovs.ConditionFromModel(bridge)).Delete()
+	deleteOp, err := ovs.Where(bridge).Delete()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func deleteBridge(ovs *client.OvsdbClient, bridge *ormBridge) {
 		UUID: rootUUID,
 	}
 
-	mutateOp, err := ovs.Where(ovs.ConditionFromModel(&ovsRow)).Mutate(&ovsRow, []client.Mutation{
+	mutateOp, err := ovs.Where(&ovsRow).Mutate(&ovsRow, []client.Mutation{
 		{
 			Field:   &ovsRow.Bridges,
 			Mutator: "delete",
@@ -151,7 +151,7 @@ func createBridge(ovs *client.OvsdbClient, iter int) {
 		log.Fatal(err)
 	}
 	ovsRow := ormOvs{}
-	mutateOp, err := ovs.Where(ovs.ConditionFromModel(&ormOvs{UUID: rootUUID})).Mutate(&ovsRow, []client.Mutation{
+	mutateOp, err := ovs.Where(&ormOvs{UUID: rootUUID}).Mutate(&ovsRow, []client.Mutation{
 		{
 			Field:   &ovsRow.Bridges,
 			Mutator: "insert",
