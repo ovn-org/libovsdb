@@ -7,6 +7,7 @@ import (
 
 	"log"
 
+	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
@@ -19,16 +20,16 @@ const (
 
 // RowCache is a collections of Models hashed by UUID
 type RowCache struct {
-	cache map[string]Model
+	cache map[string]mapper.Model
 	mutex sync.RWMutex
 }
 
 // Row returns one model from the cache by UUID
-func (r *RowCache) Row(uuid string) Model {
+func (r *RowCache) Row(uuid string) mapper.Model {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 	if row, ok := r.cache[uuid]; ok {
-		return row.(Model)
+		return row.(mapper.Model)
 	}
 	return nil
 }
@@ -53,42 +54,42 @@ func (r *RowCache) Len() int {
 
 func newRowCache() *RowCache {
 	return &RowCache{
-		cache: make(map[string]Model),
+		cache: make(map[string]mapper.Model),
 		mutex: sync.RWMutex{},
 	}
 }
 
 // EventHandler can handle events when the contents of the cache changes
 type EventHandler interface {
-	OnAdd(table string, model Model)
-	OnUpdate(table string, old Model, new Model)
-	OnDelete(table string, model Model)
+	OnAdd(table string, model mapper.Model)
+	OnUpdate(table string, old mapper.Model, new mapper.Model)
+	OnDelete(table string, model mapper.Model)
 }
 
 // EventHandlerFuncs is a wrapper for the EventHandler interface
 // It allows a caller to only implement the functions they need
 type EventHandlerFuncs struct {
-	AddFunc    func(table string, model Model)
-	UpdateFunc func(table string, old Model, new Model)
-	DeleteFunc func(table string, model Model)
+	AddFunc    func(table string, model mapper.Model)
+	UpdateFunc func(table string, old mapper.Model, new mapper.Model)
+	DeleteFunc func(table string, model mapper.Model)
 }
 
 // OnAdd calls AddFunc if it is not nil
-func (e *EventHandlerFuncs) OnAdd(table string, model Model) {
+func (e *EventHandlerFuncs) OnAdd(table string, model mapper.Model) {
 	if e.AddFunc != nil {
 		e.AddFunc(table, model)
 	}
 }
 
 // OnUpdate calls UpdateFunc if it is not nil
-func (e *EventHandlerFuncs) OnUpdate(table string, old, new Model) {
+func (e *EventHandlerFuncs) OnUpdate(table string, old, new mapper.Model) {
 	if e.UpdateFunc != nil {
 		e.UpdateFunc(table, old, new)
 	}
 }
 
 // OnDelete calls DeleteFunc if it is not nil
-func (e *EventHandlerFuncs) OnDelete(table string, row Model) {
+func (e *EventHandlerFuncs) OnDelete(table string, row mapper.Model) {
 	if e.DeleteFunc != nil {
 		e.DeleteFunc(table, row)
 	}
@@ -100,11 +101,11 @@ type TableCache struct {
 	cache          map[string]*RowCache
 	cacheMutex     sync.RWMutex
 	eventProcessor *eventProcessor
-	orm            *orm
-	dbModel        *DBModel
+	mapper         *mapper.Mapper
+	dbModel        *mapper.DBModel
 }
 
-func newTableCache(schema *ovsdb.DatabaseSchema, dbModel *DBModel) (*TableCache, error) {
+func newTableCache(schema *ovsdb.DatabaseSchema, dbModel *mapper.DBModel) (*TableCache, error) {
 	if schema == nil || dbModel == nil {
 		return nil, fmt.Errorf("tablecache without databasemodel cannot be populated")
 	}
@@ -112,7 +113,7 @@ func newTableCache(schema *ovsdb.DatabaseSchema, dbModel *DBModel) (*TableCache,
 	return &TableCache{
 		cache:          make(map[string]*RowCache),
 		eventProcessor: eventProcessor,
-		orm:            newORM(schema),
+		mapper:         mapper.NewMapper(schema),
 		dbModel:        dbModel,
 	}, nil
 }
@@ -228,8 +229,8 @@ func (t *TableCache) Run(stopCh <-chan struct{}) {
 type event struct {
 	eventType string
 	table     string
-	old       Model
-	new       Model
+	old       mapper.Model
+	new       mapper.Model
 }
 
 // eventProcessor handles the queueing and processing of cache events
@@ -260,7 +261,7 @@ func (e *eventProcessor) AddEventHandler(handler EventHandler) {
 }
 
 // AddEvent writes an event to the channel
-func (e *eventProcessor) AddEvent(eventType string, table string, old Model, new Model) {
+func (e *eventProcessor) AddEvent(eventType string, table string, old mapper.Model, new mapper.Model) {
 	// We don't need to check for error here since there
 	// is only a single writer. RPC is run in blocking mode
 	event := event{
@@ -305,27 +306,27 @@ func (e *eventProcessor) Run(stopCh <-chan struct{}) {
 }
 
 // createModel creates a new Model instance based on the Row information
-func (t *TableCache) createModel(tableName string, row *ovsdb.Row, uuid string) (Model, error) {
-	table := t.orm.schema.Table(tableName)
+func (t *TableCache) createModel(tableName string, row *ovsdb.Row, uuid string) (mapper.Model, error) {
+	table := t.mapper.Schema.Table(tableName)
 	if table == nil {
 		return nil, fmt.Errorf("table %s not found", tableName)
 	}
-	model, err := t.dbModel.newModel(tableName)
+	model, err := t.dbModel.NewModel(tableName)
 	if err != nil {
 		return nil, err
 	}
 
-	err = t.orm.getRowData(tableName, row, model)
+	err = t.mapper.GetRowData(tableName, row, model)
 	if err != nil {
 		return nil, err
 	}
 
 	if uuid != "" {
-		ormInfo, err := newORMInfo(table, model)
+		mapperInfo, err := mapper.NewMapperInfo(table, model)
 		if err != nil {
 			return nil, err
 		}
-		if err := ormInfo.setField("_uuid", uuid); err != nil {
+		if err := mapperInfo.SetField("_uuid", uuid); err != nil {
 			return nil, err
 		}
 	}

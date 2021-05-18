@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
@@ -30,26 +31,26 @@ type API interface {
 
 	// Create a ConditionalAPI from a Model's index data or a list of Conditions
 	// where operations apply to elements that match any of the conditions
-	// If no condition is given, it will match the values provided in Model according
+	// If no condition is given, it will match the values provided in mapper.Model according
 	// to the database index.
-	Where(Model, ...Condition) ConditionalAPI
+	Where(mapper.Model, ...Condition) ConditionalAPI
 
 	// Create a ConditionalAPI from a Model's index data or a list of Conditions
 	// where operations apply to elements that match all the conditions
-	WhereAll(Model, ...Condition) ConditionalAPI
+	WhereAll(mapper.Model, ...Condition) ConditionalAPI
 
 	// Get retrieves a model from the cache
 	// The way the object will be fetch depends on the data contained in the
 	// provided model and the indexes defined in the associated schema
 	// For more complex ways of searching for elements in the cache, the
 	// preferred way is Where({condition}).List()
-	Get(Model) error
+	Get(mapper.Model) error
 
 	// Create returns the operation needed to add the model(s) to the Database
 	// Only fields with non-default values will be added to the transaction
 	// If the field associated with column "_uuid" has some content, it will be
 	// treated as named-uuid
-	Create(...Model) ([]ovsdb.Operation, error)
+	Create(...mapper.Model) ([]ovsdb.Operation, error)
 }
 
 // ConditionalAPI is an interface used to perform operations that require / use Conditions
@@ -61,14 +62,14 @@ type ConditionalAPI interface {
 	// Mutate returns the operations needed to perform the mutation specified
 	// By the model and the list of Mutation objects
 	// Depending on the Condition, it might return one or many operations
-	Mutate(Model, ...Mutation) ([]ovsdb.Operation, error)
+	Mutate(mapper.Model, ...Mutation) ([]ovsdb.Operation, error)
 
 	// Update returns the operations needed to update any number of rows according
 	// to the data in the given model.
 	// By default, all the non-default values contained in model will be updated.
 	// Optional fields can be passed (pointer to fields in the model) to select the
 	// the fields to be updated
-	Update(Model, ...interface{}) ([]ovsdb.Operation, error)
+	Update(mapper.Model, ...interface{}) ([]ovsdb.Operation, error)
 
 	// Delete returns the Operations needed to delete the models seleted via the condition
 	Delete() ([]ovsdb.Operation, error)
@@ -169,12 +170,12 @@ func (a api) List(result interface{}) error {
 }
 
 // Where returns a conditionalAPI based on a Condition list
-func (a api) Where(model Model, cond ...Condition) ConditionalAPI {
+func (a api) Where(model mapper.Model, cond ...Condition) ConditionalAPI {
 	return newConditionalAPI(a.cache, a.conditionFromModel(false, model, cond...))
 }
 
 // Where returns a conditionalAPI based on a Condition list
-func (a api) WhereAll(model Model, cond ...Condition) ConditionalAPI {
+func (a api) WhereAll(model mapper.Model, cond ...Condition) ConditionalAPI {
 	return newConditionalAPI(a.cache, a.conditionFromModel(true, model, cond...))
 }
 
@@ -199,7 +200,7 @@ func (a api) conditionFromFunc(predicate interface{}) Conditional {
 }
 
 // FromModel returns a Condition from a model and a list of fields
-func (a api) conditionFromModel(any bool, model Model, cond ...Condition) Conditional {
+func (a api) conditionFromModel(any bool, model mapper.Model, cond ...Condition) Conditional {
 	var conditional Conditional
 	var err error
 
@@ -209,13 +210,13 @@ func (a api) conditionFromModel(any bool, model Model, cond ...Condition) Condit
 	}
 
 	if len(cond) == 0 {
-		conditional, err = newEqualityConditional(a.cache.orm, tableName, any, model)
+		conditional, err = newEqualityConditional(a.cache.mapper, tableName, any, model)
 		if err != nil {
 			conditional = newErrorConditional(err)
 		}
 
 	} else {
-		conditional, err = newExplicitConditional(a.cache.orm, tableName, any, model, cond...)
+		conditional, err = newExplicitConditional(a.cache.mapper, tableName, any, model, cond...)
 		if err != nil {
 			conditional = newErrorConditional(err)
 		}
@@ -229,7 +230,7 @@ func (a api) conditionFromModel(any bool, model Model, cond ...Condition) Condit
 //
 // The way the cache is search depends on the fields already populated in 'result'
 // Any table index (including _uuid) will be used for comparison
-func (a api) Get(model Model) error {
+func (a api) Get(model mapper.Model) error {
 	table, err := a.getTableFromModel(model)
 	if err != nil {
 		return err
@@ -241,11 +242,11 @@ func (a api) Get(model Model) error {
 	}
 
 	// If model contains _uuid value, we can access it via cache index
-	ormInfo, err := newORMInfo(a.cache.orm.schema.Table(table), model)
+	mapperInfo, err := mapper.NewMapperInfo(a.cache.mapper.Schema.Table(table), model)
 	if err != nil {
 		return err
 	}
-	if uuid, err := ormInfo.fieldByColumn("_uuid"); err != nil && uuid != nil {
+	if uuid, err := mapperInfo.FieldByColumn("_uuid"); err != nil && uuid != nil {
 		if found := tableCache.Row(uuid.(string)); found == nil {
 			return ErrNotFound
 		} else {
@@ -257,7 +258,7 @@ func (a api) Get(model Model) error {
 	// Look across the entire cache for table index equality
 	for _, row := range tableCache.Rows() {
 		elem := tableCache.Row(row)
-		equal, err := a.cache.orm.equalFields(table, model, elem.(Model))
+		equal, err := a.cache.mapper.EqualFields(table, model, elem.(mapper.Model))
 		if err != nil {
 			return err
 		}
@@ -271,7 +272,7 @@ func (a api) Get(model Model) error {
 
 // Create is a generic function capable of creating any row in the DB
 // A valud Model (pointer to object) must be provided.
-func (a api) Create(models ...Model) ([]ovsdb.Operation, error) {
+func (a api) Create(models ...mapper.Model) ([]ovsdb.Operation, error) {
 	var operations []ovsdb.Operation
 
 	for _, model := range models {
@@ -283,20 +284,20 @@ func (a api) Create(models ...Model) ([]ovsdb.Operation, error) {
 			return nil, err
 		}
 
-		table := a.cache.orm.schema.Table(tableName)
+		table := a.cache.mapper.Schema.Table(tableName)
 
 		// Read _uuid field, and use it as named-uuid
-		info, err := newORMInfo(table, model)
+		info, err := mapper.NewMapperInfo(table, model)
 		if err != nil {
 			return nil, err
 		}
-		if uuid, err := info.fieldByColumn("_uuid"); err == nil {
+		if uuid, err := info.FieldByColumn("_uuid"); err == nil {
 			namedUUID = uuid.(string)
 		} else {
 			return nil, err
 		}
 
-		row, err := a.cache.orm.newRow(tableName, model)
+		row, err := a.cache.mapper.NewRow(tableName, model)
 		if err != nil {
 			return nil, err
 		}
@@ -312,7 +313,7 @@ func (a api) Create(models ...Model) ([]ovsdb.Operation, error) {
 }
 
 // Mutate returns the operations needed to transform the one Model into another one
-func (a api) Mutate(model Model, mutationObjs ...Mutation) ([]ovsdb.Operation, error) {
+func (a api) Mutate(model mapper.Model, mutationObjs ...Mutation) ([]ovsdb.Operation, error) {
 	var mutations []interface{}
 	var operations []ovsdb.Operation
 
@@ -321,7 +322,7 @@ func (a api) Mutate(model Model, mutationObjs ...Mutation) ([]ovsdb.Operation, e
 	}
 
 	tableName := a.cache.dbModel.FindTable(reflect.ValueOf(model).Type())
-	table := a.cache.orm.schema.Table(tableName)
+	table := a.cache.mapper.Schema.Table(tableName)
 	if table == nil {
 		return nil, fmt.Errorf("schema error: table not found in Database Model for type %s", reflect.TypeOf(model))
 	}
@@ -331,18 +332,18 @@ func (a api) Mutate(model Model, mutationObjs ...Mutation) ([]ovsdb.Operation, e
 		return nil, err
 	}
 
-	info, err := newORMInfo(table, model)
+	info, err := mapper.NewMapperInfo(table, model)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, mobj := range mutationObjs {
-		col, err := info.columnByPtr(mobj.Field)
+		col, err := info.ColumnByPtr(mobj.Field)
 		if err != nil {
 			return nil, err
 		}
 
-		mutation, err := a.cache.orm.newMutation(tableName, model, col, mobj.Mutator, mobj.Value)
+		mutation, err := a.cache.mapper.NewMutation(tableName, model, col, mobj.Mutator, mobj.Value)
 		if err != nil {
 			return nil, err
 		}
@@ -364,7 +365,7 @@ func (a api) Mutate(model Model, mutationObjs ...Mutation) ([]ovsdb.Operation, e
 
 // Update is a generic function capable of updating any field in any row in the database
 // Additional fields can be passed (variadic opts) to indicate fields to be updated
-func (a api) Update(model Model, fields ...interface{}) ([]ovsdb.Operation, error) {
+func (a api) Update(model mapper.Model, fields ...interface{}) ([]ovsdb.Operation, error) {
 	var operations []ovsdb.Operation
 	table, err := a.getTableFromModel(model)
 	if err != nil {
@@ -376,7 +377,7 @@ func (a api) Update(model Model, fields ...interface{}) ([]ovsdb.Operation, erro
 		return nil, err
 	}
 
-	row, err := a.cache.orm.newRow(table, model, fields...)
+	row, err := a.cache.mapper.NewRow(table, model, fields...)
 	if err != nil {
 		return nil, err
 	}
@@ -418,7 +419,7 @@ func (a api) Delete() ([]ovsdb.Operation, error) {
 // getTableFromModel returns the table name from a Model object after performing
 // type verifications on the model
 func (a api) getTableFromModel(model interface{}) (string, error) {
-	if _, ok := model.(Model); !ok {
+	if _, ok := model.(mapper.Model); !ok {
 		return "", &ErrWrongType{reflect.TypeOf(model), "Type does not implement Model interface"}
 	}
 
@@ -441,7 +442,7 @@ func (a api) getTableFromFunc(predicate interface{}) (string, error) {
 		return "", &ErrWrongType{predType, "Expected func(Model) bool"}
 	}
 
-	modelInterface := reflect.TypeOf((*Model)(nil)).Elem()
+	modelInterface := reflect.TypeOf((*mapper.Model)(nil)).Elem()
 	modelType := predType.In(0)
 	if !modelType.Implements(modelInterface) {
 		return "", &ErrWrongType{predType,

@@ -9,11 +9,12 @@ import (
 	"runtime/pprof"
 
 	"github.com/ovn-org/libovsdb/client"
+	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
 // ORMBridge is the simplified ORM model of the Bridge table
-type ormBridge struct {
+type bridgeType struct {
 	UUID        string            `ovs:"_uuid"`
 	Name        string            `ovs:"name"`
 	OtherConfig map[string]string `ovs:"other_config"`
@@ -23,7 +24,7 @@ type ormBridge struct {
 }
 
 // ORMovs is the simplified ORM model of the Bridge table
-type ormOvs struct {
+type ovsType struct {
 	UUID    string   `ovs:"_uuid"`
 	Bridges []string `ovs:"bridges"`
 }
@@ -34,7 +35,7 @@ var (
 	nins       = flag.Int("ninserts", 100, "insert this number of elements in the database")
 	verbose    = flag.Bool("verbose", false, "Be verbose")
 	connection = flag.String("ovsdb", "unix:/var/run/openvswitch/db.sock", "OVSDB connection string")
-	dbModel    *client.DBModel
+	dbModel    *mapper.DBModel
 
 	ready      bool
 	rootUUID   string
@@ -50,7 +51,7 @@ func run() {
 	defer ovs.Disconnect()
 	ovs.Cache.AddEventHandler(
 		&client.EventHandlerFuncs{
-			AddFunc: func(table string, model client.Model) {
+			AddFunc: func(table string, model mapper.Model) {
 				if ready && table == "Bridge" {
 					insertions++
 					if *verbose {
@@ -58,7 +59,7 @@ func run() {
 					}
 				}
 			},
-			DeleteFunc: func(table string, model client.Model) {
+			DeleteFunc: func(table string, model mapper.Model) {
 				if table == "Bridge" {
 					deletions++
 				}
@@ -79,7 +80,7 @@ func run() {
 	}
 
 	// Remove all existing bridges
-	var bridges []ormBridge
+	var bridges []bridgeType
 	if err := ovs.List(&bridges); err == nil {
 		for _, bridge := range bridges {
 			deleteBridge(ovs, &bridge)
@@ -110,12 +111,12 @@ func transact(ovs *client.OvsdbClient, operations []ovsdb.Operation) (ok bool, u
 	return
 }
 
-func deleteBridge(ovs *client.OvsdbClient, bridge *ormBridge) {
+func deleteBridge(ovs *client.OvsdbClient, bridge *bridgeType) {
 	deleteOp, err := ovs.Where(bridge).Delete()
 	if err != nil {
 		log.Fatal(err)
 	}
-	ovsRow := ormOvs{
+	ovsRow := ovsType{
 		UUID: rootUUID,
 	}
 
@@ -138,7 +139,7 @@ func deleteBridge(ovs *client.OvsdbClient, bridge *ormBridge) {
 }
 
 func createBridge(ovs *client.OvsdbClient, iter int) {
-	bridge := ormBridge{
+	bridge := bridgeType{
 		UUID: "gopher",
 		Name: fmt.Sprintf("bridge-%d", iter),
 		OtherConfig: map[string]string{
@@ -154,8 +155,8 @@ func createBridge(ovs *client.OvsdbClient, iter int) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	ovsRow := ormOvs{}
-	mutateOp, err := ovs.Where(&ormOvs{UUID: rootUUID}).Mutate(&ovsRow, client.Mutation{
+	ovsRow := ovsType{}
+	mutateOp, err := ovs.Where(&ovsType{UUID: rootUUID}).Mutate(&ovsRow, client.Mutation{
 		Field:   &ovsRow.Bridges,
 		Mutator: ovsdb.MutateOperationInsert,
 		Value:   []string{bridge.UUID},
@@ -186,7 +187,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	dbModel, err = client.NewDBModel("Open_vSwitch", map[string]client.Model{"Open_vSwitch": &ormOvs{}, "Bridge": &ormBridge{}})
+	dbModel, err = mapper.NewDBModel("Open_vSwitch", map[string]mapper.Model{"Open_vSwitch": &ovsType{}, "Bridge": &bridgeType{}})
 	if err != nil {
 		log.Fatal(err)
 	}

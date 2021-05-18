@@ -1,4 +1,4 @@
-package client
+package mapper
 
 import (
 	"encoding/json"
@@ -65,9 +65,9 @@ func TestDBModel(t *testing.T) {
 func TestNewModel(t *testing.T) {
 	db, err := NewDBModel("testTable", map[string]Model{"Test_A": &modelA{}, "Test_B": &modelB{}})
 	assert.Nil(t, err)
-	_, err = db.newModel("Unknown")
+	_, err = db.NewModel("Unknown")
 	assert.NotNilf(t, err, "Creating model from unknown table should fail")
-	model, err := db.newModel("Test_A")
+	model, err := db.NewModel("Test_A")
 	assert.Nilf(t, err, "Creating model from valid table should succeed")
 	assert.IsTypef(t, model, &modelA{}, "model creation should return the apropriate type")
 }

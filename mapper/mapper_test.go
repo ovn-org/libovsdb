@@ -1,4 +1,4 @@
-package client
+package mapper
 
 import (
 	"encoding/json"
@@ -182,7 +182,7 @@ func getOvsTestRow(t *testing.T) ovsdb.Row {
 	return ovsRow
 }
 
-func TestORMGetData(t *testing.T) {
+func TestMapperGetData(t *testing.T) {
 	type ormTestType struct {
 		AString             string            `ovs:"aString"`
 		ASet                []string          `ovs:"aSet"`
@@ -220,11 +220,11 @@ func TestORMGetData(t *testing.T) {
 		t.Error(err)
 	}
 
-	orm := newORM(&schema)
+	mapper := NewMapper(&schema)
 	test := ormTestType{
 		NonTagged: "something",
 	}
-	err := orm.getRowData("TestTable", &ovsRow, &test)
+	err := mapper.GetRowData("TestTable", &ovsRow, &test)
 	/*End code under test*/
 
 	if err != nil {
@@ -233,7 +233,7 @@ func TestORMGetData(t *testing.T) {
 	assert.Equal(t, expected, test)
 }
 
-func TestORMNewRow(t *testing.T) {
+func TestMapperNewRow(t *testing.T) {
 	var schema ovsdb.DatabaseSchema
 	if err := json.Unmarshal(testSchema, &schema); err != nil {
 		t.Error(err)
@@ -338,8 +338,8 @@ func TestORMNewRow(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("NewRow: %s", test.name), func(t *testing.T) {
-			orm := newORM(&schema)
-			row, err := orm.newRow("TestTable", test.objInput)
+			mapper := NewMapper(&schema)
+			row, err := mapper.NewRow("TestTable", test.objInput)
 			if test.shoulderr {
 				assert.NotNil(t, err)
 			} else {
@@ -350,7 +350,7 @@ func TestORMNewRow(t *testing.T) {
 	}
 }
 
-func TestORMNewRowFields(t *testing.T) {
+func TestMapperNewRowFields(t *testing.T) {
 	var schema ovsdb.DatabaseSchema
 	if err := json.Unmarshal(testSchema, &schema); err != nil {
 		t.Error(err)
@@ -422,7 +422,7 @@ func TestORMNewRowFields(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("NewRow: %s", test.name), func(t *testing.T) {
-			orm := newORM(&schema)
+			mapper := NewMapper(&schema)
 			// Clean the test object
 			testObj.MyString = ""
 			testObj.MyMap = nil
@@ -430,7 +430,7 @@ func TestORMNewRowFields(t *testing.T) {
 			testObj.MyFloat = 0
 
 			test.prepare(&testObj)
-			row, err := orm.newRow("TestTable", &testObj, test.fields...)
+			row, err := mapper.NewRow("TestTable", &testObj, test.fields...)
 			if test.err {
 				assert.NotNil(t, err)
 			} else {
@@ -441,7 +441,7 @@ func TestORMNewRowFields(t *testing.T) {
 	}
 }
 
-func TestORMCondition(t *testing.T) {
+func TestMapperCondition(t *testing.T) {
 
 	var testSchema = []byte(`{
   "cksum": "223619766 22548",
@@ -487,7 +487,7 @@ func TestORMCondition(t *testing.T) {
 	if err := json.Unmarshal(testSchema, &schema); err != nil {
 		t.Fatal(err)
 	}
-	orm := newORM(&schema)
+	mapper := NewMapper(&schema)
 
 	type Test struct {
 		name     string
@@ -582,7 +582,7 @@ func TestORMCondition(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("newEqualityCondition_%s", tt.name), func(t *testing.T) {
 			tt.prepare(&testObj)
-			conds, err := orm.newEqualityCondition("TestTable", &testObj, tt.index...)
+			conds, err := mapper.NewEqualityCondition("TestTable", &testObj, tt.index...)
 			if tt.err {
 				if err == nil {
 					t.Errorf("expected an error but got none")
@@ -600,7 +600,7 @@ func TestORMCondition(t *testing.T) {
 	}
 }
 
-func TestORMEqualIndexes(t *testing.T) {
+func TestMapperEqualIndexes(t *testing.T) {
 
 	var testSchema = []byte(`{
   "cksum": "223619766 22548",
@@ -658,7 +658,7 @@ func TestORMEqualIndexes(t *testing.T) {
 	if err := json.Unmarshal(testSchema, &schema); err != nil {
 		t.Fatal(err)
 	}
-	orm := newORM(&schema)
+	mapper := NewMapper(&schema)
 
 	type Test struct {
 		name     string
@@ -833,7 +833,7 @@ func TestORMEqualIndexes(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("Equal %s", test.name), func(t *testing.T) {
-			eq, err := orm.equalIndexes(orm.schema.Table("TestTable"), &test.obj1, &test.obj2, test.indexes...)
+			eq, err := mapper.equalIndexes(mapper.Schema.Table("TestTable"), &test.obj1, &test.obj2, test.indexes...)
 			assert.Nil(t, err)
 			assert.Equalf(t, test.expected, eq, "equal value should match expected")
 		})
@@ -856,16 +856,16 @@ func TestORMEqualIndexes(t *testing.T) {
 		Int1:   42,
 		Int2:   25,
 	}
-	eq, err := orm.equalFields("TestTable", &obj1, &obj2, &obj1.Int1, &obj1.Int2)
+	eq, err := mapper.EqualFields("TestTable", &obj1, &obj2, &obj1.Int1, &obj1.Int2)
 	assert.Nil(t, err)
 	assert.True(t, eq)
 	// Useing pointers to second value is not supported
-	_, err = orm.equalFields("TestTable", &obj1, &obj2, &obj2.Int1, &obj2.Int2)
+	_, err = mapper.EqualFields("TestTable", &obj1, &obj2, &obj2.Int1, &obj2.Int2)
 	assert.NotNil(t, err)
 
 }
 
-func TestORMMutation(t *testing.T) {
+func TestMapperMutation(t *testing.T) {
 
 	var testSchema = []byte(`{
   "cksum": "223619766 22548",
@@ -916,7 +916,7 @@ func TestORMMutation(t *testing.T) {
 	if err := json.Unmarshal(testSchema, &schema); err != nil {
 		t.Fatal(err)
 	}
-	orm := newORM(&schema)
+	mapper := NewMapper(&schema)
 
 	type Test struct {
 		name     string
@@ -1000,7 +1000,7 @@ func TestORMMutation(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("newMutation%s", test.name), func(t *testing.T) {
-			mutation, err := orm.newMutation("TestTable", &test.obj, test.column, test.mutator, test.value)
+			mutation, err := mapper.NewMutation("TestTable", &test.obj, test.column, test.mutator, test.value)
 			if test.err {
 				if err == nil {
 					t.Errorf("expected an error but got none")

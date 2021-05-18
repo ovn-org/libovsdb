@@ -5,13 +5,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestAPIListSimple(t *testing.T) {
 	cache := apiTestCache(t)
-	lscacheList := []Model{
+	lscacheList := []mapper.Model{
 		&testLogicalSwitch{
 			UUID:        aUUID0,
 			Name:        "ls0",
@@ -34,7 +35,7 @@ func TestAPIListSimple(t *testing.T) {
 			Ports:       []string{"port0", "port1"},
 		},
 	}
-	lscache := map[string]Model{}
+	lscache := map[string]mapper.Model{}
 	for i := range lscacheList {
 		lscache[lscacheList[i].(*testLogicalSwitch).UUID] = lscacheList[i]
 	}
@@ -46,7 +47,7 @@ func TestAPIListSimple(t *testing.T) {
 		initialCap int
 		resultCap  int
 		resultLen  int
-		content    []Model
+		content    []mapper.Model
 		err        bool
 	}{
 		{
@@ -120,7 +121,7 @@ func TestAPIListSimple(t *testing.T) {
 
 func TestAPIListPredicate(t *testing.T) {
 	cache := apiTestCache(t)
-	lscacheList := []Model{
+	lscacheList := []mapper.Model{
 		&testLogicalSwitch{
 			UUID:        aUUID0,
 			Name:        "ls0",
@@ -143,7 +144,7 @@ func TestAPIListPredicate(t *testing.T) {
 			Ports:       []string{"port0", "port1"},
 		},
 	}
-	lscache := map[string]Model{}
+	lscache := map[string]mapper.Model{}
 	for i := range lscacheList {
 		lscache[lscacheList[i].(*testLogicalSwitch).UUID] = lscacheList[i]
 	}
@@ -152,7 +153,7 @@ func TestAPIListPredicate(t *testing.T) {
 	test := []struct {
 		name      string
 		predicate interface{}
-		content   []Model
+		content   []mapper.Model
 		err       bool
 	}{
 		{
@@ -160,7 +161,7 @@ func TestAPIListPredicate(t *testing.T) {
 			predicate: func(t *testLogicalSwitch) bool {
 				return false
 			},
-			content: []Model{},
+			content: []mapper.Model{},
 			err:     false,
 		},
 		{
@@ -180,7 +181,7 @@ func TestAPIListPredicate(t *testing.T) {
 			predicate: func(t *testLogicalSwitch) bool {
 				return strings.HasPrefix(t.Name, "magic")
 			},
-			content: []Model{lscacheList[1], lscacheList[3]},
+			content: []mapper.Model{lscacheList[1], lscacheList[3]},
 			err:     false,
 		},
 		{
@@ -213,7 +214,7 @@ func TestAPIListPredicate(t *testing.T) {
 
 func TestAPIListFields(t *testing.T) {
 	cache := apiTestCache(t)
-	lspcacheList := []Model{
+	lspcacheList := []mapper.Model{
 		&testLogicalSwitchPort{
 			UUID:        aUUID0,
 			Name:        "lsp0",
@@ -239,7 +240,7 @@ func TestAPIListFields(t *testing.T) {
 			Enabled:     []bool{true},
 		},
 	}
-	lspcache := map[string]Model{}
+	lspcache := map[string]mapper.Model{}
 	for i := range lspcacheList {
 		lspcache[lspcacheList[i].(*testLogicalSwitchPort).UUID] = lspcacheList[i]
 	}
@@ -251,7 +252,7 @@ func TestAPIListFields(t *testing.T) {
 		name    string
 		fields  []interface{}
 		prepare func(*testLogicalSwitchPort)
-		content []Model
+		content []mapper.Model
 		err     bool
 	}{
 		{
@@ -264,7 +265,7 @@ func TestAPIListFields(t *testing.T) {
 			prepare: func(t *testLogicalSwitchPort) {
 				t.UUID = aUUID0
 			},
-			content: []Model{lspcache[aUUID0]},
+			content: []mapper.Model{lspcache[aUUID0]},
 			err:     false,
 		},
 		{
@@ -272,7 +273,7 @@ func TestAPIListFields(t *testing.T) {
 			prepare: func(t *testLogicalSwitchPort) {
 				t.Name = "lsp2"
 			},
-			content: []Model{lspcache[aUUID2]},
+			content: []mapper.Model{lspcache[aUUID2]},
 			err:     false,
 		},
 	}
@@ -353,7 +354,7 @@ func TestConditionFromModel(t *testing.T) {
 	var testObj testLogicalSwitch
 	test := []struct {
 		name  string
-		model Model
+		model mapper.Model
 		conds []Condition
 		err   bool
 	}{
@@ -415,8 +416,8 @@ func TestConditionFromModel(t *testing.T) {
 
 func TestAPIGet(t *testing.T) {
 	cache := apiTestCache(t)
-	lsCacheList := []Model{}
-	lspCacheList := []Model{
+	lsCacheList := []mapper.Model{}
+	lspCacheList := []mapper.Model{
 		&testLogicalSwitchPort{
 			UUID:        aUUID2,
 			Name:        "lsp0",
@@ -430,8 +431,8 @@ func TestAPIGet(t *testing.T) {
 			ExternalIds: map[string]string{"foo": "baz"},
 		},
 	}
-	lsCache := map[string]Model{}
-	lspCache := map[string]Model{}
+	lsCache := map[string]mapper.Model{}
+	lspCache := map[string]mapper.Model{}
 	for i := range lsCacheList {
 		lsCache[lsCacheList[i].(*testLogicalSwitch).UUID] = lsCacheList[i]
 	}
@@ -443,26 +444,26 @@ func TestAPIGet(t *testing.T) {
 
 	test := []struct {
 		name    string
-		prepare func(Model)
-		result  Model
+		prepare func(mapper.Model)
+		result  mapper.Model
 		err     bool
 	}{
 		{
 			name: "empty",
-			prepare: func(m Model) {
+			prepare: func(m mapper.Model) {
 			},
 			err: true,
 		},
 		{
 			name: "non_existing",
-			prepare: func(m Model) {
+			prepare: func(m mapper.Model) {
 				m.(*testLogicalSwitchPort).Name = "foo"
 			},
 			err: true,
 		},
 		{
 			name: "by UUID",
-			prepare: func(m Model) {
+			prepare: func(m mapper.Model) {
 				m.(*testLogicalSwitchPort).UUID = aUUID3
 			},
 			result: lspCacheList[1],
@@ -470,7 +471,7 @@ func TestAPIGet(t *testing.T) {
 		},
 		{
 			name: "by name",
-			prepare: func(m Model) {
+			prepare: func(m mapper.Model) {
 				m.(*testLogicalSwitchPort).Name = "lsp0"
 			},
 			result: lspCacheList[0],
@@ -495,8 +496,8 @@ func TestAPIGet(t *testing.T) {
 
 func TestAPICreate(t *testing.T) {
 	cache := apiTestCache(t)
-	lsCacheList := []Model{}
-	lspCacheList := []Model{
+	lsCacheList := []mapper.Model{}
+	lspCacheList := []mapper.Model{
 		&testLogicalSwitchPort{
 			UUID:        aUUID2,
 			Name:        "lsp0",
@@ -510,8 +511,8 @@ func TestAPICreate(t *testing.T) {
 			ExternalIds: map[string]string{"foo": "baz"},
 		},
 	}
-	lsCache := map[string]Model{}
-	lspCache := map[string]Model{}
+	lsCache := map[string]mapper.Model{}
+	lspCache := map[string]mapper.Model{}
 	for i := range lsCacheList {
 		lsCache[lsCacheList[i].(*testLogicalSwitch).UUID] = lsCacheList[i]
 	}
@@ -523,13 +524,13 @@ func TestAPICreate(t *testing.T) {
 
 	test := []struct {
 		name   string
-		input  []Model
+		input  []mapper.Model
 		result []ovsdb.Operation
 		err    bool
 	}{
 		{
 			name:  "empty",
-			input: []Model{&testLogicalSwitch{}},
+			input: []mapper.Model{&testLogicalSwitch{}},
 			result: []ovsdb.Operation{{
 				Op:       "insert",
 				Table:    "Logical_Switch",
@@ -540,7 +541,7 @@ func TestAPICreate(t *testing.T) {
 		},
 		{
 			name: "With some values",
-			input: []Model{&testLogicalSwitch{
+			input: []mapper.Model{&testLogicalSwitch{
 				Name: "foo",
 			}},
 			result: []ovsdb.Operation{{
@@ -553,7 +554,7 @@ func TestAPICreate(t *testing.T) {
 		},
 		{
 			name: "With named UUID ",
-			input: []Model{&testLogicalSwitch{
+			input: []mapper.Model{&testLogicalSwitch{
 				UUID: "foo",
 			}},
 			result: []ovsdb.Operation{{
@@ -566,7 +567,7 @@ func TestAPICreate(t *testing.T) {
 		},
 		{
 			name: "Multiple",
-			input: []Model{
+			input: []mapper.Model{
 				&testLogicalSwitch{
 					UUID: "fooUUID",
 					Name: "foo",
@@ -606,7 +607,7 @@ func TestAPICreate(t *testing.T) {
 
 func TestAPIMutate(t *testing.T) {
 	cache := apiTestCache(t)
-	lspCache := map[string]Model{
+	lspCache := map[string]mapper.Model{
 		aUUID0: &testLogicalSwitchPort{
 			UUID:        aUUID0,
 			Name:        "lsp0",
@@ -637,9 +638,9 @@ func TestAPIMutate(t *testing.T) {
 	test := []struct {
 		name      string
 		condition func(API) ConditionalAPI
-		model     Model
+		model     mapper.Model
 		mutations []Mutation
-		init      map[string]Model
+		init      map[string]mapper.Model
 		result    []ovsdb.Operation
 		err       bool
 	}{
@@ -773,7 +774,7 @@ func TestAPIMutate(t *testing.T) {
 
 func TestAPIUpdate(t *testing.T) {
 	cache := apiTestCache(t)
-	lspCache := map[string]Model{
+	lspCache := map[string]mapper.Model{
 		aUUID0: &testLogicalSwitchPort{
 			UUID:        aUUID0,
 			Name:        "lsp0",
@@ -1018,7 +1019,7 @@ func TestAPIUpdate(t *testing.T) {
 
 func TestAPIDelete(t *testing.T) {
 	cache := apiTestCache(t)
-	lspCache := map[string]Model{
+	lspCache := map[string]mapper.Model{
 		aUUID0: &testLogicalSwitchPort{
 			UUID:        aUUID0,
 			Name:        "lsp0",

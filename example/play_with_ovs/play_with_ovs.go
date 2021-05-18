@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/ovn-org/libovsdb/client"
+	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
@@ -17,7 +18,7 @@ const (
 )
 
 var quit chan bool
-var update chan client.Model
+var update chan mapper.Model
 
 var rootUUID string
 var connection = flag.String("ovsdb", "unix:/var/run/openvswitch/db.sock", "OVSDB connection string")
@@ -91,10 +92,10 @@ func processInput(ovs *client.OvsdbClient) {
 func main() {
 	flag.Parse()
 	quit = make(chan bool)
-	update = make(chan client.Model)
+	update = make(chan mapper.Model)
 
-	dbmodel, err := client.NewDBModel("Open_vSwitch",
-		map[string]client.Model{bridgeTable: &Bridge{}, ovsTable: &OpenvSwitch{}})
+	dbmodel, err := mapper.NewDBModel("Open_vSwitch",
+		map[string]mapper.Model{bridgeTable: &Bridge{}, ovsTable: &OpenvSwitch{}})
 	if err != nil {
 		log.Fatal("Unable to create DB model ", err)
 	}
@@ -109,7 +110,7 @@ func main() {
 	}
 
 	ovs.Cache.AddEventHandler(&client.EventHandlerFuncs{
-		AddFunc: func(table string, model client.Model) {
+		AddFunc: func(table string, model mapper.Model) {
 			if table == bridgeTable {
 				update <- model
 			}

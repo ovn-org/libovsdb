@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
@@ -14,7 +15,7 @@ type Conditional interface {
 	// Each element in the (outer) list corresponds to an operation
 	Generate() ([][]ovsdb.Condition, error)
 	// matches returns true if a model matches the condition
-	Matches(m Model) (bool, error)
+	Matches(m mapper.Model) (bool, error)
 	// returns the table that this condition is associated with
 	Table() string
 }
@@ -23,14 +24,14 @@ type Conditional interface {
 // The conditions are based on the equality of the first available index.
 // The priority of indexes is: uuid, {schema index}
 type equalityConditional struct {
-	orm       *orm
+	mapper    *mapper.Mapper
 	tableName string
-	model     Model
+	model     mapper.Model
 	singleOp  bool
 }
 
-func (c *equalityConditional) Matches(m Model) (bool, error) {
-	return c.orm.equalFields(c.tableName, c.model, m)
+func (c *equalityConditional) Matches(m mapper.Model) (bool, error) {
+	return c.mapper.EqualFields(c.tableName, c.model, m)
 }
 
 func (c *equalityConditional) Table() string {
@@ -41,7 +42,7 @@ func (c *equalityConditional) Table() string {
 func (c *equalityConditional) Generate() ([][]ovsdb.Condition, error) {
 	var result [][]ovsdb.Condition
 
-	conds, err := c.orm.newEqualityCondition(c.tableName, c.model)
+	conds, err := c.mapper.NewEqualityCondition(c.tableName, c.model)
 	if err != nil {
 		return nil, err
 	}
@@ -55,10 +56,10 @@ func (c *equalityConditional) Generate() ([][]ovsdb.Condition, error) {
 	return result, nil
 }
 
-// newIndexCondition creates a new equalityConditional
-func newEqualityConditional(orm *orm, table string, all bool, model Model, fields ...interface{}) (Conditional, error) {
+// NewEqualityCondition creates a new equalityConditional
+func newEqualityConditional(mapper *mapper.Mapper, table string, all bool, model mapper.Model, fields ...interface{}) (Conditional, error) {
 	return &equalityConditional{
-		orm:       orm,
+		mapper:    mapper,
 		tableName: table,
 		model:     model,
 		singleOp:  all,
@@ -67,15 +68,15 @@ func newEqualityConditional(orm *orm, table string, all bool, model Model, field
 
 // explicitConditional generates conditions based on the provided Condition list
 type explicitConditional struct {
-	orm        *orm
+	mapper     *mapper.Mapper
 	tableName  string
-	model      Model
+	model      mapper.Model
 	conditions []Condition
 	singleOp   bool
 }
 
-func (c *explicitConditional) Matches(m Model) (bool, error) {
-	return false, fmt.Errorf("Cannot perform Cache comparisons using explicit Conditions")
+func (c *explicitConditional) Matches(m mapper.Model) (bool, error) {
+	return false, fmt.Errorf("cannot perform cache comparisons using explicit conditions")
 }
 
 func (c *explicitConditional) Table() string {
@@ -88,7 +89,7 @@ func (c *explicitConditional) Generate() ([][]ovsdb.Condition, error) {
 	var conds []ovsdb.Condition
 
 	for _, cond := range c.conditions {
-		ovsdbCond, err := c.orm.newCondition(c.tableName, c.model, cond)
+		ovsdbCond, err := c.mapper.NewCondition(c.tableName, c.model, cond.Field, cond.Function, cond.Value)
 		if err != nil {
 			return nil, err
 		}
@@ -106,9 +107,9 @@ func (c *explicitConditional) Generate() ([][]ovsdb.Condition, error) {
 }
 
 // newIndexCondition creates a new equalityConditional
-func newExplicitConditional(orm *orm, table string, all bool, model Model, cond ...Condition) (Conditional, error) {
+func newExplicitConditional(mapper *mapper.Mapper, table string, all bool, model mapper.Model, cond ...Condition) (Conditional, error) {
 	return &explicitConditional{
-		orm:        orm,
+		mapper:     mapper,
 		tableName:  table,
 		model:      model,
 		conditions: cond,
@@ -126,7 +127,7 @@ type predicateConditional struct {
 
 // matches returns the result of the execution of the predicate
 // Type verifications are not performed
-func (c *predicateConditional) Matches(model Model) (bool, error) {
+func (c *predicateConditional) Matches(model mapper.Model) (bool, error) {
 	ret := reflect.ValueOf(c.predicate).Call([]reflect.Value{reflect.ValueOf(model)})
 	return ret[0].Bool(), nil
 }
@@ -150,7 +151,7 @@ func (c *predicateConditional) Generate() ([][]ovsdb.Condition, error) {
 			return nil, err
 		}
 		if match {
-			elemCond, err := c.cache.orm.newEqualityCondition(c.tableName, elem)
+			elemCond, err := c.cache.mapper.NewEqualityCondition(c.tableName, elem)
 			if err != nil {
 				return nil, err
 			}
@@ -175,7 +176,7 @@ type errorConditional struct {
 	err error
 }
 
-func (e *errorConditional) Matches(Model) (bool, error) {
+func (e *errorConditional) Matches(mapper.Model) (bool, error) {
 	return false, e.err
 }
 
