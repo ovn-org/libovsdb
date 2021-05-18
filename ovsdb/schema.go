@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"os"
 	"strings"
 )
 
@@ -41,6 +43,21 @@ func (schema DatabaseSchema) Print(w io.Writer) {
 			fmt.Fprintf(w, "\t\t %s => %s\n", column, columnSchema)
 		}
 	}
+}
+
+// SchemaFromFile returns a DatabaseSchema from a file
+func SchemaFromFile(f *os.File) (*DatabaseSchema, error) {
+	data, err := ioutil.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+	var schema DatabaseSchema
+	err = json.Unmarshal(data, &schema)
+	if err != nil {
+		return nil, err
+	}
+
+	return &schema, nil
 }
 
 // ValidateOperations performs basic validation for operations against a DatabaseSchema
@@ -108,10 +125,14 @@ type ExtendedType = string
 // RefType is used to define the possible RefTypes
 type RefType = string
 
-const (
-	//Unlimited is used to express unlimited "Max"
+// unlimited is not constant as we can't take the address of int constants
+var (
+	// Unlimited is used to express unlimited "Max"
 	Unlimited int = -1
+)
 
+const (
+	unlimtedString = "unlimited"
 	//Strong RefType
 	Strong RefType = "strong"
 	//Weak RefType
@@ -140,43 +161,290 @@ const (
 	TypeSet ExtendedType = "set"
 )
 
+// BaseType is a base-type structure as per RFC7047
+type BaseType struct {
+	Type       string        `json:"type"`
+	Enum       []interface{} `json:"-"`
+	MinReal    *float64      `json:"minReal,omitempty"`
+	MaxReal    *float64      `json:"maxReal,omitempty"`
+	MinInteger *int          `json:"minInteger,omitempty"`
+	MaxInteger *int          `json:"maxInteger,omitempty"`
+	MinLength  *int          `json:"minLength,omitempty"`
+	MaxLength  *int          `json:"maxLength,omitempty"`
+	RefTable   *string       `json:"refTable,omitempty"`
+	RefType    *RefType      `json:"refType,omitempty"`
+}
+
+func (b *BaseType) simpleAtomic() bool {
+	return isAtomicType(b.Type) && b.Enum == nil && b.MinReal == nil && b.MaxReal == nil && b.MinInteger == nil && b.MaxInteger == nil && b.MinLength == nil && b.MaxLength == nil && b.RefTable == nil && b.RefType == nil
+}
+
+// UnmarshalJSON unmarshalls a json-formatted base type
+func (b *BaseType) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		if isAtomicType(s) {
+			b.Type = s
+		} else {
+			return fmt.Errorf("non atomic type %s in <base-type>", s)
+		}
+		return nil
+	}
+	// temporary type to avoid recursive call to unmarshal
+	var bt struct {
+		Type       string      `json:"type"`
+		Enum       interface{} `json:"enum,omitempty"`
+		MinReal    *float64    `json:"minReal,omitempty"`
+		MaxReal    *float64    `json:"maxReal,omitempty"`
+		MinInteger *int        `json:"minInteger,omitempty"`
+		MaxInteger *int        `json:"maxInteger,omitempty"`
+		MinLength  *int        `json:"minLength,omitempty"`
+		MaxLength  *int        `json:"maxLength,omitempty"`
+		RefTable   *string     `json:"refTable,omitempty"`
+		RefType    *RefType    `json:"refType,omitempty"`
+	}
+	err := json.Unmarshal(data, &bt)
+	if err != nil {
+		return err
+	}
+
+	if bt.Enum != nil {
+		// 'enum' is a list or a single element representing a list of exactly one element
+		switch bt.Enum.(type) {
+		case []interface{}:
+			// it's an OvsSet
+			oSet := bt.Enum.([]interface{})
+			innerSet := oSet[1].([]interface{})
+			b.Enum = make([]interface{}, len(innerSet))
+			for k, val := range innerSet {
+				b.Enum[k] = val
+			}
+		default:
+			b.Enum = []interface{}{bt.Enum}
+		}
+	}
+	b.Type = bt.Type
+	b.MinReal = bt.MinReal
+	b.MaxReal = bt.MaxReal
+	b.MinInteger = bt.MinInteger
+	b.MaxInteger = bt.MaxInteger
+	b.MinLength = bt.MaxLength
+	b.MaxLength = bt.MaxLength
+	b.RefTable = bt.RefTable
+	b.RefType = bt.RefType
+	return nil
+}
+
+// MarshalJSON marshalls a base type to JSON
+func (b BaseType) MarshalJSON() ([]byte, error) {
+	j := struct {
+		Type       string   `json:"type,omitempty"`
+		Enum       *OvsSet  `json:"enum,omitempty"`
+		MinReal    *float64 `json:"minReal,omitempty"`
+		MaxReal    *float64 `json:"maxReal,omitempty"`
+		MinInteger *int     `json:"minInteger,omitempty"`
+		MaxInteger *int     `json:"maxInteger,omitempty"`
+		MinLength  *int     `json:"minLength,omitempty"`
+		MaxLength  *int     `json:"maxLength,omitempty"`
+		RefTable   *string  `json:"refTable,omitempty"`
+		RefType    *RefType `json:"refType,omitempty"`
+	}{
+		Type:       b.Type,
+		MinReal:    b.MinReal,
+		MaxReal:    b.MaxReal,
+		MinInteger: b.MinInteger,
+		MaxInteger: b.MaxInteger,
+		MinLength:  b.MaxLength,
+		MaxLength:  b.MaxLength,
+		RefTable:   b.RefTable,
+		RefType:    b.RefType,
+	}
+	if len(b.Enum) > 0 {
+		var err error
+		j.Enum, err = NewOvsSet(b.Enum)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return json.Marshal(j)
+}
+
+// ColumnType is a type object as per RFC7047
+// "key": <base-type>                 required
+// "value": <base-type>               optional
+// "min": <integer>                   optional (default: 1)
+// "max": <integer> or "unlimited"    optional (default: 1)
+type ColumnType struct {
+	Key   *BaseType
+	Value *BaseType
+	min   *int
+	max   *int
+}
+
+// Max returns the maximum value of a ColumnType. -1 is Unlimited
+func (c *ColumnType) Max() int {
+	if c.max == nil {
+		return 1
+	}
+	return *c.max
+}
+
+// Min returns the minimum value of a ColumnType
+func (c *ColumnType) Min() int {
+	if c.min == nil {
+		return 1
+	}
+	return *c.min
+}
+
+// UnmarshalJSON unmarshalls a json-formatted column type
+func (c *ColumnType) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		if isAtomicType(s) {
+			c.Key = &BaseType{Type: s}
+		} else {
+			return fmt.Errorf("non atomic type %s in <type>", s)
+		}
+		return nil
+	}
+	var colType struct {
+		Key   *BaseType   `json:"key"`
+		Value *BaseType   `json:"value"`
+		Min   *int        `json:"min"`
+		Max   interface{} `json:"max"`
+	}
+	err := json.Unmarshal(data, &colType)
+	if err != nil {
+		return err
+	}
+	c.Key = colType.Key
+	c.Value = colType.Value
+	c.min = colType.Min
+	switch v := colType.Max.(type) {
+	case string:
+		if v == unlimtedString {
+			c.max = &Unlimited
+		} else {
+			return fmt.Errorf("unexpected string value in max field")
+		}
+	case float64:
+		i := int(v)
+		c.max = &i
+	default:
+		c.max = nil
+	}
+	return nil
+}
+
+// MarshalJSON marshalls a column type to JSON
+func (c ColumnType) MarshalJSON() ([]byte, error) {
+	if c.Value == nil && c.max == nil && c.min == nil && c.Key.simpleAtomic() {
+		return json.Marshal(c.Key.Type)
+	}
+	if c.Max() == Unlimited {
+		colType := struct {
+			Key   *BaseType `json:"key"`
+			Value *BaseType `json:"value,omitempty"`
+			Min   *int      `json:"min,omitempty"`
+			Max   string    `json:"max,omitempty"`
+		}{
+			Key:   c.Key,
+			Value: c.Value,
+			Min:   c.min,
+			Max:   unlimtedString,
+		}
+		return json.Marshal(&colType)
+	}
+	colType := struct {
+		Key   *BaseType `json:"key"`
+		Value *BaseType `json:"value,omitempty"`
+		Min   *int      `json:"min,omitempty"`
+		Max   *int      `json:"max,omitempty"`
+	}{
+		Key:   c.Key,
+		Value: c.Value,
+		Min:   c.min,
+		Max:   c.max,
+	}
+	return json.Marshal(&colType)
+}
+
 // ColumnSchema is a column schema according to RFC7047
 type ColumnSchema struct {
 	// According to RFC7047, "type" field can be, either an <atomic-type>
-	// Or a ColumnTypeObject defined below. To try to simplify the usage, the
+	// Or a ColumnType defined below. To try to simplify the usage, the
 	// json message will be parsed manually and Type will indicate the "extended"
 	// type. Depending on its value, more information may be available in TypeObj.
 	// E.g: If Type == TypeEnum, TypeObj.Key.Enum contains the possible values
 	Type      ExtendedType
 	TypeObj   *ColumnType
-	Ephemeral bool
-	Mutable   bool
+	ephemeral *bool
+	mutable   *bool
 }
 
-// ColumnType is a type object as per RFC7047
-type ColumnType struct {
-	Key   *BaseType
-	Value *BaseType
-	Min   int
-	// Unlimited is expressed by the const value Unlimited (-1)
-	Max int
+// Mutable returns whether a column is mutable
+func (c *ColumnSchema) Mutable() bool {
+	if c.mutable != nil {
+		return *c.mutable
+	}
+	// default true
+	return true
 }
 
-// BaseType is a base-type structure as per RFC7047
-type BaseType struct {
-	Type string `json:"type"`
-	// Enum will be parsed manually and set to a slice
-	// of possible values. They must be type-asserted to the
-	// corret type depending on the Type field
-	Enum       []interface{} `json:"_"`
-	MinReal    float64       `json:"minReal,omitempty"`
-	MaxReal    float64       `json:"maxReal,omitempty"`
-	MinInteger int           `json:"minInteger,omitempty"`
-	MaxInteger int           `json:"maxInteger,omitempty"`
-	MinLength  int           `json:"minLength,omitempty"`
-	MaxLength  int           `json:"maxLength,omitempty"`
-	RefTable   string        `json:"refTable,omitempty"`
-	RefType    RefType       `json:"refType,omitempty"`
+// Ephemeral returns whether a column is ephemeral
+func (c *ColumnSchema) Ephemeral() bool {
+	if c.ephemeral != nil {
+		return *c.ephemeral
+	}
+	// default false
+	return false
+}
+
+// UnmarshalJSON unmarshalls a json-formatted column
+func (column *ColumnSchema) UnmarshalJSON(data []byte) error {
+	// ColumnJSON represents the known json values for a Column
+	var colJSON struct {
+		Type      *ColumnType `json:"type"`
+		Ephemeral *bool       `json:"ephemeral,omitempty"`
+		Mutable   *bool       `json:"mutable,omitempty"`
+	}
+
+	// Unmarshall known keys
+	if err := json.Unmarshal(data, &colJSON); err != nil {
+		return fmt.Errorf("cannot parse column object %s", err)
+	}
+
+	column.ephemeral = colJSON.Ephemeral
+	column.mutable = colJSON.Mutable
+	column.TypeObj = colJSON.Type
+
+	// Infer the ExtendedType from the TypeObj
+	if column.TypeObj.Value != nil {
+		column.Type = TypeMap
+	} else if column.TypeObj.Min() != 1 || column.TypeObj.Max() != 1 {
+		column.Type = TypeSet
+	} else if len(column.TypeObj.Key.Enum) > 0 {
+		column.Type = TypeEnum
+	} else {
+		column.Type = column.TypeObj.Key.Type
+	}
+	return nil
+}
+
+// MarshalJSON marshalls a column schema to JSON
+func (column ColumnSchema) MarshalJSON() ([]byte, error) {
+	type colJSON struct {
+		Type      *ColumnType `json:"type"`
+		Ephemeral *bool       `json:"ephemeral,omitempty"`
+		Mutable   *bool       `json:"mutable,omitempty"`
+	}
+	c := colJSON{
+		Type:      column.TypeObj,
+		Ephemeral: column.ephemeral,
+		Mutable:   column.mutable,
+	}
+	return json.Marshal(c)
 }
 
 // String returns a string representation of the (native) column type
@@ -184,10 +452,10 @@ func (column *ColumnSchema) String() string {
 	var flags []string
 	var flagStr string
 	var typeStr string
-	if column.Ephemeral {
+	if column.Ephemeral() {
 		flags = append(flags, "E")
 	}
-	if column.Mutable {
+	if column.Mutable() {
 		flags = append(flags, "M")
 	}
 	if len(flags) > 0 {
@@ -199,7 +467,7 @@ func (column *ColumnSchema) String() string {
 		typeStr = string(column.Type)
 	case TypeUUID:
 		if column.TypeObj != nil && column.TypeObj.Key != nil {
-			typeStr = fmt.Sprintf("uuid [%s (%s)]", column.TypeObj.Key.RefTable, column.TypeObj.Key.RefType)
+			typeStr = fmt.Sprintf("uuid [%s (%s)]", *column.TypeObj.Key.RefTable, *column.TypeObj.Key.RefType)
 		} else {
 			typeStr = "uuid"
 		}
@@ -211,175 +479,16 @@ func (column *ColumnSchema) String() string {
 	case TypeSet:
 		var keyStr string
 		if column.TypeObj.Key.Type == TypeUUID {
-			keyStr = fmt.Sprintf(" [%s (%s)]", column.TypeObj.Key.RefTable, column.TypeObj.Key.RefType)
+			keyStr = fmt.Sprintf(" [%s (%s)]", *column.TypeObj.Key.RefTable, *column.TypeObj.Key.RefType)
 		} else {
 			keyStr = string(column.TypeObj.Key.Type)
 		}
-		typeStr = fmt.Sprintf("[]%s (min: %d, max: %d)", keyStr, column.TypeObj.Min, column.TypeObj.Max)
+		typeStr = fmt.Sprintf("[]%s (min: %d, max: %d)", keyStr, column.TypeObj.Min(), column.TypeObj.Max())
 	default:
 		panic(fmt.Sprintf("Unsupported type %s", column.Type))
 	}
 
 	return strings.Join([]string{typeStr, flagStr}, " ")
-}
-
-// UnmarshalJSON unmarshalls a json-formatted column
-func (column *ColumnSchema) UnmarshalJSON(data []byte) error {
-	// ColumnJSON represents the known json values for a Column
-	type ColumnJSON struct {
-		TypeRawMsg json.RawMessage `json:"type"`
-		Ephemeral  bool            `json:"ephemeral,omitempty"`
-		Mutable    bool            `json:"mutable,omitempty"`
-	}
-	colJSON := ColumnJSON{
-		Mutable: true,
-	}
-
-	// Unmarshall known keys
-	if err := json.Unmarshal(data, &colJSON); err != nil {
-		return fmt.Errorf("cannot parse column object %s", err)
-	}
-
-	column.Ephemeral = colJSON.Ephemeral
-	column.Mutable = colJSON.Mutable
-
-	// 'type' can be a string or an object, let's figure it out
-	var typeString string
-	if err := json.Unmarshal(colJSON.TypeRawMsg, &typeString); err == nil {
-		if !isAtomicType(typeString) {
-			return fmt.Errorf("schema contains unknown atomic type %s", typeString)
-		}
-		// This was an easy one. Use the string as our 'extended' type
-		column.Type = typeString
-		return nil
-	}
-
-	// 'type' can be an object defined as:
-	// "key": <base-type>                 required
-	// "value": <base-type>               optional
-	// "min": <integer>                   optional (default: 1)
-	// "max": <integer> or "unlimited"    optional (default: 1)
-	column.TypeObj = &ColumnType{
-		Key:   &BaseType{},
-		Value: nil,
-		Max:   1,
-		Min:   1,
-	}
-
-	// ColumnTypeJSON is used to dynamically decode the ColumnType
-	type ColumnTypeJSON struct {
-		KeyRawMsg   *json.RawMessage `json:"key,omitempty"`
-		ValueRawMsg *json.RawMessage `json:"value,omitempty"`
-		Min         int              `json:"min,omitempty"`
-		MaxRawMsg   *json.RawMessage `json:"max,omitempty"`
-	}
-	colTypeJSON := ColumnTypeJSON{
-		Min: 1,
-	}
-
-	if err := json.Unmarshal(colJSON.TypeRawMsg, &colTypeJSON); err != nil {
-		return fmt.Errorf("cannot parse type object: %s", err)
-	}
-
-	// Now we have to unmarshall some fields manually because they can store
-	// values of different types. Also, in order to really know what native
-	// type can store a value of this column, the RFC defines some logic based
-	// on the values of 'type'. So, in addition to manually unmarshalling, let's
-	// figure out what is the real native type and store it in column.Type for
-	// ease of use.
-
-	// 'max' can be an integer or the string "unlimmited". To simplify, use -1
-	// as unlimited
-	if colTypeJSON.MaxRawMsg != nil {
-		var maxString string
-		if err := json.Unmarshal(*colTypeJSON.MaxRawMsg, &maxString); err == nil {
-			if maxString == "unlimited" {
-				column.TypeObj.Max = Unlimited
-			} else {
-				return fmt.Errorf("unknown max value %s", maxString)
-			}
-		} else if err := json.Unmarshal(*colTypeJSON.MaxRawMsg, &column.TypeObj.Max); err != nil {
-			return fmt.Errorf("cannot parse max field: %s", err)
-		}
-	}
-	column.TypeObj.Min = colTypeJSON.Min
-
-	// 'key' and 'value' can, themselves, be a string or a BaseType.
-	// key='<atomic_type>' is equivalent to 'key': {'type': '<atomic_type>'}
-	// To simplify things a bit, we'll translate the former to the latter
-
-	if err := json.Unmarshal(*colTypeJSON.KeyRawMsg, &column.TypeObj.Key.Type); err != nil {
-		if err := json.Unmarshal(*colTypeJSON.KeyRawMsg, column.TypeObj.Key); err != nil {
-			return fmt.Errorf("cannot parse key object: %s", err)
-		}
-		if err := column.TypeObj.Key.parseEnum(*colTypeJSON.KeyRawMsg); err != nil {
-			return err
-		}
-	}
-
-	if !isAtomicType(column.TypeObj.Key.Type) {
-		return fmt.Errorf("schema contains unknown atomic type %s", column.TypeObj.Key.Type)
-	}
-
-	// 'value' is optional. If it exists, we know the real native type is a map
-	if colTypeJSON.ValueRawMsg != nil {
-		column.TypeObj.Value = &BaseType{}
-		if err := json.Unmarshal(*colTypeJSON.ValueRawMsg, &column.TypeObj.Value.Type); err != nil {
-			if err := json.Unmarshal(*colTypeJSON.ValueRawMsg, &column.TypeObj.Value); err != nil {
-				return fmt.Errorf("cannot parse value object: %s", err)
-			}
-			if err := column.TypeObj.Value.parseEnum(*colTypeJSON.ValueRawMsg); err != nil {
-				return err
-			}
-		}
-		if !isAtomicType(column.TypeObj.Value.Type) {
-			return fmt.Errorf("schema contains unknown atomic type %s", column.TypeObj.Key.Type)
-		}
-	}
-
-	// Technially, we have finished unmarshalling. But let's finish infering the native
-	if column.TypeObj.Value != nil {
-		column.Type = TypeMap
-	} else if column.TypeObj.Min != 1 || column.TypeObj.Max != 1 {
-		column.Type = TypeSet
-	} else if len(column.TypeObj.Key.Enum) > 0 {
-		column.Type = TypeEnum
-	} else {
-		column.Type = column.TypeObj.Key.Type
-	}
-	return nil
-}
-
-// parseEnum decodes the enum field and populates the BaseType.Enum field
-func (bt *BaseType) parseEnum(rawData json.RawMessage) error {
-	// EnumJSON is used to dynamically decode the Enum values
-	type EnumJSON struct {
-		Enum interface{} `json:"enum,omitempty"`
-	}
-	var enumJSON EnumJSON
-
-	if err := json.Unmarshal(rawData, &enumJSON); err != nil {
-		return fmt.Errorf("cannot parse enum object: %s (%s)", string(rawData), err)
-	}
-	// enum is optional
-	if enumJSON.Enum == nil {
-		return nil
-	}
-
-	// 'enum' is a list or a single element representing a list of exactly one element
-	switch enumJSON.Enum.(type) {
-	case []interface{}:
-		// it's an OvsSet
-		oSet := enumJSON.Enum.([]interface{})
-		innerSet := oSet[1].([]interface{})
-		bt.Enum = make([]interface{}, len(innerSet))
-		for k, val := range innerSet {
-			bt.Enum[k] = val
-		}
-	default:
-		bt.Enum = []interface{}{enumJSON.Enum}
-	}
-	return nil
 }
 
 func isAtomicType(atype string) bool {

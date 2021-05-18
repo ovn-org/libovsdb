@@ -250,7 +250,7 @@ func validateMutationAtomic(atype string, mutator Mutator, value interface{}) er
 // ValidateMutation checks if the mutation value and mutator string area apropriate
 // for a given column based on the rules specified RFC7047
 func ValidateMutation(column *ColumnSchema, mutator Mutator, value interface{}) error {
-	if !column.Mutable {
+	if !column.Mutable() {
 		return fmt.Errorf("column is not mutable")
 	}
 	switch column.Type {
