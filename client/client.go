@@ -375,6 +375,11 @@ func (ovs OvsdbClient) Where(m Model, conditions ...Condition) ConditionalAPI {
 	return ovs.api.Where(m, conditions...)
 }
 
+//WhereAll implements the API interface's WhereAll function
+func (ovs OvsdbClient) WhereAll(m Model, conditions ...Condition) ConditionalAPI {
+	return ovs.api.WhereAll(m, conditions...)
+}
+
 //WhereCache implements the API interface's WhereCache function
 func (ovs OvsdbClient) WhereCache(predicate interface{}) ConditionalAPI {
 	return ovs.api.WhereCache(predicate)
