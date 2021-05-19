@@ -498,12 +498,8 @@ func TestMonitorCancelIntegration(t *testing.T) {
 	requests := make(map[string]ovsdb.MonitorRequest)
 	requests["Bridge"] = ovsdb.MonitorRequest{
 		Columns: []string{"name"},
-		Select: ovsdb.MonitorSelect{
-			Initial: true,
-			Insert:  true,
-			Delete:  true,
-			Modify:  true,
-		}}
+		Select:  ovsdb.NewDefaultMonitorSelect(),
+	}
 
 	err = ovs.Monitor(monitorID, requests)
 	if err != nil {

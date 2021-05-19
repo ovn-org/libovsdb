@@ -271,12 +271,8 @@ func (ovs OvsdbClient) MonitorAll(jsonContext interface{}) error {
 		}
 		requests[table] = ovsdb.MonitorRequest{
 			Columns: columns,
-			Select: ovsdb.MonitorSelect{
-				Initial: true,
-				Insert:  true,
-				Delete:  true,
-				Modify:  true,
-			}}
+			Select:  ovsdb.NewDefaultMonitorSelect(),
+		}
 	}
 	return ovs.Monitor(jsonContext, requests)
 }
