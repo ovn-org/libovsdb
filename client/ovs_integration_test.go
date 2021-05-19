@@ -547,7 +547,7 @@ func TestInsertDuplicateTransactIntegration(t *testing.T) {
 
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
 	ovsRow := ovsType{}
-	mutateOp, err := ovs.Where(ovs.ConditionFromFunc(func(*ovsType) bool { return true })).
+	mutateOp, err := ovs.WhereCache(func(*ovsType) bool { return true }).
 		Mutate(&ovsRow, []Mutation{
 			{
 				Field:   &ovsRow.Bridges,
