@@ -2,7 +2,6 @@ package client
 
 import (
 	"bytes"
-	"fmt"
 	"log"
 	"os"
 	"testing"
@@ -208,23 +207,14 @@ func TestInsertTransactIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(reply) < len(operations) {
-		t.Error("Number of Replies should be atleast equal to number of Operations")
-	}
-	ok := true
-	for i, o := range reply {
-		if o.Error != "" && i < len(operations) {
-			t.Error("Transaction Failed due to an error :", o.Error, " details:", o.Details, " in ", operations[i])
-			ok = false
-		} else if o.Error != "" {
-			t.Error("Transaction Failed due to an error :", o.Error)
-			ok = false
+	operationErrs, err := ovsdb.CheckOperationResults(reply, operations)
+	if err != nil {
+		for _, oe := range operationErrs {
+			t.Error(oe)
 		}
+		t.Fatal(err)
 	}
-	if ok {
-		fmt.Println("Bridge Addition Successful : ", reply[0].UUID.GoUUID)
-		bridgeUUID = reply[0].UUID.GoUUID
-	}
+	bridgeUUID = reply[0].UUID.GoUUID
 	ovs.Disconnect()
 }
 
@@ -266,21 +256,12 @@ func TestDeleteTransactIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(reply) < len(operations) {
-		t.Error("Number of Replies should be atleast equal to number of Operations")
-	}
-	ok := true
-	for i, o := range reply {
-		if o.Error != "" && i < len(operations) {
-			t.Error("Transaction Failed due to an error :", o.Error, " in ", operations[i])
-			ok = false
-		} else if o.Error != "" {
-			t.Error("Transaction Failed due to an error :", o.Error)
-			ok = false
+	operationErrs, err := ovsdb.CheckOperationResults(reply, operations)
+	if err != nil {
+		for _, oe := range operationErrs {
+			t.Error(oe)
 		}
-	}
-	if ok {
-		fmt.Println("Bridge Delete Successful", reply[0].Count)
+		t.Fatal(err)
 	}
 	ovs.Disconnect()
 }
@@ -330,7 +311,7 @@ func TestNotifyIntegration(t *testing.T) {
 
 	select {
 	case <-timeoutChan:
-		fmt.Println("Nothing changed to notify")
+		t.Fatal("timed out")
 	case <-notifyEchoChan:
 		break
 	}
@@ -534,5 +515,68 @@ func TestMonitorCancelIntegration(t *testing.T) {
 	if err != nil {
 		t.Error("MonitorCancel operation failed with error=", err)
 	}
+	ovs.Disconnect()
+}
+
+func TestInsertDuplicateTransactIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+	SetConfig()
+
+	ovs, err := Connect(cfg.Addr, defDB, nil)
+	if err != nil {
+		t.Fatalf("Failed to Connect. error: %s", err)
+	}
+	err = ovs.MonitorAll(nil)
+	assert.Nil(t, err)
+
+	// NamedUUID is used to add multiple related Operations in a single Transact operation
+	namedUUID := "gopher"
+	br := bridgeType{
+		UUID: namedUUID,
+		Name: "br-dup",
+		ExternalIds: map[string]string{
+			"go":     "awesome",
+			"docker": "made-for-each-other",
+		},
+	}
+
+	insertOp, err := ovs.Create(&br)
+	assert.Nil(t, err)
+
+	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
+	ovsRow := ovsType{}
+	mutateOp, err := ovs.Where(ovs.ConditionFromFunc(func(*ovsType) bool { return true })).
+		Mutate(&ovsRow, []Mutation{
+			{
+				Field:   &ovsRow.Bridges,
+				Mutator: ovsdb.MutateOperationInsert,
+				Value:   []string{namedUUID},
+			},
+		})
+	assert.Nil(t, err)
+
+	operations := append(insertOp, mutateOp...)
+	reply, err := ovs.Transact(operations...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	operationErrs, err := ovsdb.CheckOperationResults(reply, operations)
+	if err != nil {
+		for _, oe := range operationErrs {
+			t.Error(oe)
+		}
+		t.Fatal(err)
+	}
+	bridgeUUID = reply[0].UUID.GoUUID
+
+	reply, err = ovs.Transact(operations...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = ovsdb.CheckOperationResults(reply, operations)
+	assert.Error(t, err)
+	assert.IsType(t, &ovsdb.ConstraintViolation{}, err)
 	ovs.Disconnect()
 }
