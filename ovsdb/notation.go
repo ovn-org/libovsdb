@@ -2,6 +2,19 @@ package ovsdb
 
 import "encoding/json"
 
+const (
+	OperationInsert  = "insert"
+	OperationSelect  = "select"
+	OperationUpdate  = "update"
+	OperationMutate  = "mutate"
+	OperationDelete  = "delete"
+	OperationWait    = "wait"
+	OperationCommit  = "commit"
+	OperationAbort   = "abort"
+	OperationComment = "comment"
+	OperationAssert  = "assert"
+)
+
 // Operation represents an operation according to RFC7047 section 5.2
 type Operation struct {
 	Op        string                   `json:"op"`
@@ -13,6 +26,9 @@ type Operation struct {
 	Timeout   int                      `json:"timeout,omitempty"`
 	Where     []Condition              `json:"where,omitempty"`
 	Until     string                   `json:"until,omitempty"`
+	Durable   *bool                    `json:"durable,omitempty"`
+	Comment   *string                  `json:"comment,omitempty"`
+	Lock      *string                  `json:"lock,omitempty"`
 	UUIDName  string                   `json:"uuid-name,omitempty"`
 }
 
