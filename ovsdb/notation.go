@@ -9,7 +9,7 @@ type Operation struct {
 	Row       map[string]interface{}   `json:"row,omitempty"`
 	Rows      []map[string]interface{} `json:"rows,omitempty"`
 	Columns   []string                 `json:"columns,omitempty"`
-	Mutations []interface{}            `json:"mutations,omitempty"`
+	Mutations []Mutation               `json:"mutations,omitempty"`
 	Timeout   int                      `json:"timeout,omitempty"`
 	Where     []Condition              `json:"where,omitempty"`
 	Until     string                   `json:"until,omitempty"`
@@ -83,11 +83,6 @@ type OvsdbError struct {
 	Details string `json:"details,omitempty"`
 }
 
-// NewMutation creates a new mutation as specified in RFC7047
-func NewMutation(column string, mutator string, value interface{}) []interface{} {
-	return []interface{}{column, mutator, value}
-}
-
 // TransactResponse represents the response to a Transact Operation
 type TransactResponse struct {
 	Result []OperationResult `json:"result"`
@@ -129,15 +124,3 @@ func ovsSliceToGoNotation(val interface{}) (interface{}, error) {
 	}
 	return val, nil
 }
-
-type Mutator string
-
-const (
-	MutateOperationDelete    Mutator = "delete"
-	MutateOperationInsert    Mutator = "insert"
-	MutateOperationAdd       Mutator = "+="
-	MutateOperationSubstract Mutator = "-="
-	MutateOperationMultiply  Mutator = "*="
-	MutateOperationDivide    Mutator = "/="
-	MutateOperationModulo    Mutator = "%="
-)

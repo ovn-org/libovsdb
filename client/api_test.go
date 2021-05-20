@@ -662,7 +662,7 @@ func TestAPIMutate(t *testing.T) {
 				{
 					Op:        opMutate,
 					Table:     "Logical_Switch_Port",
-					Mutations: []interface{}{[]interface{}{"tag", ovsdb.MutateOperationInsert, testOvsSet(t, []int{5})}},
+					Mutations: []ovsdb.Mutation{{Column: "tag", Mutator: ovsdb.MutateOperationInsert, Value: testOvsSet(t, []int{5})}},
 					Where:     []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID0}}},
 				},
 			},
@@ -686,7 +686,7 @@ func TestAPIMutate(t *testing.T) {
 				{
 					Op:        opMutate,
 					Table:     "Logical_Switch_Port",
-					Mutations: []interface{}{[]interface{}{"external_ids", ovsdb.MutateOperationDelete, testOvsSet(t, []string{"foo"})}},
+					Mutations: []ovsdb.Mutation{{Column: "external_ids", Mutator: ovsdb.MutateOperationDelete, Value: testOvsSet(t, []string{"foo"})}},
 					Where:     []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "lsp2"}},
 				},
 			},
@@ -710,7 +710,7 @@ func TestAPIMutate(t *testing.T) {
 				{
 					Op:        opMutate,
 					Table:     "Logical_Switch_Port",
-					Mutations: []interface{}{[]interface{}{"external_ids", ovsdb.MutateOperationInsert, testOvsMap(t, map[string]string{"bar": "baz"})}},
+					Mutations: []ovsdb.Mutation{{Column: "external_ids", Mutator: ovsdb.MutateOperationInsert, Value: testOvsMap(t, map[string]string{"bar": "baz"})}},
 					Where:     []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID2}}},
 				},
 			},
@@ -734,13 +734,13 @@ func TestAPIMutate(t *testing.T) {
 				{
 					Op:        opMutate,
 					Table:     "Logical_Switch_Port",
-					Mutations: []interface{}{[]interface{}{"external_ids", ovsdb.MutateOperationInsert, testOvsMap(t, map[string]string{"bar": "baz"})}},
+					Mutations: []ovsdb.Mutation{{Column: "external_ids", Mutator: ovsdb.MutateOperationInsert, Value: testOvsMap(t, map[string]string{"bar": "baz"})}},
 					Where:     []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID0}}},
 				},
 				{
 					Op:        opMutate,
 					Table:     "Logical_Switch_Port",
-					Mutations: []interface{}{[]interface{}{"external_ids", ovsdb.MutateOperationInsert, testOvsMap(t, map[string]string{"bar": "baz"})}},
+					Mutations: []ovsdb.Mutation{{Column: "external_ids", Mutator: ovsdb.MutateOperationInsert, Value: testOvsMap(t, map[string]string{"bar": "baz"})}},
 					Where:     []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID1}}},
 				},
 			},
