@@ -310,6 +310,20 @@ func (ovs OvsdbClient) Monitor(jsonContext interface{}, requests map[string]ovsd
 	return nil
 }
 
+// Echo tests the liveness of the OVSDB connetion
+func (ovs *OvsdbClient) Echo() error {
+	args := ovsdb.NewEchoArgs()
+	var reply []interface{}
+	err := ovs.rpcClient.Call("echo", args, &reply)
+	if err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(args, reply) {
+		return fmt.Errorf("incorrect server response: %v, %v", args, reply)
+	}
+	return nil
+}
+
 func (ovs *OvsdbClient) clearConnection() {
 	for _, handler := range ovs.handlers {
 		if handler != nil {
