@@ -73,26 +73,6 @@ type MonitorRequest struct {
 	Select  *MonitorSelect `json:"select,omitempty"`
 }
 
-// TableUpdates is a collection of TableUpdate entries
-// We cannot use TableUpdates directly by json encoding by inlining the TableUpdate Map
-// structure till GoLang issue #6213 makes it.
-// The only option is to go with raw map[string]map[string]interface{} option :-( that sucks !
-// Refer to client.go : MonitorAll() function for more details
-type TableUpdates struct {
-	Updates map[string]TableUpdate `json:"updates"`
-}
-
-// TableUpdate represents a table update according to RFC7047
-type TableUpdate struct {
-	Rows map[string]RowUpdate `json:"rows"`
-}
-
-// RowUpdate represents a row update according to RFC7047
-type RowUpdate struct {
-	New Row `json:"new,omitempty"`
-	Old Row `json:"old,omitempty"`
-}
-
 // OvsdbError is an OVS Error Condition
 type OvsdbError struct {
 	Error   string `json:"error"`

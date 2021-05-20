@@ -29,19 +29,15 @@ func testOvsMap(t *testing.T, set interface{}) *ovsdb.OvsMap {
 }
 
 func updateBenchmark(bridges []string, b *testing.B) {
-	bridgeInsert := ovsdb.TableUpdate{
-		Rows: make(map[string]ovsdb.RowUpdate),
-	}
+	bridgeInsert := make(ovsdb.TableUpdate)
 	for _, br := range bridges {
 		r := newBridgeRow(br)
-		bridgeInsert.Rows[br] = ovsdb.RowUpdate{New: r}
+		bridgeInsert[br] = &ovsdb.RowUpdate{New: r}
 	}
 	ovsUpdate := ovsdb.TableUpdate{
-		Rows: map[string]ovsdb.RowUpdate{
-			"829f8534-94a8-468e-9176-132738cf260a": {Old: newOvsRow([]string{}), New: newOvsRow(bridges)},
-		},
+		"829f8534-94a8-468e-9176-132738cf260a": &ovsdb.RowUpdate{Old: newOvsRow([]string{}), New: newOvsRow(bridges)},
 	}
-	tu := map[string]interface{}{
+	tu := ovsdb.TableUpdates{
 		"Open_vSwitch": ovsUpdate,
 		"Bridge":       bridgeInsert,
 	}
@@ -61,8 +57,8 @@ func updateBenchmark(bridges []string, b *testing.B) {
 	}
 }
 
-func newBridgeRow(name string) ovsdb.Row {
-	return ovsdb.Row{
+func newBridgeRow(name string) *ovsdb.Row {
+	return &ovsdb.Row{
 		Fields: map[string]interface{}{
 			"connection_mode":       []string{},
 			"controller":            []string{},
@@ -90,8 +86,8 @@ func newBridgeRow(name string) ovsdb.Row {
 	}
 }
 
-func newOvsRow(bridges []string) ovsdb.Row {
-	return ovsdb.Row{
+func newOvsRow(bridges []string) *ovsdb.Row {
+	return &ovsdb.Row{
 		Fields: map[string]interface{}{
 			"bridges":          bridges,
 			"cur_cfg":          0,

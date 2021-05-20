@@ -199,19 +199,18 @@ func (ovs *OvsdbClient) update(params []interface{}) error {
 	if !ok {
 		return fmt.Errorf("invalid update message")
 	}
-	var rowUpdates map[string]map[string]ovsdb.RowUpdate
+	var tableUpdates ovsdb.TableUpdates
 
 	b, err := json.Marshal(raw)
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(b, &rowUpdates)
+	err = json.Unmarshal(b, &tableUpdates)
 	if err != nil {
 		return err
 	}
 
 	// Update the local DB cache with the tableUpdates
-	tableUpdates := getTableUpdatesFromRawUnmarshal(rowUpdates)
 	ovs.handlersMutex.Lock()
 	defer ovs.handlersMutex.Unlock()
 	for _, handler := range ovs.handlers {
@@ -303,26 +302,12 @@ func (ovs OvsdbClient) Monitor(jsonContext interface{}, requests map[string]ovsd
 	var reply ovsdb.TableUpdates
 
 	args := ovsdb.NewMonitorArgs(ovs.Schema.Name, jsonContext, requests)
-
-	// This totally sucks. Refer to golang JSON issue #6213
-	var response map[string]map[string]ovsdb.RowUpdate
-	err := ovs.rpcClient.Call("monitor", args, &response)
-	reply = getTableUpdatesFromRawUnmarshal(response)
+	err := ovs.rpcClient.Call("monitor", args, &reply)
 	if err != nil {
 		return err
 	}
 	ovs.Cache.populate(reply)
 	return nil
-}
-
-func getTableUpdatesFromRawUnmarshal(raw map[string]map[string]ovsdb.RowUpdate) ovsdb.TableUpdates {
-	var tableUpdates ovsdb.TableUpdates
-	tableUpdates.Updates = make(map[string]ovsdb.TableUpdate)
-	for table, update := range raw {
-		tableUpdate := ovsdb.TableUpdate{Rows: update}
-		tableUpdates.Updates[table] = tableUpdate
-	}
-	return tableUpdates
 }
 
 func (ovs *OvsdbClient) clearConnection() {
