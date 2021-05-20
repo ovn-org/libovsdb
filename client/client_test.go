@@ -50,7 +50,8 @@ func updateBenchmark(bridges []string, b *testing.B) {
 		if len(params) != 2 {
 			b.Fatalf("Params not 2")
 		}
-		err := ovs.update(params)
+		var reply []interface{}
+		err := ovs.update(params, &reply)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -151,14 +152,15 @@ func TestUpdate(t *testing.T) {
 		handlers:      []ovsdb.NotificationHandler{},
 		handlersMutex: &sync.Mutex{},
 	}
+	var reply []interface{}
 	// Update notification should fail for arrays of size < 2
-	err := ovs.update([]interface{}{"hello"})
+	err := ovs.update([]interface{}{"hello"}, &reply)
 	if err == nil {
 		t.Error("Expected: error for a dummy request")
 	}
 
-	// Update notification should fail if arg[1] is not map[string]map[string]RowUpdate type
-	err = ovs.update([]interface{}{"hello", "gophers"})
+	// Update notification should fail if arg[1] is not map[string]map[string]*RowUpdate type
+	err = ovs.update([]interface{}{"hello", "gophers"}, &reply)
 	if err == nil {
 		t.Error("Expected: error for a dummy request")
 	}
@@ -169,7 +171,7 @@ func TestUpdate(t *testing.T) {
 	validRowUpdate["uuid"] = ovsdb.RowUpdate{}
 	validUpdate["table"] = validRowUpdate
 
-	err = ovs.update([]interface{}{"hello", validUpdate})
+	err = ovs.update([]interface{}{"hello", validUpdate}, &reply)
 	if err != nil {
 		t.Error(err)
 	}
