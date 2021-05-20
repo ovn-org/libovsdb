@@ -53,12 +53,7 @@ func TestNewMonitorArgs(t *testing.T) {
 	value := 1
 	r := MonitorRequest{
 		Columns: []string{"name", "ports", "external_ids"},
-		Select: MonitorSelect{
-			Initial: true,
-			Insert:  true,
-			Delete:  true,
-			Modify:  true,
-		},
+		Select:  NewDefaultMonitorSelect(),
 	}
 	requests := make(map[string]MonitorRequest)
 	requests["Bridge"] = r

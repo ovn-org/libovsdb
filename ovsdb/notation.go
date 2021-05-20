@@ -53,16 +53,8 @@ type MonitorRequests struct {
 
 // MonitorRequest represents a monitor request according to RFC7047
 type MonitorRequest struct {
-	Columns []string      `json:"columns,omitempty"`
-	Select  MonitorSelect `json:"select,omitempty"`
-}
-
-// MonitorSelect represents a monitor select according to RFC7047
-type MonitorSelect struct {
-	Initial bool `json:"initial,omitempty"`
-	Insert  bool `json:"insert,omitempty"`
-	Delete  bool `json:"delete,omitempty"`
-	Modify  bool `json:"modify,omitempty"`
+	Columns []string       `json:"columns,omitempty"`
+	Select  *MonitorSelect `json:"select,omitempty"`
 }
 
 // TableUpdates is a collection of TableUpdate entries
