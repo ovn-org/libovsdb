@@ -92,7 +92,7 @@ func newRPC2Client(conn net.Conn, database *model.DBModel) (*OvsdbClient, error)
 	ovs.rpcClient.Handle("echo", func(_ *rpc2.Client, args []interface{}, reply *[]interface{}) error {
 		return ovs.echo(args, reply)
 	})
-	ovs.rpcClient.Handle("update", func(_ *rpc2.Client, args []interface{}, reply *[]interface{}) error {
+	ovs.rpcClient.Handle("update", func(_ *rpc2.Client, args []json.RawMessage, reply *[]interface{}) error {
 		return ovs.update(args, reply)
 	})
 	go ovs.rpcClient.Run()
@@ -188,27 +188,25 @@ func (ovs *OvsdbClient) echo(args []interface{}, reply *[]interface{}) error {
 }
 
 // RFC 7047 : Update Notification Section 4.1.6
-// Processing "params": [<json-value>, <table-updates>]
-func (ovs *OvsdbClient) update(params []interface{}, reply *[]interface{}) error {
-	if len(params) != 2 {
-		return fmt.Errorf("invalid update message")
+func (ovs *OvsdbClient) update(args []json.RawMessage, reply *[]interface{}) error {
+	var value string
+	if len(args) > 2 {
+		return fmt.Errorf("update requires exactly 2 args")
 	}
-	// Ignore params[0] as we dont use the <json-value> currently for comparison
-	var tableUpdates ovsdb.TableUpdates
-	b, err := json.Marshal(params[1])
+	err := json.Unmarshal(args[0], &value)
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(b, &tableUpdates)
+	var updates ovsdb.TableUpdates
+	err = json.Unmarshal(args[1], &updates)
 	if err != nil {
 		return err
 	}
-
 	// Update the local DB cache with the tableUpdates
 	ovs.handlersMutex.Lock()
 	defer ovs.handlersMutex.Unlock()
 	for _, handler := range ovs.handlers {
-		handler.Update(params[0], tableUpdates)
+		handler.Update(value, updates)
 	}
 	*reply = []interface{}{}
 	return nil

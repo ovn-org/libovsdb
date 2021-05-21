@@ -1,6 +1,8 @@
 package ovsdb
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 const (
 	OperationInsert  = "insert"
@@ -101,7 +103,6 @@ func ovsSliceToGoNotation(val interface{}) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-
 		switch sl[0] {
 		case "uuid", "named-uuid":
 			var uuid UUID

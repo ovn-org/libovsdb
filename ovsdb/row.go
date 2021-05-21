@@ -22,6 +22,10 @@ func (r *Row) UnmarshalJSON(b []byte) (err error) {
 	return err
 }
 
+func (r Row) MarshalJSON() ([]byte, error) {
+	return json.Marshal(r.Fields)
+}
+
 // ResultRow is an properly unmarshalled row returned by Transact
 type ResultRow map[string]interface{}
 

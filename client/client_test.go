@@ -1,7 +1,9 @@
 package client
 
 import (
+	"encoding/json"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 
@@ -28,28 +30,13 @@ func testOvsMap(t *testing.T, set interface{}) *ovsdb.OvsMap {
 	return oMap
 }
 
-func updateBenchmark(bridges []string, b *testing.B) {
-	bridgeInsert := make(ovsdb.TableUpdate)
-	for _, br := range bridges {
-		r := newBridgeRow(br)
-		bridgeInsert[br] = &ovsdb.RowUpdate{New: r}
-	}
-	ovsUpdate := ovsdb.TableUpdate{
-		"829f8534-94a8-468e-9176-132738cf260a": &ovsdb.RowUpdate{Old: newOvsRow([]string{}), New: newOvsRow(bridges)},
-	}
-	tu := ovsdb.TableUpdates{
-		"Open_vSwitch": ovsUpdate,
-		"Bridge":       bridgeInsert,
-	}
+func updateBenchmark(updates []byte, b *testing.B) {
 	ovs := OvsdbClient{
 		handlers:      []ovsdb.NotificationHandler{},
 		handlersMutex: &sync.Mutex{},
 	}
 	for n := 0; n < b.N; n++ {
-		params := []interface{}{"v1", tu}
-		if len(params) != 2 {
-			b.Fatalf("Params not 2")
-		}
+		params := []json.RawMessage{[]byte(`"v1"`), updates}
 		var reply []interface{}
 		err := ovs.update(params, &reply)
 		if err != nil {
@@ -58,77 +45,127 @@ func updateBenchmark(bridges []string, b *testing.B) {
 	}
 }
 
-func newBridgeRow(name string) *ovsdb.Row {
-	return &ovsdb.Row{
-		Fields: map[string]interface{}{
-			"connection_mode":       []string{},
-			"controller":            []string{},
-			"datapath_id":           "blablabla",
-			"datapath_type":         "",
-			"datapath_version":      "",
-			"external_ids":          map[string]string{"foo": "bar"},
-			"fail_mode":             []string{},
-			"flood_vlans":           []string{},
-			"flow_tables":           map[string]string{},
-			"ipfix":                 []string{},
-			"mcast_snooping_enable": false,
-			"mirrors":               []string{},
-			"name":                  name,
-			"netflow":               []string{},
-			"other_config":          map[string]string{"baz": "quux"},
-			"ports":                 []string{},
-			"protocols":             []string{},
-			"rstp_enable":           false,
-			"rstp_status":           map[string]string{},
-			"sflow":                 []string{},
-			"status":                map[string]string{},
-			"stp_enable":            false,
-		},
-	}
+func newBridgeRow(name string) string {
+	return `{
+		"connection_mode": [ "set", [] ],
+		"controller": [ "set", [] ],
+		"datapath_id": "blablabla",
+		"datapath_type": "",
+		"datapath_version": "",
+		"external_ids": [ "map", [["foo","bar"]]],
+		"fail_mode": [ "set", [] ],
+		"flood_vlans": [ "set", [] ],
+		"flow_tables": [ "map", [] ],
+		"ipfix": [ "set", [] ],
+		"mcast_snooping_enable": false,
+		"mirrors": [ "set", [] ],
+		"name": "` + name + `",
+		"netflow": [ "set", [] ],
+		"other_config": [ "map", [["bar","quux"]]],
+		"ports": [ "set", [] ],
+		"protocols": [ "set", [] ],
+		"rstp_enable": false,
+		"rstp_status": [ "map", [] ],
+		"sflow": [ "set", [] ],
+		"status": [ "map", [] ],
+		"stp_enable": false
+	}`
 }
 
-func newOvsRow(bridges []string) *ovsdb.Row {
-	return &ovsdb.Row{
-		Fields: map[string]interface{}{
-			"bridges":          bridges,
-			"cur_cfg":          0,
-			"datapath_types":   []string{},
-			"datapaths":        map[string]string{},
-			"db_version":       "8.2.0",
-			"dpdk_initialized": false,
-			"dpdk_version":     []string{},
-			"external_ids":     map[string]string{"system-id": "829f8534-94a8-468e-9176-132738cf260a"},
-			"iface_types":      []string{},
-			"manager_options":  "6e4cd5fc-f51a-462a-b3d6-a696af6d7a84",
-			"next_cfg":         0,
-			"other_config":     map[string]string{},
-			"ovs_version":      "2.15.90",
-			"ssl":              []string{},
-			"statistics":       map[string]string{},
-			"system_type":      "docker-ovs",
-			"system_version":   "0.1",
-		},
-	}
+func newOvsRow(bridges ...string) string {
+	return `{
+		"bridges": [ "set", ["` + strings.Join(bridges, `","`) + `"]],
+		"cur_cfg": 0,
+		"datapath_types": [ "set", [] ],
+		"datapaths": [ "map", [] ],
+		"db_version":       "8.2.0",
+		"dpdk_initialized": false,
+		"dpdk_version":     [ "set", [] ],
+		"external_ids":     [ "map", [["system-id","829f8534-94a8-468e-9176-132738cf260a"]]],
+		"iface_types":      [ "set", [] ],
+		"manager_options":  "6e4cd5fc-f51a-462a-b3d6-a696af6d7a84",
+		"next_cfg":         0,
+		"other_config":     [ "map", [] ],
+		"ovs_version":      "2.15.90",
+		"ssl":              [ "set", [] ],
+		"statistics":       [ "map", [] ],
+		"system_type":      "docker-ovs",
+		"system_version":   "0.1"
+	}`
 }
 
 func BenchmarkUpdate1(b *testing.B) {
-	updateBenchmark([]string{"foo"}, b)
+	update := []byte(`{
+		"Open_vSwitch": {
+			"ovs": ` + newOvsRow("foo") + `
+		},
+		"Bridge": {
+			"foo": ` + newBridgeRow("foo") + `
+		}
+	}`)
+	updateBenchmark(update, b)
 }
 
 func BenchmarkUpdate2(b *testing.B) {
-	updateBenchmark([]string{"foo", "bar"}, b)
+	update := []byte(`{
+		"Open_vSwitch": {
+			"ovs": ` + newOvsRow("foo", "bar") + `
+		},
+		"Bridge": {
+			"foo": ` + newBridgeRow("foo") + `,
+			"bar": ` + newBridgeRow("bar") + `
+		}
+	}`)
+	updateBenchmark(update, b)
 }
 
 func BenchmarkUpdate3(b *testing.B) {
-	updateBenchmark([]string{"foo", "bar", "baz"}, b)
+	update := []byte(`{
+		"Open_vSwitch": {
+			"ovs": ` + newOvsRow("foo", "bar", "baz") + `
+		},
+		"Bridge": {
+			"foo": ` + newBridgeRow("foo") + `,
+			"bar": ` + newBridgeRow("bar") + `,
+			"baz": ` + newBridgeRow("baz") + `
+		}
+	}`)
+	updateBenchmark(update, b)
 }
 
 func BenchmarkUpdate5(b *testing.B) {
-	updateBenchmark([]string{"foo", "bar", "baz", "quux", "foofoo"}, b)
+	update := []byte(`{
+		"Open_vSwitch": {
+			"ovs": ` + newOvsRow("foo", "bar", "baz", "quux", "foofoo") + `
+		},
+		"Bridge": {
+			"foo": ` + newBridgeRow("foo") + `,
+			"bar": ` + newBridgeRow("bar") + `,
+			"baz": ` + newBridgeRow("baz") + `,
+			"quux": ` + newBridgeRow("quux") + `,
+			"foofoo": ` + newBridgeRow("foofoo") + `
+		}
+	}`)
+	updateBenchmark(update, b)
 }
 
 func BenchmarkUpdate8(b *testing.B) {
-	updateBenchmark([]string{"foo", "bar", "baz", "quux", "foofoo", "foobar", "foobaz", "fooquux"}, b)
+	update := []byte(`{
+		"Open_vSwitch": {
+			"ovs": ` + newOvsRow("foo", "bar", "baz", "quux", "foofoo", "foobar", "foobaz", "fooquux") + `
+		},
+		"Bridge": {
+			"foo": ` + newBridgeRow("foo") + `,
+			"bar": ` + newBridgeRow("bar") + `,
+			"baz": ` + newBridgeRow("baz") + `,
+			"quux": ` + newBridgeRow("quux") + `,
+			"foofoo": ` + newBridgeRow("foofoo") + `,
+			"foobar": ` + newBridgeRow("foobar") + `,
+			"foobaz": ` + newBridgeRow("foobaz") + `,
+			"fooquux": ` + newBridgeRow("fooquux") + `
+		}
+	}`)
+	updateBenchmark(update, b)
 }
 
 func TestEcho(t *testing.T) {
@@ -153,25 +190,16 @@ func TestUpdate(t *testing.T) {
 		handlersMutex: &sync.Mutex{},
 	}
 	var reply []interface{}
-	// Update notification should fail for arrays of size < 2
-	err := ovs.update([]interface{}{"hello"}, &reply)
-	if err == nil {
-		t.Error("Expected: error for a dummy request")
+	validUpdate := ovsdb.TableUpdates{
+		"table": {
+			"uuid": &ovsdb.RowUpdate{},
+		},
 	}
-
-	// Update notification should fail if arg[1] is not map[string]map[string]*RowUpdate type
-	err = ovs.update([]interface{}{"hello", "gophers"}, &reply)
-	if err == nil {
-		t.Error("Expected: error for a dummy request")
+	b, err := json.Marshal(validUpdate)
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	// Valid dummy update should pass
-	validUpdate := make(map[string]interface{})
-	validRowUpdate := make(map[string]ovsdb.RowUpdate)
-	validRowUpdate["uuid"] = ovsdb.RowUpdate{}
-	validUpdate["table"] = validRowUpdate
-
-	err = ovs.update([]interface{}{"hello", validUpdate}, &reply)
+	err = ovs.update([]json.RawMessage{[]byte(`"hello"`), b}, &reply)
 	if err != nil {
 		t.Error(err)
 	}
