@@ -36,6 +36,7 @@ var (
 	connection = flag.String("ovsdb", "unix:/var/run/openvswitch/db.sock", "OVSDB connection string")
 	dbModel    *client.DBModel
 
+	ready      bool
 	rootUUID   string
 	insertions int
 	deletions  int
@@ -50,10 +51,17 @@ func run() {
 	ovs.Cache.AddEventHandler(
 		&client.EventHandlerFuncs{
 			AddFunc: func(table string, model client.Model) {
-				insertions++
+				if ready && table == "Bridge" {
+					insertions++
+					if *verbose {
+						fmt.Printf(".")
+					}
+				}
 			},
 			DeleteFunc: func(table string, model client.Model) {
-				deletions++
+				if table == "Bridge" {
+					deletions++
+				}
 			},
 		},
 	)
@@ -66,19 +74,23 @@ func run() {
 	for _, uuid := range ovs.Cache.Table("Open_vSwitch").Rows() {
 		rootUUID = uuid
 		if *verbose {
-			fmt.Printf("rootUUID is %v", rootUUID)
+			fmt.Printf("rootUUID is %v\n", rootUUID)
 		}
 	}
 
 	// Remove all existing bridges
 	var bridges []ormBridge
-	if err := ovs.List(&bridges); err != nil {
-		log.Fatal(err)
-	}
-	for _, bridge := range bridges {
-		deleteBridge(ovs, &bridge)
+	if err := ovs.List(&bridges); err == nil {
+		for _, bridge := range bridges {
+			deleteBridge(ovs, &bridge)
+		}
+	} else {
+		if err != client.ErrNotFound {
+			log.Fatal(err)
+		}
 	}
 
+	ready = true
 	for i := 0; i < *nins; i++ {
 		createBridge(ovs, i)
 	}
@@ -109,7 +121,7 @@ func deleteBridge(ovs *client.OvsdbClient, bridge *ormBridge) {
 
 	mutateOp, err := ovs.Where(&ovsRow).Mutate(&ovsRow, client.Mutation{
 		Field:   &ovsRow.Bridges,
-		Mutator: "delete",
+		Mutator: ovsdb.MutateOperationDelete,
 		Value:   []string{bridge.UUID},
 	})
 	if err != nil {
@@ -145,7 +157,7 @@ func createBridge(ovs *client.OvsdbClient, iter int) {
 	ovsRow := ormOvs{}
 	mutateOp, err := ovs.Where(&ormOvs{UUID: rootUUID}).Mutate(&ovsRow, client.Mutation{
 		Field:   &ovsRow.Bridges,
-		Mutator: "insert",
+		Mutator: ovsdb.MutateOperationInsert,
 		Value:   []string{bridge.UUID},
 	})
 	if err != nil {
@@ -181,6 +193,7 @@ func main() {
 
 	run()
 
+	fmt.Printf("\n\n\n")
 	fmt.Printf("Summary:\n")
 	fmt.Printf("\tInsertions: %d\n", insertions)
 	fmt.Printf("\tDeletions: %d\n", deletions)
