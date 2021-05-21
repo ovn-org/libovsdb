@@ -190,17 +190,12 @@ func (ovs *OvsdbClient) echo(args []interface{}, reply *[]interface{}) error {
 // RFC 7047 : Update Notification Section 4.1.6
 // Processing "params": [<json-value>, <table-updates>]
 func (ovs *OvsdbClient) update(params []interface{}, reply *[]interface{}) error {
-	if len(params) < 2 {
+	if len(params) != 2 {
 		return fmt.Errorf("invalid update message")
 	}
 	// Ignore params[0] as we dont use the <json-value> currently for comparison
-	raw, ok := params[1].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("invalid update message")
-	}
 	var tableUpdates ovsdb.TableUpdates
-
-	b, err := json.Marshal(raw)
+	b, err := json.Marshal(params[1])
 	if err != nil {
 		return err
 	}
