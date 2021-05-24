@@ -72,12 +72,11 @@ func createBridge(ovs *client.OvsdbClient, bridgeName string) {
 	ovsRow := ormOvs{
 		UUID: rootUUID,
 	}
-	mutateOps, err := ovs.Where(&ovsRow).Mutate(&ovsRow, []client.Mutation{
-		{
-			Field:   &ovsRow.Bridges,
-			Mutator: "insert",
-			Value:   []string{bridge.UUID},
-		}})
+	mutateOps, err := ovs.Where(&ovsRow).Mutate(&ovsRow, client.Mutation{
+		Field:   &ovsRow.Bridges,
+		Mutator: "insert",
+		Value:   []string{bridge.UUID},
+	})
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -745,12 +745,22 @@ func TestAPIMutate(t *testing.T) {
 			},
 			err: false,
 		},
+		{
+			name: "No mutations should error",
+			condition: func(a API) ConditionalAPI {
+				return a.WhereCache(func(lsp *testLogicalSwitchPort) bool {
+					return lsp.Type == "someType"
+				})
+			},
+			mutations: []Mutation{},
+			err:       true,
+		},
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiMutate: %s", tt.name), func(t *testing.T) {
 			api := newAPI(cache)
 			cond := tt.condition(api)
-			ops, err := cond.Mutate(&testObj, tt.mutations)
+			ops, err := cond.Mutate(&testObj, tt.mutations...)
 			if tt.err {
 				assert.NotNil(t, err)
 			} else {

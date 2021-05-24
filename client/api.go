@@ -61,7 +61,7 @@ type ConditionalAPI interface {
 	// Mutate returns the operations needed to perform the mutation specified
 	// By the model and the list of Mutation objects
 	// Depending on the Condition, it might return one or many operations
-	Mutate(Model, []Mutation) ([]ovsdb.Operation, error)
+	Mutate(Model, ...Mutation) ([]ovsdb.Operation, error)
 
 	// Update returns the operations needed to update any number of rows according
 	// to the data in the given model.
@@ -325,9 +325,13 @@ func (a api) Create(models ...Model) ([]ovsdb.Operation, error) {
 }
 
 // Mutate returns the operations needed to transform the one Model into another one
-func (a api) Mutate(model Model, mutationObjs []Mutation) ([]ovsdb.Operation, error) {
+func (a api) Mutate(model Model, mutationObjs ...Mutation) ([]ovsdb.Operation, error) {
 	var mutations []interface{}
 	var operations []ovsdb.Operation
+
+	if len(mutationObjs) < 1 {
+		return nil, fmt.Errorf("At least one Mutation must be provided")
+	}
 
 	tableName := a.cache.dbModel.FindTable(reflect.ValueOf(model).Type())
 	table := a.cache.orm.schema.Table(tableName)
