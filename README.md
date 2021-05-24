@@ -63,7 +63,7 @@ conditions into a single operation. Therefore the operation will affect the rows
 `List()`. However, it can also be used to create server-side operations (such as `Delete()`, `Update()` or `Delete()`). If used this way, it will
 create an equality condition (using `ovsdb.ConditionEqual`) on the `_uuid` field for every matching row. Example:
 
-    lsList := []LogicalSwitch {}
+    lsList := []LogicalSwitch{}
     ovs.WhereCache(
         func(ls *MyLogicalSwitch) bool {
             return strings.HasPrefix(ls.Name, "ext_")
@@ -89,7 +89,7 @@ This package is divided into two subpackages. Documentation for each subpackage 
 
 List the content of the database:
 
-    var lsList &[]MyLogicalSwitch
+    var lsList *[]MyLogicalSwitch
     ovs.List(lsList)
 
     for _, ls := range lsList {
@@ -98,7 +98,7 @@ List the content of the database:
 
 Search the cache for elements that match a certain predicate:
 
-    var lsList &[]MyLogicalSwitch
+    var lsList *[]MyLogicalSwitch
     ovs.WhereCache(
         func(ls *MyLogicalSwitch) bool {
             return strings.HasPrefix(ls.Name, "ext_")
@@ -118,7 +118,7 @@ Create a new element
 
 Get an element:
 
-    ls := &MyLogicalSwitch {Name="foo"} // "name" is in the table index list
+    ls := &MyLogicalSwitch{Name: "foo"} // "name" is in the table index list
     ovs.Get(ls)
 
 And update it:
@@ -132,7 +132,7 @@ Or mutate an it:
     ops, _ := ovs.Where(ls).Mutate(ls, ovs.Mutation {
             Field:   &ls.Config,
             Mutator: ovsdb.MutateOperationInsert,
-            Value:   map[string]string{"foo":"bar"},
+            Value:   map[string]string{"foo": "bar"},
         })
     ovs.Transact(ops...)
 
