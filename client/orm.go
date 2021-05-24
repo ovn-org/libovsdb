@@ -45,8 +45,7 @@ func (e *ErrNoTable) Error() string {
 	return fmt.Sprintf("Table not found: %s", e.table)
 }
 
-// NewErrNoTable creates a new ErrNoTable
-func NewErrNoTable(table string) error {
+func newErrNoTable(table string) error {
 	return &ErrNoTable{
 		table: table,
 	}
@@ -74,7 +73,7 @@ func (o orm) getRowData(tableName string, row *ovsdb.Row, result interface{}) er
 func (o orm) getData(tableName string, ovsData map[string]interface{}, result interface{}) error {
 	table := o.schema.Table(tableName)
 	if table == nil {
-		return NewErrNoTable(tableName)
+		return newErrNoTable(tableName)
 	}
 
 	ormInfo, err := newORMInfo(table, result)
@@ -113,7 +112,7 @@ func (o orm) getData(tableName string, ovsData map[string]interface{}, result in
 func (o orm) newRow(tableName string, data interface{}, fields ...interface{}) (map[string]interface{}, error) {
 	table := o.schema.Table(tableName)
 	if table == nil {
-		return nil, NewErrNoTable(tableName)
+		return nil, newErrNoTable(tableName)
 	}
 	ormInfo, err := newORMInfo(table, data)
 	if err != nil {
@@ -172,7 +171,7 @@ func (o orm) newEqualityCondition(tableName string, data interface{}, fields ...
 
 	table := o.schema.Table(tableName)
 	if table == nil {
-		return nil, NewErrNoTable(tableName)
+		return nil, newErrNoTable(tableName)
 	}
 
 	ormInfo, err := newORMInfo(table, data)
@@ -231,7 +230,7 @@ func (o orm) equalFields(tableName string, one, other interface{}, fields ...int
 
 	table := o.schema.Table(tableName)
 	if table == nil {
-		return false, NewErrNoTable(tableName)
+		return false, newErrNoTable(tableName)
 	}
 
 	info, err := newORMInfo(table, one)
@@ -252,7 +251,7 @@ func (o orm) equalFields(tableName string, one, other interface{}, fields ...int
 func (o orm) newCondition(tableName string, data interface{}, condition Condition) (*ovsdb.Condition, error) {
 	table := o.schema.Table(tableName)
 	if table == nil {
-		return nil, NewErrNoTable(tableName)
+		return nil, newErrNoTable(tableName)
 	}
 
 	ormInfo, err := newORMInfo(table, data)
@@ -290,7 +289,7 @@ func (o orm) newCondition(tableName string, data interface{}, condition Conditio
 func (o orm) newMutation(tableName string, data interface{}, column string, mutator ovsdb.Mutator, value interface{}) ([]interface{}, error) {
 	table := o.schema.Table(tableName)
 	if table == nil {
-		return nil, NewErrNoTable(tableName)
+		return nil, newErrNoTable(tableName)
 	}
 
 	ormInfo, err := newORMInfo(table, data)
