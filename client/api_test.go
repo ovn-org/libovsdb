@@ -5,13 +5,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestAPIListSimple(t *testing.T) {
-	cache := apiTestCache(t)
+	tcache := apiTestCache(t)
 	lscacheList := []model.Model{
 		&testLogicalSwitch{
 			UUID:        aUUID0,
@@ -39,8 +40,8 @@ func TestAPIListSimple(t *testing.T) {
 	for i := range lscacheList {
 		lscache[lscacheList[i].(*testLogicalSwitch).UUID] = lscacheList[i]
 	}
-	cache.cache["Logical_Switch"] = &RowCache{cache: lscache}
-	cache.cache["Logical_Switch_Port"] = newRowCache() // empty
+	tcache.Set("Logical_Switch", cache.NewRowCache(lscache))
+	tcache.Set("Logical_Switch_Port", nil) // empty
 
 	test := []struct {
 		name       string
@@ -81,7 +82,7 @@ func TestAPIListSimple(t *testing.T) {
 			if tt.initialCap != 0 {
 				result = make([]testLogicalSwitch, tt.initialCap)
 			}
-			api := newAPI(cache)
+			api := newAPI(tcache)
 			err := api.List(&result)
 			if tt.err {
 				assert.NotNil(t, err)
@@ -97,14 +98,14 @@ func TestAPIListSimple(t *testing.T) {
 
 	t.Run("ApiList: Error wrong type", func(t *testing.T) {
 		var result []string
-		api := newAPI(cache)
+		api := newAPI(tcache)
 		err := api.List(&result)
 		assert.NotNil(t, err)
 	})
 
 	t.Run("ApiList: Type Selection", func(t *testing.T) {
 		var result []testLogicalSwitchPort
-		api := newAPI(cache)
+		api := newAPI(tcache)
 		err := api.List(&result)
 		assert.Nil(t, err)
 		assert.Len(t, result, 0, "Should be empty since cache is empty")
@@ -112,7 +113,7 @@ func TestAPIListSimple(t *testing.T) {
 
 	t.Run("ApiList: Empty List", func(t *testing.T) {
 		result := []testLogicalSwitch{}
-		api := newAPI(cache)
+		api := newAPI(tcache)
 		err := api.List(&result)
 		assert.Nil(t, err)
 		assert.Len(t, result, len(lscacheList))
@@ -120,7 +121,7 @@ func TestAPIListSimple(t *testing.T) {
 }
 
 func TestAPIListPredicate(t *testing.T) {
-	cache := apiTestCache(t)
+	tcache := apiTestCache(t)
 	lscacheList := []model.Model{
 		&testLogicalSwitch{
 			UUID:        aUUID0,
@@ -148,7 +149,7 @@ func TestAPIListPredicate(t *testing.T) {
 	for i := range lscacheList {
 		lscache[lscacheList[i].(*testLogicalSwitch).UUID] = lscacheList[i]
 	}
-	cache.cache["Logical_Switch"] = &RowCache{cache: lscache}
+	tcache.Set("Logical_Switch", cache.NewRowCache(lscache))
 
 	test := []struct {
 		name      string
@@ -196,7 +197,7 @@ func TestAPIListPredicate(t *testing.T) {
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiListPredicate: %s", tt.name), func(t *testing.T) {
 			var result []testLogicalSwitch
-			api := newAPI(cache)
+			api := newAPI(tcache)
 			cond := api.WhereCache(tt.predicate)
 			err := cond.List(&result)
 			if tt.err {
@@ -213,7 +214,7 @@ func TestAPIListPredicate(t *testing.T) {
 }
 
 func TestAPIListFields(t *testing.T) {
-	cache := apiTestCache(t)
+	tcache := apiTestCache(t)
 	lspcacheList := []model.Model{
 		&testLogicalSwitchPort{
 			UUID:        aUUID0,
@@ -244,7 +245,7 @@ func TestAPIListFields(t *testing.T) {
 	for i := range lspcacheList {
 		lspcache[lspcacheList[i].(*testLogicalSwitchPort).UUID] = lspcacheList[i]
 	}
-	cache.cache["Logical_Switch_Port"] = &RowCache{cache: lspcache}
+	tcache.Set("Logical_Switch_Port", cache.NewRowCache(lspcache))
 
 	testObj := testLogicalSwitchPort{}
 
@@ -283,7 +284,7 @@ func TestAPIListFields(t *testing.T) {
 			var result []testLogicalSwitchPort
 			// Clean object
 			testObj = testLogicalSwitchPort{}
-			api := newAPI(cache)
+			api := newAPI(tcache)
 			err := api.Where(&testObj).List(&result)
 			if tt.err {
 				assert.NotNil(t, err)
@@ -297,7 +298,7 @@ func TestAPIListFields(t *testing.T) {
 
 	t.Run("ApiListFields: Wrong table", func(t *testing.T) {
 		var result []testLogicalSwitchPort
-		api := newAPI(cache)
+		api := newAPI(tcache)
 		obj := testLogicalSwitch{
 			UUID: aUUID0,
 		}
@@ -415,7 +416,7 @@ func TestConditionFromModel(t *testing.T) {
 }
 
 func TestAPIGet(t *testing.T) {
-	cache := apiTestCache(t)
+	tcache := apiTestCache(t)
 	lsCacheList := []model.Model{}
 	lspCacheList := []model.Model{
 		&testLogicalSwitchPort{
@@ -439,8 +440,8 @@ func TestAPIGet(t *testing.T) {
 	for i := range lspCacheList {
 		lspCache[lspCacheList[i].(*testLogicalSwitchPort).UUID] = lspCacheList[i]
 	}
-	cache.cache["Logical_Switch"] = &RowCache{cache: lsCache}
-	cache.cache["Logical_Switch_Port"] = &RowCache{cache: lspCache}
+	tcache.Set("Logical_Switch", cache.NewRowCache(lsCache))
+	tcache.Set("Logical_Switch_Port", cache.NewRowCache(lspCache))
 
 	test := []struct {
 		name    string
@@ -482,7 +483,7 @@ func TestAPIGet(t *testing.T) {
 		t.Run(fmt.Sprintf("ApiGet: %s", tt.name), func(t *testing.T) {
 			var result testLogicalSwitchPort
 			tt.prepare(&result)
-			api := newAPI(cache)
+			api := newAPI(tcache)
 			err := api.Get(&result)
 			if tt.err {
 				assert.NotNil(t, err)
@@ -495,7 +496,7 @@ func TestAPIGet(t *testing.T) {
 }
 
 func TestAPICreate(t *testing.T) {
-	cache := apiTestCache(t)
+	tcache := apiTestCache(t)
 	lsCacheList := []model.Model{}
 	lspCacheList := []model.Model{
 		&testLogicalSwitchPort{
@@ -519,8 +520,8 @@ func TestAPICreate(t *testing.T) {
 	for i := range lspCacheList {
 		lspCache[lspCacheList[i].(*testLogicalSwitchPort).UUID] = lspCacheList[i]
 	}
-	cache.cache["Logical_Switch"] = &RowCache{cache: lsCache}
-	cache.cache["Logical_Switch_Port"] = &RowCache{cache: lspCache}
+	tcache.Set("Logical_Switch", cache.NewRowCache(lsCache))
+	tcache.Set("Logical_Switch_Port", cache.NewRowCache(lspCache))
 
 	rowFoo := ovsdb.Row(map[string]interface{}{"name": "foo"})
 	rowBar := ovsdb.Row(map[string]interface{}{"name": "bar"})
@@ -595,7 +596,7 @@ func TestAPICreate(t *testing.T) {
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiCreate: %s", tt.name), func(t *testing.T) {
-			api := newAPI(cache)
+			api := newAPI(tcache)
 			op, err := api.Create(tt.input...)
 			if tt.err {
 				assert.NotNil(t, err)
@@ -608,7 +609,7 @@ func TestAPICreate(t *testing.T) {
 }
 
 func TestAPIMutate(t *testing.T) {
-	cache := apiTestCache(t)
+	tcache := apiTestCache(t)
 	lspCache := map[string]model.Model{
 		aUUID0: &testLogicalSwitchPort{
 			UUID:        aUUID0,
@@ -633,7 +634,7 @@ func TestAPIMutate(t *testing.T) {
 			Tag:         []int{1},
 		},
 	}
-	cache.cache["Logical_Switch_Port"] = &RowCache{cache: lspCache}
+	tcache.Set("Logical_Switch_Port", cache.NewRowCache(lspCache))
 
 	testObj := testLogicalSwitchPort{}
 
@@ -761,7 +762,7 @@ func TestAPIMutate(t *testing.T) {
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiMutate: %s", tt.name), func(t *testing.T) {
-			api := newAPI(cache)
+			api := newAPI(tcache)
 			cond := tt.condition(api)
 			ops, err := cond.Mutate(&testObj, tt.mutations...)
 			if tt.err {
@@ -775,7 +776,7 @@ func TestAPIMutate(t *testing.T) {
 }
 
 func TestAPIUpdate(t *testing.T) {
-	cache := apiTestCache(t)
+	tcache := apiTestCache(t)
 	lspCache := map[string]model.Model{
 		aUUID0: &testLogicalSwitchPort{
 			UUID:        aUUID0,
@@ -801,7 +802,7 @@ func TestAPIUpdate(t *testing.T) {
 			Tag:         []int{1},
 		},
 	}
-	cache.cache["Logical_Switch_Port"] = &RowCache{cache: lspCache}
+	tcache.Set("Logical_Switch_Port", cache.NewRowCache(lspCache))
 
 	testObj := testLogicalSwitchPort{}
 	testRow := ovsdb.Row(map[string]interface{}{"type": "somethingElse", "tag": testOvsSet(t, []int{6})})
@@ -1004,7 +1005,7 @@ func TestAPIUpdate(t *testing.T) {
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiUpdate: %s", tt.name), func(t *testing.T) {
-			api := newAPI(cache)
+			api := newAPI(tcache)
 			cond := tt.condition(api)
 			// clean test Object
 			testObj = testLogicalSwitchPort{}
@@ -1021,7 +1022,7 @@ func TestAPIUpdate(t *testing.T) {
 }
 
 func TestAPIDelete(t *testing.T) {
-	cache := apiTestCache(t)
+	tcache := apiTestCache(t)
 	lspCache := map[string]model.Model{
 		aUUID0: &testLogicalSwitchPort{
 			UUID:        aUUID0,
@@ -1047,7 +1048,7 @@ func TestAPIDelete(t *testing.T) {
 			Tag:         []int{1},
 		},
 	}
-	cache.cache["Logical_Switch_Port"] = &RowCache{cache: lspCache}
+	tcache.Set("Logical_Switch_Port", cache.NewRowCache(lspCache))
 
 	test := []struct {
 		name      string
@@ -1192,7 +1193,7 @@ func TestAPIDelete(t *testing.T) {
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiDelete: %s", tt.name), func(t *testing.T) {
-			api := newAPI(cache)
+			api := newAPI(tcache)
 			cond := tt.condition(api)
 			ops, err := cond.Delete()
 			if tt.err {

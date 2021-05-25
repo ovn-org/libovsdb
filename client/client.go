@@ -12,6 +12,7 @@ import (
 
 	"github.com/cenkalti/rpc2"
 	"github.com/cenkalti/rpc2/jsonrpc"
+	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
@@ -22,7 +23,7 @@ type OvsdbClient struct {
 	Schema        ovsdb.DatabaseSchema
 	handlers      []ovsdb.NotificationHandler
 	handlersMutex *sync.Mutex
-	Cache         *TableCache
+	Cache         *cache.TableCache
 	stopCh        chan struct{}
 	api           API
 }
@@ -129,7 +130,7 @@ func newRPC2Client(conn net.Conn, database *model.DBModel) (*OvsdbClient, error)
 
 	if err == nil {
 		ovs.Schema = *schema
-		if cache, err := newTableCache(schema, database); err == nil {
+		if cache, err := cache.NewTableCache(schema, database); err == nil {
 			ovs.Cache = cache
 			ovs.Register(ovs.Cache)
 			ovs.api = newAPI(ovs.Cache)
@@ -298,7 +299,7 @@ func (ovs OvsdbClient) Monitor(jsonContext interface{}, requests map[string]ovsd
 	if err != nil {
 		return err
 	}
-	ovs.Cache.populate(reply)
+	ovs.Cache.Populate(reply)
 	return nil
 }
 

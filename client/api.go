@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
@@ -92,7 +93,7 @@ var ErrNotFound = errors.New("object not found")
 // api struct implements both API and ConditionalAPI
 // Where() can be used to create a ConditionalAPI api
 type api struct {
-	cache *TableCache
+	cache *cache.TableCache
 	cond  Conditional
 }
 
@@ -191,13 +192,13 @@ func (a api) conditionFromModel(any bool, model model.Model, cond ...model.Condi
 	}
 
 	if len(cond) == 0 {
-		conditional, err = newEqualityConditional(a.cache.mapper, tableName, any, model)
+		conditional, err = newEqualityConditional(a.cache.Mapper(), tableName, any, model)
 		if err != nil {
 			conditional = newErrorConditional(err)
 		}
 
 	} else {
-		conditional, err = newExplicitConditional(a.cache.mapper, tableName, any, model, cond...)
+		conditional, err = newExplicitConditional(a.cache.Mapper(), tableName, any, model, cond...)
 		if err != nil {
 			conditional = newErrorConditional(err)
 		}
@@ -223,7 +224,7 @@ func (a api) Get(m model.Model) error {
 	}
 
 	// If model contains _uuid value, we can access it via cache index
-	mapperInfo, err := mapper.NewMapperInfo(a.cache.mapper.Schema.Table(table), m)
+	mapperInfo, err := mapper.NewMapperInfo(a.cache.Mapper().Schema.Table(table), m)
 	if err != nil {
 		return err
 	}
@@ -239,7 +240,7 @@ func (a api) Get(m model.Model) error {
 	// Look across the entire cache for table index equality
 	for _, row := range tableCache.Rows() {
 		elem := tableCache.Row(row)
-		equal, err := a.cache.mapper.EqualFields(table, m, elem.(model.Model))
+		equal, err := a.cache.Mapper().EqualFields(table, m, elem.(model.Model))
 		if err != nil {
 			return err
 		}
@@ -265,7 +266,7 @@ func (a api) Create(models ...model.Model) ([]ovsdb.Operation, error) {
 			return nil, err
 		}
 
-		table := a.cache.mapper.Schema.Table(tableName)
+		table := a.cache.Mapper().Schema.Table(tableName)
 
 		// Read _uuid field, and use it as named-uuid
 		info, err := mapper.NewMapperInfo(table, model)
@@ -278,7 +279,7 @@ func (a api) Create(models ...model.Model) ([]ovsdb.Operation, error) {
 			return nil, err
 		}
 
-		row, err := a.cache.mapper.NewRow(tableName, model)
+		row, err := a.cache.Mapper().NewRow(tableName, model)
 		if err != nil {
 			return nil, err
 		}
@@ -302,8 +303,8 @@ func (a api) Mutate(model model.Model, mutationObjs ...model.Mutation) ([]ovsdb.
 		return nil, fmt.Errorf("At least one Mutation must be provided")
 	}
 
-	tableName := a.cache.dbModel.FindTable(reflect.ValueOf(model).Type())
-	table := a.cache.mapper.Schema.Table(tableName)
+	tableName := a.cache.DBModel().FindTable(reflect.ValueOf(model).Type())
+	table := a.cache.Mapper().Schema.Table(tableName)
 	if table == nil {
 		return nil, fmt.Errorf("schema error: table not found in Database Model for type %s", reflect.TypeOf(model))
 	}
@@ -324,7 +325,7 @@ func (a api) Mutate(model model.Model, mutationObjs ...model.Mutation) ([]ovsdb.
 			return nil, err
 		}
 
-		mutation, err := a.cache.mapper.NewMutation(tableName, model, col, mobj.Mutator, mobj.Value)
+		mutation, err := a.cache.Mapper().NewMutation(tableName, model, col, mobj.Mutator, mobj.Value)
 		if err != nil {
 			return nil, err
 		}
@@ -358,7 +359,7 @@ func (a api) Update(model model.Model, fields ...interface{}) ([]ovsdb.Operation
 		return nil, err
 	}
 
-	row, err := a.cache.mapper.NewRow(table, model, fields...)
+	row, err := a.cache.Mapper().NewRow(table, model, fields...)
 	if err != nil {
 		return nil, err
 	}
@@ -403,7 +404,7 @@ func (a api) getTableFromModel(m interface{}) (string, error) {
 	if _, ok := m.(model.Model); !ok {
 		return "", &ErrWrongType{reflect.TypeOf(m), "Type does not implement Model interface"}
 	}
-	table := a.cache.dbModel.FindTable(reflect.TypeOf(m))
+	table := a.cache.DBModel().FindTable(reflect.TypeOf(m))
 	if table == "" {
 		return "", &ErrWrongType{reflect.TypeOf(m), "Model not found in Database Model"}
 	}
@@ -428,7 +429,7 @@ func (a api) getTableFromFunc(predicate interface{}) (string, error) {
 			fmt.Sprintf("Type %s does not implement Model interface", modelType.String())}
 	}
 
-	table := a.cache.dbModel.FindTable(modelType)
+	table := a.cache.DBModel().FindTable(modelType)
 	if table == "" {
 		return "", &ErrWrongType{predType,
 			fmt.Sprintf("Model %s not found in Database Model", modelType.String())}
@@ -437,14 +438,14 @@ func (a api) getTableFromFunc(predicate interface{}) (string, error) {
 }
 
 // newAPI returns a new API to interact with the database
-func newAPI(cache *TableCache) API {
+func newAPI(cache *cache.TableCache) API {
 	return api{
 		cache: cache,
 	}
 }
 
 // newConditionalAPI returns a new ConditionalAPI to interact with the database
-func newConditionalAPI(cache *TableCache, cond Conditional) ConditionalAPI {
+func newConditionalAPI(cache *cache.TableCache, cond Conditional) ConditionalAPI {
 	return api{
 		cache: cache,
 		cond:  cond,

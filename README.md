@@ -75,21 +75,23 @@ The table is infered from the type that the function accepts as only argument.
 
 This package is divided into several subpackages. Documentation for each subpackage is available at [pkg.go.dev][doc]:
 
-* **client**: ovsdb client, cache and API [![godoc for libovsdb/client][clientbadge]][clientdoc]
+* **client**: ovsdb client and API [![godoc for libovsdb/client][clientbadge]][clientdoc]
 * **mapper**: mapping from tagged structs to ovsdb types [![godoc for libovsdb/mapper][mapperbadge]][mapperdoc]
 * **model**: model and database model used for mapping [![godoc for libovsdb/model][modelbadge]][modeldoc]
 * **ovsdb**: low level OVS types [![godoc for libovsdb/ovsdb][ovsdbbadge]][ovsdbdoc]
+* **cache**: model-based cache [![godoc for libovsdb/cache][cachebadge]][cachedoc]
 
 [doc]: https://pkg.go.dev/
 [clientbadge]: https://pkg.go.dev/badge/github.com/ovn-org/libovsdb/client
 [mapperbadge]: https://pkg.go.dev/badge/github.com/ovn-org/libovsdb/mapper
 [modelbadge]: https://pkg.go.dev/badge/github.com/ovn-org/libovsdb/model
 [ovsdbbadge]: https://pkg.go.dev/badge/github.com/ovn-org/libovsdb/ovsdb
+[cachebadge]: https://pkg.go.dev/badge/github.com/ovn-org/libovsdb/cache
 [clientdoc]: https://pkg.go.dev/github.com/ovn-org/libovsdb/client
 [mapperdoc]: https://pkg.go.dev/github.com/ovn-org/libovsdb/mapper
 [modeldoc]: https://pkg.go.dev/github.com/ovn-org/libovsdb/model
 [ovsdbdoc]: https://pkg.go.dev/github.com/ovn-org/libovsdb/ovsdb
-
+[cachedoc]: https://pkg.go.dev/github.com/ovn-org/libovsdb/cache
 
 ## Quick API Examples
 
@@ -175,7 +177,7 @@ They can also be created based on a list of Conditions:
 
 You can also register a notification handler to get notified every time an element is added, deleted or updated from the database.
 
-    handler := &client.EventHandlerFuncs{
+    handler := &cache.EventHandlerFuncs{
         AddFunc: func(table string, model model.Model) {
             if table == "Logical_Switch" {
                 fmt.Printf("A new switch named %s was added!!\n!", model.(*MyLogicalSwitch).Name)

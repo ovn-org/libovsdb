@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 
+	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/client"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
@@ -50,7 +51,7 @@ func run() {
 	}
 	defer ovs.Disconnect()
 	ovs.Cache.AddEventHandler(
-		&client.EventHandlerFuncs{
+		&cache.EventHandlerFuncs{
 			AddFunc: func(table string, model model.Model) {
 				if ready && table == "Bridge" {
 					insertions++

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
@@ -123,7 +124,7 @@ func newExplicitConditional(mapper *mapper.Mapper, table string, all bool, model
 type predicateConditional struct {
 	tableName string
 	predicate interface{}
-	cache     *TableCache
+	cache     *cache.TableCache
 }
 
 // matches returns the result of the execution of the predicate
@@ -152,7 +153,7 @@ func (c *predicateConditional) Generate() ([][]ovsdb.Condition, error) {
 			return nil, err
 		}
 		if match {
-			elemCond, err := c.cache.mapper.NewEqualityCondition(c.tableName, elem)
+			elemCond, err := c.cache.Mapper().NewEqualityCondition(c.tableName, elem)
 			if err != nil {
 				return nil, err
 			}
@@ -163,7 +164,7 @@ func (c *predicateConditional) Generate() ([][]ovsdb.Condition, error) {
 }
 
 // newPredicateConditional creates a new predicateConditional
-func newPredicateConditional(table string, cache *TableCache, predicate interface{}) (Conditional, error) {
+func newPredicateConditional(table string, cache *cache.TableCache, predicate interface{}) (Conditional, error) {
 	return &predicateConditional{
 		tableName: table,
 		predicate: predicate,

@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestEqualityConditional(t *testing.T) {
-	cache := apiTestCache(t)
+	tcache := apiTestCache(t)
 	lspcacheList := []model.Model{
 		&testLogicalSwitchPort{
 			UUID:        aUUID0,
@@ -41,7 +42,7 @@ func TestEqualityConditional(t *testing.T) {
 	for i := range lspcacheList {
 		lspcache[lspcacheList[i].(*testLogicalSwitchPort).UUID] = lspcacheList[i]
 	}
-	cache.cache["Logical_Switch_Port"] = &RowCache{cache: lspcache}
+	tcache.Set("Logical_Switch_Port", cache.NewRowCache(lspcache))
 
 	test := []struct {
 		name      string
@@ -125,7 +126,7 @@ func TestEqualityConditional(t *testing.T) {
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("Equality Conditional: %s", tt.name), func(t *testing.T) {
-			cond, err := newEqualityConditional(cache.mapper, "Logical_Switch_Port", tt.all, tt.model)
+			cond, err := newEqualityConditional(tcache.Mapper(), "Logical_Switch_Port", tt.all, tt.model)
 			assert.Nil(t, err)
 			for model, shouldMatch := range tt.matches {
 				matches, err := cond.Matches(model)
@@ -148,7 +149,7 @@ func TestEqualityConditional(t *testing.T) {
 }
 
 func TestPredicateConditional(t *testing.T) {
-	cache := apiTestCache(t)
+	tcache := apiTestCache(t)
 	lspcacheList := []model.Model{
 		&testLogicalSwitchPort{
 			UUID:        aUUID0,
@@ -179,7 +180,7 @@ func TestPredicateConditional(t *testing.T) {
 	for i := range lspcacheList {
 		lspcache[lspcacheList[i].(*testLogicalSwitchPort).UUID] = lspcacheList[i]
 	}
-	cache.cache["Logical_Switch_Port"] = &RowCache{cache: lspcache}
+	tcache.Set("Logical_Switch_Port", cache.NewRowCache(lspcache))
 
 	test := []struct {
 		name      string
@@ -232,7 +233,7 @@ func TestPredicateConditional(t *testing.T) {
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("Predicate Conditional: %s", tt.name), func(t *testing.T) {
-			cond, err := newPredicateConditional("Logical_Switch_Port", cache, tt.predicate)
+			cond, err := newPredicateConditional("Logical_Switch_Port", tcache, tt.predicate)
 			assert.Nil(t, err)
 			for model, shouldMatch := range tt.matches {
 				matches, err := cond.Matches(model)
@@ -255,7 +256,7 @@ func TestPredicateConditional(t *testing.T) {
 }
 
 func TestExplicitConditional(t *testing.T) {
-	cache := apiTestCache(t)
+	tcache := apiTestCache(t)
 	lspcacheList := []model.Model{
 		&testLogicalSwitchPort{
 			UUID:        aUUID0,
@@ -286,7 +287,7 @@ func TestExplicitConditional(t *testing.T) {
 	for i := range lspcacheList {
 		lspcache[lspcacheList[i].(*testLogicalSwitchPort).UUID] = lspcacheList[i]
 	}
-	cache.cache["Logical_Switch_Port"] = &RowCache{cache: lspcache}
+	tcache.Set("Logical_Switch_Port", cache.NewRowCache(lspcache))
 
 	testObj := &testLogicalSwitchPort{}
 
@@ -424,7 +425,7 @@ func TestExplicitConditional(t *testing.T) {
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("Explicit Conditional: %s", tt.name), func(t *testing.T) {
-			cond, err := newExplicitConditional(cache.mapper, "Logical_Switch_Port", tt.all, testObj, tt.args...)
+			cond, err := newExplicitConditional(tcache.Mapper(), "Logical_Switch_Port", tt.all, testObj, tt.args...)
 			assert.Nil(t, err)
 			_, err = cond.Matches(testObj)
 			assert.NotNilf(t, err, "Explicit conditions should fail to match on cache")

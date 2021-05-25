@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/client"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
@@ -109,7 +110,7 @@ func main() {
 		log.Fatal("Unable to Connect ", err)
 	}
 
-	ovs.Cache.AddEventHandler(&client.EventHandlerFuncs{
+	ovs.Cache.AddEventHandler(&cache.EventHandlerFuncs{
 		AddFunc: func(table string, model model.Model) {
 			if table == bridgeTable {
 				update <- model
