@@ -2,7 +2,7 @@
 
 all: test
 
-local: install-deps fmt lint build-local test-local bench-local
+local: install-deps build-local fmt lint test-local bench-local
 
 prebuild-local:
 	@echo "+ $@"
