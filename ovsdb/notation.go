@@ -1,6 +1,21 @@
 package ovsdb
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
+
+const (
+	OperationInsert  = "insert"
+	OperationSelect  = "select"
+	OperationUpdate  = "update"
+	OperationMutate  = "mutate"
+	OperationDelete  = "delete"
+	OperationWait    = "wait"
+	OperationCommit  = "commit"
+	OperationAbort   = "abort"
+	OperationComment = "comment"
+	OperationAssert  = "assert"
+)
 
 // Operation represents an operation according to RFC7047 section 5.2
 type Operation struct {
@@ -9,10 +24,13 @@ type Operation struct {
 	Row       map[string]interface{}   `json:"row,omitempty"`
 	Rows      []map[string]interface{} `json:"rows,omitempty"`
 	Columns   []string                 `json:"columns,omitempty"`
-	Mutations []interface{}            `json:"mutations,omitempty"`
+	Mutations []Mutation               `json:"mutations,omitempty"`
 	Timeout   int                      `json:"timeout,omitempty"`
 	Where     []Condition              `json:"where,omitempty"`
 	Until     string                   `json:"until,omitempty"`
+	Durable   *bool                    `json:"durable,omitempty"`
+	Comment   *string                  `json:"comment,omitempty"`
+	Lock      *string                  `json:"lock,omitempty"`
 	UUIDName  string                   `json:"uuid-name,omitempty"`
 }
 
@@ -57,35 +75,10 @@ type MonitorRequest struct {
 	Select  *MonitorSelect `json:"select,omitempty"`
 }
 
-// TableUpdates is a collection of TableUpdate entries
-// We cannot use TableUpdates directly by json encoding by inlining the TableUpdate Map
-// structure till GoLang issue #6213 makes it.
-// The only option is to go with raw map[string]map[string]interface{} option :-( that sucks !
-// Refer to client.go : MonitorAll() function for more details
-type TableUpdates struct {
-	Updates map[string]TableUpdate `json:"updates"`
-}
-
-// TableUpdate represents a table update according to RFC7047
-type TableUpdate struct {
-	Rows map[string]RowUpdate `json:"rows"`
-}
-
-// RowUpdate represents a row update according to RFC7047
-type RowUpdate struct {
-	New Row `json:"new,omitempty"`
-	Old Row `json:"old,omitempty"`
-}
-
 // OvsdbError is an OVS Error Condition
 type OvsdbError struct {
 	Error   string `json:"error"`
 	Details string `json:"details,omitempty"`
-}
-
-// NewMutation creates a new mutation as specified in RFC7047
-func NewMutation(column string, mutator string, value interface{}) []interface{} {
-	return []interface{}{column, mutator, value}
 }
 
 // TransactResponse represents the response to a Transact Operation
@@ -110,7 +103,6 @@ func ovsSliceToGoNotation(val interface{}) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-
 		switch sl[0] {
 		case "uuid", "named-uuid":
 			var uuid UUID
@@ -129,15 +121,3 @@ func ovsSliceToGoNotation(val interface{}) (interface{}, error) {
 	}
 	return val, nil
 }
-
-type Mutator string
-
-const (
-	MutateOperationDelete    Mutator = "delete"
-	MutateOperationInsert    Mutator = "insert"
-	MutateOperationAdd       Mutator = "+="
-	MutateOperationSubstract Mutator = "-="
-	MutateOperationMultiply  Mutator = "*="
-	MutateOperationDivide    Mutator = "/="
-	MutateOperationModulo    Mutator = "%="
-)

@@ -143,7 +143,7 @@ func (t *TableCache) Tables() []string {
 // Update implements the update method of the NotificationHandler interface
 // this populates the cache with new updates
 func (t *TableCache) Update(context interface{}, tableUpdates ovsdb.TableUpdates) {
-	if len(tableUpdates.Updates) == 0 {
+	if len(tableUpdates) == 0 {
 		return
 	}
 	t.populate(tableUpdates)
@@ -170,7 +170,7 @@ func (t *TableCache) populate(tableUpdates ovsdb.TableUpdates) {
 	t.cacheMutex.Lock()
 	defer t.cacheMutex.Unlock()
 	for table := range t.dbModel.Types() {
-		updates, ok := tableUpdates.Updates[table]
+		updates, ok := tableUpdates[table]
 		if !ok {
 			continue
 		}
@@ -180,16 +180,16 @@ func (t *TableCache) populate(tableUpdates ovsdb.TableUpdates) {
 			tCache = t.cache[table]
 		}
 		tCache.mutex.Lock()
-		for uuid, row := range updates.Rows {
-			if !reflect.DeepEqual(row.New, ovsdb.Row{}) {
-				newModel, err := t.createModel(table, &row.New, uuid)
+		for uuid, row := range updates {
+			if row.New != nil {
+				newModel, err := t.createModel(table, row.New, uuid)
 				if err != nil {
 					panic(err)
 				}
 				if existing, ok := tCache.cache[uuid]; ok {
 					if !reflect.DeepEqual(newModel, existing) {
 						tCache.cache[uuid] = newModel
-						oldModel, err := t.createModel(table, &row.Old, uuid)
+						oldModel, err := t.createModel(table, row.Old, uuid)
 						if err != nil {
 							panic(err)
 						}
@@ -202,7 +202,7 @@ func (t *TableCache) populate(tableUpdates ovsdb.TableUpdates) {
 				t.eventProcessor.AddEvent(addEvent, table, nil, newModel)
 				continue
 			} else {
-				oldModel, err := t.createModel(table, &row.Old, uuid)
+				oldModel, err := t.createModel(table, row.Old, uuid)
 				if err != nil {
 					panic(err)
 				}

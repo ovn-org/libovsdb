@@ -92,8 +92,8 @@ func newRPC2Client(conn net.Conn, database *model.DBModel) (*OvsdbClient, error)
 	ovs.rpcClient.Handle("echo", func(_ *rpc2.Client, args []interface{}, reply *[]interface{}) error {
 		return ovs.echo(args, reply)
 	})
-	ovs.rpcClient.Handle("update", func(_ *rpc2.Client, args []interface{}, _ *[]interface{}) error {
-		return ovs.update(args)
+	ovs.rpcClient.Handle("update", func(_ *rpc2.Client, args []json.RawMessage, reply *[]interface{}) error {
+		return ovs.update(args, reply)
 	})
 	go ovs.rpcClient.Run()
 	go ovs.handleDisconnectNotification()
@@ -188,36 +188,27 @@ func (ovs *OvsdbClient) echo(args []interface{}, reply *[]interface{}) error {
 }
 
 // RFC 7047 : Update Notification Section 4.1.6
-// Processing "params": [<json-value>, <table-updates>]
-func (ovs *OvsdbClient) update(params []interface{}) error {
-	if len(params) < 2 {
-		return fmt.Errorf("invalid update message")
+func (ovs *OvsdbClient) update(args []json.RawMessage, reply *[]interface{}) error {
+	var value string
+	if len(args) > 2 {
+		return fmt.Errorf("update requires exactly 2 args")
 	}
-	// Ignore params[0] as we dont use the <json-value> currently for comparison
-
-	raw, ok := params[1].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("invalid update message")
-	}
-	var rowUpdates map[string]map[string]ovsdb.RowUpdate
-
-	b, err := json.Marshal(raw)
+	err := json.Unmarshal(args[0], &value)
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(b, &rowUpdates)
+	var updates ovsdb.TableUpdates
+	err = json.Unmarshal(args[1], &updates)
 	if err != nil {
 		return err
 	}
-
 	// Update the local DB cache with the tableUpdates
-	tableUpdates := getTableUpdatesFromRawUnmarshal(rowUpdates)
 	ovs.handlersMutex.Lock()
 	defer ovs.handlersMutex.Unlock()
 	for _, handler := range ovs.handlers {
-		handler.Update(params[0], tableUpdates)
+		handler.Update(value, updates)
 	}
-
+	*reply = []interface{}{}
 	return nil
 }
 
@@ -303,11 +294,7 @@ func (ovs OvsdbClient) Monitor(jsonContext interface{}, requests map[string]ovsd
 	var reply ovsdb.TableUpdates
 
 	args := ovsdb.NewMonitorArgs(ovs.Schema.Name, jsonContext, requests)
-
-	// This totally sucks. Refer to golang JSON issue #6213
-	var response map[string]map[string]ovsdb.RowUpdate
-	err := ovs.rpcClient.Call("monitor", args, &response)
-	reply = getTableUpdatesFromRawUnmarshal(response)
+	err := ovs.rpcClient.Call("monitor", args, &reply)
 	if err != nil {
 		return err
 	}
@@ -315,14 +302,18 @@ func (ovs OvsdbClient) Monitor(jsonContext interface{}, requests map[string]ovsd
 	return nil
 }
 
-func getTableUpdatesFromRawUnmarshal(raw map[string]map[string]ovsdb.RowUpdate) ovsdb.TableUpdates {
-	var tableUpdates ovsdb.TableUpdates
-	tableUpdates.Updates = make(map[string]ovsdb.TableUpdate)
-	for table, update := range raw {
-		tableUpdate := ovsdb.TableUpdate{Rows: update}
-		tableUpdates.Updates[table] = tableUpdate
+// Echo tests the liveness of the OVSDB connetion
+func (ovs *OvsdbClient) Echo() error {
+	args := ovsdb.NewEchoArgs()
+	var reply []interface{}
+	err := ovs.rpcClient.Call("echo", args, &reply)
+	if err != nil {
+		return err
 	}
-	return tableUpdates
+	if !reflect.DeepEqual(args, reply) {
+		return fmt.Errorf("incorrect server response: %v, %v", args, reply)
+	}
+	return nil
 }
 
 func (ovs *OvsdbClient) clearConnection() {

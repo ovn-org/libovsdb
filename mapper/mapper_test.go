@@ -922,7 +922,7 @@ func TestMapperMutation(t *testing.T) {
 		name     string
 		column   string
 		obj      testType
-		expected []interface{}
+		expected *ovsdb.Mutation
 		mutator  ovsdb.Mutator
 		value    interface{}
 		err      bool
@@ -941,7 +941,7 @@ func TestMapperMutation(t *testing.T) {
 			obj:      testType{},
 			mutator:  ovsdb.MutateOperationAdd,
 			value:    1,
-			expected: []interface{}{"int", ovsdb.MutateOperationAdd, 1},
+			expected: ovsdb.NewMutation("int", ovsdb.MutateOperationAdd, 1),
 			err:      false,
 		},
 		{
@@ -950,7 +950,7 @@ func TestMapperMutation(t *testing.T) {
 			obj:      testType{},
 			mutator:  ovsdb.MutateOperationModulo,
 			value:    2,
-			expected: []interface{}{"int", ovsdb.MutateOperationModulo, 2},
+			expected: ovsdb.NewMutation("int", ovsdb.MutateOperationModulo, 2),
 			err:      false,
 		},
 		{
@@ -967,7 +967,7 @@ func TestMapperMutation(t *testing.T) {
 			obj:      testType{},
 			mutator:  ovsdb.MutateOperationInsert,
 			value:    []string{"foo"},
-			expected: []interface{}{"set", ovsdb.MutateOperationInsert, testOvsSet(t, []string{"foo"})},
+			expected: ovsdb.NewMutation("set", ovsdb.MutateOperationInsert, testOvsSet(t, []string{"foo"})),
 			err:      false,
 		},
 		{
@@ -976,7 +976,7 @@ func TestMapperMutation(t *testing.T) {
 			obj:      testType{},
 			mutator:  ovsdb.MutateOperationDelete,
 			value:    []string{"foo"},
-			expected: []interface{}{"set", ovsdb.MutateOperationDelete, testOvsSet(t, []string{"foo"})},
+			expected: ovsdb.NewMutation("set", ovsdb.MutateOperationDelete, testOvsSet(t, []string{"foo"})),
 			err:      false,
 		},
 		{
@@ -985,7 +985,7 @@ func TestMapperMutation(t *testing.T) {
 			obj:      testType{},
 			mutator:  ovsdb.MutateOperationDelete,
 			value:    []string{"foo", "bar"},
-			expected: []interface{}{"map", ovsdb.MutateOperationDelete, testOvsSet(t, []string{"foo", "bar"})},
+			expected: ovsdb.NewMutation("map", ovsdb.MutateOperationDelete, testOvsSet(t, []string{"foo", "bar"})),
 			err:      false,
 		},
 		{
@@ -994,7 +994,7 @@ func TestMapperMutation(t *testing.T) {
 			obj:      testType{},
 			mutator:  ovsdb.MutateOperationInsert,
 			value:    map[string]string{"foo": "bar"},
-			expected: []interface{}{"map", ovsdb.MutateOperationInsert, testOvsMap(t, map[string]string{"foo": "bar"})},
+			expected: ovsdb.NewMutation("map", ovsdb.MutateOperationInsert, testOvsMap(t, map[string]string{"foo": "bar"})),
 			err:      false,
 		},
 	}

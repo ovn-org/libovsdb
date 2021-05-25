@@ -295,7 +295,7 @@ func (a api) Create(models ...model.Model) ([]ovsdb.Operation, error) {
 
 // Mutate returns the operations needed to transform the one Model into another one
 func (a api) Mutate(model model.Model, mutationObjs ...model.Mutation) ([]ovsdb.Operation, error) {
-	var mutations []interface{}
+	var mutations []ovsdb.Mutation
 	var operations []ovsdb.Operation
 
 	if len(mutationObjs) < 1 {
@@ -328,7 +328,7 @@ func (a api) Mutate(model model.Model, mutationObjs ...model.Mutation) ([]ovsdb.
 		if err != nil {
 			return nil, err
 		}
-		mutations = append(mutations, mutation)
+		mutations = append(mutations, *mutation)
 	}
 	for _, condition := range conditions {
 		operations = append(operations,
