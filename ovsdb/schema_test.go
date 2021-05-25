@@ -1001,3 +1001,106 @@ func TestBaseTypeRefType(t *testing.T) {
 		})
 	}
 }
+
+func TestColumnSchema_String(t *testing.T) {
+	datapath := "Connection"
+	unlimted := -1
+	zero := 0
+	strong := "strong"
+	weak := "weak"
+	type fields struct {
+		Type      ExtendedType
+		TypeObj   *ColumnType
+		ephemeral *bool
+		mutable   *bool
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   string
+	}{
+		{
+			"str",
+			fields{
+				Type: TypeString,
+			},
+			"string [M]",
+		},
+		{
+			"str map",
+			fields{
+				Type: TypeMap,
+				TypeObj: &ColumnType{
+					Key: &BaseType{
+						Type: TypeString,
+					},
+					Value: &BaseType{
+						Type: TypeString,
+					},
+				},
+			},
+			"[string]string [M]",
+		},
+		{
+			"ref",
+			fields{
+				Type: TypeSet,
+				TypeObj: &ColumnType{
+					Key: &BaseType{Type: TypeUUID, refTable: &datapath},
+					min: &zero,
+					max: &unlimted,
+				},
+			},
+			"[] [Connection (strong)] (min: 0, max: -1) [M]",
+		},
+		{
+			"ref 1",
+			fields{
+				Type: TypeSet,
+				TypeObj: &ColumnType{
+					Key: &BaseType{Type: TypeUUID, refTable: &datapath, refType: &strong},
+					min: &zero,
+					max: &unlimted,
+				},
+			},
+			"[] [Connection (strong)] (min: 0, max: -1) [M]",
+		},
+		{
+			"ref 2",
+			fields{
+				Type: TypeSet,
+				TypeObj: &ColumnType{
+					Key: &BaseType{Type: TypeUUID, refTable: &datapath, refType: &weak},
+					min: &zero,
+					max: &unlimted,
+				},
+			},
+			"[] [Connection (weak)] (min: 0, max: -1) [M]",
+		},
+		{
+			"enum",
+			fields{
+				Type: TypeEnum,
+				TypeObj: &ColumnType{
+					Key: &BaseType{Type: TypeString, Enum: []interface{}{"permit", "deny"}},
+					max: &unlimted,
+					min: &zero,
+				},
+			},
+			"enum (type: string): [permit deny] [M]",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			column := &ColumnSchema{
+				Type:      tt.fields.Type,
+				TypeObj:   tt.fields.TypeObj,
+				ephemeral: tt.fields.ephemeral,
+				mutable:   tt.fields.mutable,
+			}
+			if got := column.String(); got != tt.want {
+				t.Errorf("String() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
