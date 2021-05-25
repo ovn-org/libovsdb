@@ -9,6 +9,13 @@
 # Folders
 _obj
 _test
+bin
+
+# Generated files
+example/play_with_ovs/ovs.ovsschema
+example/play_with_ovs/*.go
+!example/play_with_ovs/gen.go
+!example/play_with_ovs/play_with_ovs.go
 
 # Architecture specific extensions/prefixes
 *.[568vq]
@@ -57,3 +64,4 @@ Temporary Items
 ### Project-Specific
 *.out
 *.cov
+

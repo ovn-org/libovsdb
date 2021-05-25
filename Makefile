@@ -1,10 +1,17 @@
-.PHONY: all local test test-local integration-test-local install-deps lint fmt
+.PHONY: all local test test-local integration-test-local install-deps lint fmt prebuild-local build-local
 
 all: test
 
 local: install-deps fmt lint build-local test-local bench-local
 
-build-local: 
+prebuild-local:
+	@echo "+ $@"
+	@mkdir -p bin
+	@go build -v -o ./bin ./cmd/modelgen
+	@curl -o example/play_with_ovs/ovs.ovsschema https://raw.githubusercontent.com/openvswitch/ovs/v2.15.0/vswitchd/vswitch.ovsschema
+	@go generate -v ./...
+
+build-local: prebuild-local
 	@echo "+ $@"
 	@go build -v ./...
 
@@ -17,7 +24,7 @@ bench-local:
 	@go test -run=XXX -count=3 -bench=. ./... | tee bench.out
 	@benchstat bench.out
 
-integration-test-local:
+integration-test-local: prebuild-local
 	@echo "+ $@"
 	@go test -race -v -coverprofile=integration.cov -run Integration ./...
 
