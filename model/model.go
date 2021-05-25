@@ -128,3 +128,23 @@ func modelSetUUID(model Model, uuid string) error {
 	}
 	return fmt.Errorf("model is expected to have a string field mapped to column _uuid")
 }
+
+// Condition is a model-based representation of an OVSDB Condition
+type Condition struct {
+	// Pointer to the field of the model where the operation applies
+	Field interface{}
+	// Condition function
+	Function ovsdb.ConditionFunction
+	// Value to use in the condition
+	Value interface{}
+}
+
+// Mutation is a model-based representation of an OVSDB Mutation
+type Mutation struct {
+	// Pointer to the field of the model that shall be mutated
+	Field interface{}
+	// String representing the mutator (as per RFC7047)
+	Mutator ovsdb.Mutator
+	// Value to use in the mutation
+	Value interface{}
+}

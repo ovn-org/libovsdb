@@ -72,7 +72,7 @@ type explicitConditional struct {
 	mapper     *mapper.Mapper
 	tableName  string
 	model      model.Model
-	conditions []Condition
+	conditions []model.Condition
 	singleOp   bool
 }
 
@@ -108,7 +108,7 @@ func (c *explicitConditional) Generate() ([][]ovsdb.Condition, error) {
 }
 
 // newIndexCondition creates a new equalityConditional
-func newExplicitConditional(mapper *mapper.Mapper, table string, all bool, model model.Model, cond ...Condition) (Conditional, error) {
+func newExplicitConditional(mapper *mapper.Mapper, table string, all bool, model model.Model, cond ...model.Condition) (Conditional, error) {
 	return &explicitConditional{
 		mapper:     mapper,
 		tableName:  table,

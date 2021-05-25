@@ -292,14 +292,14 @@ func TestExplicitConditional(t *testing.T) {
 
 	test := []struct {
 		name   string
-		args   []Condition
+		args   []model.Condition
 		result [][]ovsdb.Condition
 		all    bool
 		err    bool
 	}{
 		{
 			name: "inequality comparison",
-			args: []Condition{
+			args: []model.Condition{
 				{
 					Field:    &testObj.Name,
 					Function: ovsdb.ConditionNotEqual,
@@ -316,7 +316,7 @@ func TestExplicitConditional(t *testing.T) {
 		},
 		{
 			name: "inequality comparison all",
-			args: []Condition{
+			args: []model.Condition{
 				{
 					Field:    &testObj.Name,
 					Function: ovsdb.ConditionNotEqual,
@@ -334,7 +334,7 @@ func TestExplicitConditional(t *testing.T) {
 		},
 		{
 			name: "map comparison",
-			args: []Condition{
+			args: []model.Condition{
 				{
 					Field:    &testObj.ExternalIds,
 					Function: ovsdb.ConditionIncludes,
@@ -351,7 +351,7 @@ func TestExplicitConditional(t *testing.T) {
 		},
 		{
 			name: "set comparison",
-			args: []Condition{
+			args: []model.Condition{
 				{
 					Field:    &testObj.Enabled,
 					Function: ovsdb.ConditionEqual,
@@ -368,7 +368,7 @@ func TestExplicitConditional(t *testing.T) {
 		},
 		{
 			name: "multiple conditions",
-			args: []Condition{
+			args: []model.Condition{
 				{
 					Field:    &testObj.Enabled,
 					Function: ovsdb.ConditionEqual,
@@ -396,7 +396,7 @@ func TestExplicitConditional(t *testing.T) {
 		},
 		{
 			name: "multiple conditions all",
-			args: []Condition{
+			args: []model.Condition{
 				{
 					Field:    &testObj.Enabled,
 					Function: ovsdb.ConditionEqual,

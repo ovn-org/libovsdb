@@ -368,12 +368,12 @@ func (ovs OvsdbClient) List(result interface{}) error {
 }
 
 //Where implements the API interface's Where function
-func (ovs OvsdbClient) Where(m model.Model, conditions ...Condition) ConditionalAPI {
+func (ovs OvsdbClient) Where(m model.Model, conditions ...model.Condition) ConditionalAPI {
 	return ovs.api.Where(m, conditions...)
 }
 
 //WhereAll implements the API interface's WhereAll function
-func (ovs OvsdbClient) WhereAll(m model.Model, conditions ...Condition) ConditionalAPI {
+func (ovs OvsdbClient) WhereAll(m model.Model, conditions ...model.Condition) ConditionalAPI {
 	return ovs.api.WhereAll(m, conditions...)
 }
 

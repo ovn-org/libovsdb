@@ -193,7 +193,7 @@ func TestInsertTransactIntegration(t *testing.T) {
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
 	ovsRow := ovsType{}
 	mutateOp, err := ovs.WhereCache(func(*ovsType) bool { return true }).
-		Mutate(&ovsRow, Mutation{
+		Mutate(&ovsRow, model.Mutation{
 			Field:   &ovsRow.Bridges,
 			Mutator: ovsdb.MutateOperationInsert,
 			Value:   []string{namedUUID},
@@ -239,7 +239,7 @@ func TestDeleteTransactIntegration(t *testing.T) {
 
 	ovsRow := ovsType{}
 	mutateOp, err := ovs.WhereCache(func(*ovsType) bool { return true }).
-		Mutate(&ovsRow, Mutation{
+		Mutate(&ovsRow, model.Mutation{
 			Field:   &ovsRow.Bridges,
 			Mutator: ovsdb.MutateOperationDelete,
 			Value:   []string{bridgeUUID},
@@ -541,7 +541,7 @@ func TestInsertDuplicateTransactIntegration(t *testing.T) {
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
 	ovsRow := ovsType{}
 	mutateOp, err := ovs.WhereCache(func(*ovsType) bool { return true }).
-		Mutate(&ovsRow, Mutation{
+		Mutate(&ovsRow, model.Mutation{
 			Field:   &ovsRow.Bridges,
 			Mutator: ovsdb.MutateOperationInsert,
 			Value:   []string{namedUUID},

@@ -355,7 +355,7 @@ func TestConditionFromModel(t *testing.T) {
 	test := []struct {
 		name  string
 		model model.Model
-		conds []Condition
+		conds []model.Condition
 		err   bool
 	}{
 		{
@@ -368,7 +368,7 @@ func TestConditionFromModel(t *testing.T) {
 			model: &struct {
 				a string `ovs:"_uuid"`
 			}{},
-			conds: []Condition{{Field: "foo"}},
+			conds: []model.Condition{{Field: "foo"}},
 			err:   true,
 		},
 		{
@@ -379,7 +379,7 @@ func TestConditionFromModel(t *testing.T) {
 		{
 			name:  "correct model with valid condition must succeed",
 			model: &testObj,
-			conds: []Condition{
+			conds: []model.Condition{
 				{
 					Field:    &testObj.Name,
 					Function: ovsdb.ConditionEqual,
@@ -639,7 +639,7 @@ func TestAPIMutate(t *testing.T) {
 		name      string
 		condition func(API) ConditionalAPI
 		model     model.Model
-		mutations []Mutation
+		mutations []model.Mutation
 		init      map[string]model.Model
 		result    []ovsdb.Operation
 		err       bool
@@ -651,7 +651,7 @@ func TestAPIMutate(t *testing.T) {
 					UUID: aUUID0,
 				})
 			},
-			mutations: []Mutation{
+			mutations: []model.Mutation{
 				{
 					Field:   &testObj.Tag,
 					Mutator: ovsdb.MutateOperationInsert,
@@ -675,7 +675,7 @@ func TestAPIMutate(t *testing.T) {
 					Name: "lsp2",
 				})
 			},
-			mutations: []Mutation{
+			mutations: []model.Mutation{
 				{
 					Field:   &testObj.ExternalIds,
 					Mutator: ovsdb.MutateOperationDelete,
@@ -699,7 +699,7 @@ func TestAPIMutate(t *testing.T) {
 					return lsp.Name == "lsp2"
 				})
 			},
-			mutations: []Mutation{
+			mutations: []model.Mutation{
 				{
 					Field:   &testObj.ExternalIds,
 					Mutator: ovsdb.MutateOperationInsert,
@@ -723,7 +723,7 @@ func TestAPIMutate(t *testing.T) {
 					return lsp.Type == "someType"
 				})
 			},
-			mutations: []Mutation{
+			mutations: []model.Mutation{
 				{
 					Field:   &testObj.ExternalIds,
 					Mutator: ovsdb.MutateOperationInsert,
@@ -753,7 +753,7 @@ func TestAPIMutate(t *testing.T) {
 					return lsp.Type == "someType"
 				})
 			},
-			mutations: []Mutation{},
+			mutations: []model.Mutation{},
 			err:       true,
 		},
 	}
@@ -859,7 +859,7 @@ func TestAPIUpdate(t *testing.T) {
 					Type:    "sometype",
 					Enabled: []bool{true},
 				}
-				return a.Where(&t, Condition{
+				return a.Where(&t, model.Condition{
 					Field:    &t.Type,
 					Function: ovsdb.ConditionEqual,
 					Value:    "sometype",
@@ -883,12 +883,12 @@ func TestAPIUpdate(t *testing.T) {
 			condition: func(a API) ConditionalAPI {
 				t := testLogicalSwitchPort{}
 				return a.Where(&t,
-					Condition{
+					model.Condition{
 						Field:    &t.Type,
 						Function: ovsdb.ConditionEqual,
 						Value:    "sometype",
 					},
-					Condition{
+					model.Condition{
 						Field:    &t.Enabled,
 						Function: ovsdb.ConditionIncludes,
 						Value:    []bool{true},
@@ -918,12 +918,12 @@ func TestAPIUpdate(t *testing.T) {
 			condition: func(a API) ConditionalAPI {
 				t := testLogicalSwitchPort{}
 				return a.WhereAll(&t,
-					Condition{
+					model.Condition{
 						Field:    &t.Type,
 						Function: ovsdb.ConditionEqual,
 						Value:    "sometype",
 					},
-					Condition{
+					model.Condition{
 						Field:    &t.Enabled,
 						Function: ovsdb.ConditionIncludes,
 						Value:    []bool{true},
@@ -952,7 +952,7 @@ func TestAPIUpdate(t *testing.T) {
 					Type:    "sometype",
 					Enabled: []bool{true},
 				}
-				return a.Where(&t, Condition{
+				return a.Where(&t, model.Condition{
 					Field:    &t.Type,
 					Function: ovsdb.ConditionNotEqual,
 					Value:    "sometype",
@@ -1090,7 +1090,7 @@ func TestAPIDelete(t *testing.T) {
 				t := testLogicalSwitchPort{
 					Enabled: []bool{true},
 				}
-				return a.Where(&t, Condition{
+				return a.Where(&t, model.Condition{
 					Field:    &t.Type,
 					Function: ovsdb.ConditionEqual,
 					Value:    "sometype",
@@ -1112,11 +1112,11 @@ func TestAPIDelete(t *testing.T) {
 					Enabled: []bool{true},
 				}
 				return a.Where(&t,
-					Condition{
+					model.Condition{
 						Field:    &t.Type,
 						Function: ovsdb.ConditionEqual,
 						Value:    "sometype",
-					}, Condition{
+					}, model.Condition{
 						Field:    &t.Name,
 						Function: ovsdb.ConditionEqual,
 						Value:    "foo",
@@ -1143,11 +1143,11 @@ func TestAPIDelete(t *testing.T) {
 					Enabled: []bool{true},
 				}
 				return a.WhereAll(&t,
-					Condition{
+					model.Condition{
 						Field:    &t.Type,
 						Function: ovsdb.ConditionEqual,
 						Value:    "sometype",
-					}, Condition{
+					}, model.Condition{
 						Field:    &t.Name,
 						Function: ovsdb.ConditionEqual,
 						Value:    "foo",

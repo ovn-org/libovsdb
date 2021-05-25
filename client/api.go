@@ -34,11 +34,11 @@ type API interface {
 	// where operations apply to elements that match any of the conditions
 	// If no condition is given, it will match the values provided in model.Model according
 	// to the database index.
-	Where(model.Model, ...Condition) ConditionalAPI
+	Where(model.Model, ...model.Condition) ConditionalAPI
 
 	// Create a ConditionalAPI from a Model's index data or a list of Conditions
 	// where operations apply to elements that match all the conditions
-	WhereAll(model.Model, ...Condition) ConditionalAPI
+	WhereAll(model.Model, ...model.Condition) ConditionalAPI
 
 	// Get retrieves a model from the cache
 	// The way the object will be fetch depends on the data contained in the
@@ -63,7 +63,7 @@ type ConditionalAPI interface {
 	// Mutate returns the operations needed to perform the mutation specified
 	// By the model and the list of Mutation objects
 	// Depending on the Condition, it might return one or many operations
-	Mutate(model.Model, ...Mutation) ([]ovsdb.Operation, error)
+	Mutate(model.Model, ...model.Mutation) ([]ovsdb.Operation, error)
 
 	// Update returns the operations needed to update any number of rows according
 	// to the data in the given model.
@@ -74,26 +74,6 @@ type ConditionalAPI interface {
 
 	// Delete returns the Operations needed to delete the models seleted via the condition
 	Delete() ([]ovsdb.Operation, error)
-}
-
-// Mutation is a type that represents a OVSDB Mutation
-type Mutation struct {
-	// Pointer to the field of the model that shall be mutated
-	Field interface{}
-	// String representing the mutator (as per RFC7047)
-	Mutator ovsdb.Mutator
-	// Value to use in the mutation
-	Value interface{}
-}
-
-// Condition is a type that represents a OVSDB Condition
-type Condition struct {
-	// Pointer to the field of the model where the operation applies
-	Field interface{}
-	// Condition function
-	Function ovsdb.ConditionFunction
-	// Value to use in the condition
-	Value interface{}
 }
 
 // ErrWrongType is used to report the user provided parameter has the wrong type
@@ -171,12 +151,12 @@ func (a api) List(result interface{}) error {
 }
 
 // Where returns a conditionalAPI based on a Condition list
-func (a api) Where(model model.Model, cond ...Condition) ConditionalAPI {
+func (a api) Where(model model.Model, cond ...model.Condition) ConditionalAPI {
 	return newConditionalAPI(a.cache, a.conditionFromModel(false, model, cond...))
 }
 
 // Where returns a conditionalAPI based on a Condition list
-func (a api) WhereAll(model model.Model, cond ...Condition) ConditionalAPI {
+func (a api) WhereAll(model model.Model, cond ...model.Condition) ConditionalAPI {
 	return newConditionalAPI(a.cache, a.conditionFromModel(true, model, cond...))
 }
 
@@ -201,7 +181,7 @@ func (a api) conditionFromFunc(predicate interface{}) Conditional {
 }
 
 // FromModel returns a Condition from a model and a list of fields
-func (a api) conditionFromModel(any bool, model model.Model, cond ...Condition) Conditional {
+func (a api) conditionFromModel(any bool, model model.Model, cond ...model.Condition) Conditional {
 	var conditional Conditional
 	var err error
 
@@ -314,7 +294,7 @@ func (a api) Create(models ...model.Model) ([]ovsdb.Operation, error) {
 }
 
 // Mutate returns the operations needed to transform the one Model into another one
-func (a api) Mutate(model model.Model, mutationObjs ...Mutation) ([]ovsdb.Operation, error) {
+func (a api) Mutate(model model.Model, mutationObjs ...model.Mutation) ([]ovsdb.Operation, error) {
 	var mutations []interface{}
 	var operations []ovsdb.Operation
 
