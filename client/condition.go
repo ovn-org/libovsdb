@@ -5,6 +5,7 @@ import (
 	"reflect"
 
 	"github.com/ovn-org/libovsdb/mapper"
+	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
@@ -15,7 +16,7 @@ type Conditional interface {
 	// Each element in the (outer) list corresponds to an operation
 	Generate() ([][]ovsdb.Condition, error)
 	// matches returns true if a model matches the condition
-	Matches(m mapper.Model) (bool, error)
+	Matches(m model.Model) (bool, error)
 	// returns the table that this condition is associated with
 	Table() string
 }
@@ -26,11 +27,11 @@ type Conditional interface {
 type equalityConditional struct {
 	mapper    *mapper.Mapper
 	tableName string
-	model     mapper.Model
+	model     model.Model
 	singleOp  bool
 }
 
-func (c *equalityConditional) Matches(m mapper.Model) (bool, error) {
+func (c *equalityConditional) Matches(m model.Model) (bool, error) {
 	return c.mapper.EqualFields(c.tableName, c.model, m)
 }
 
@@ -57,7 +58,7 @@ func (c *equalityConditional) Generate() ([][]ovsdb.Condition, error) {
 }
 
 // NewEqualityCondition creates a new equalityConditional
-func newEqualityConditional(mapper *mapper.Mapper, table string, all bool, model mapper.Model, fields ...interface{}) (Conditional, error) {
+func newEqualityConditional(mapper *mapper.Mapper, table string, all bool, model model.Model, fields ...interface{}) (Conditional, error) {
 	return &equalityConditional{
 		mapper:    mapper,
 		tableName: table,
@@ -70,12 +71,12 @@ func newEqualityConditional(mapper *mapper.Mapper, table string, all bool, model
 type explicitConditional struct {
 	mapper     *mapper.Mapper
 	tableName  string
-	model      mapper.Model
+	model      model.Model
 	conditions []Condition
 	singleOp   bool
 }
 
-func (c *explicitConditional) Matches(m mapper.Model) (bool, error) {
+func (c *explicitConditional) Matches(m model.Model) (bool, error) {
 	return false, fmt.Errorf("cannot perform cache comparisons using explicit conditions")
 }
 
@@ -107,7 +108,7 @@ func (c *explicitConditional) Generate() ([][]ovsdb.Condition, error) {
 }
 
 // newIndexCondition creates a new equalityConditional
-func newExplicitConditional(mapper *mapper.Mapper, table string, all bool, model mapper.Model, cond ...Condition) (Conditional, error) {
+func newExplicitConditional(mapper *mapper.Mapper, table string, all bool, model model.Model, cond ...Condition) (Conditional, error) {
 	return &explicitConditional{
 		mapper:     mapper,
 		tableName:  table,
@@ -127,7 +128,7 @@ type predicateConditional struct {
 
 // matches returns the result of the execution of the predicate
 // Type verifications are not performed
-func (c *predicateConditional) Matches(model mapper.Model) (bool, error) {
+func (c *predicateConditional) Matches(model model.Model) (bool, error) {
 	ret := reflect.ValueOf(c.predicate).Call([]reflect.Value{reflect.ValueOf(model)})
 	return ret[0].Bool(), nil
 }
@@ -176,7 +177,7 @@ type errorConditional struct {
 	err error
 }
 
-func (e *errorConditional) Matches(mapper.Model) (bool, error) {
+func (e *errorConditional) Matches(model.Model) (bool, error) {
 	return false, e.err
 }
 

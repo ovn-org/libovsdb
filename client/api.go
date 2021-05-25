@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	"github.com/ovn-org/libovsdb/mapper"
+	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
@@ -31,26 +32,26 @@ type API interface {
 
 	// Create a ConditionalAPI from a Model's index data or a list of Conditions
 	// where operations apply to elements that match any of the conditions
-	// If no condition is given, it will match the values provided in mapper.Model according
+	// If no condition is given, it will match the values provided in model.Model according
 	// to the database index.
-	Where(mapper.Model, ...Condition) ConditionalAPI
+	Where(model.Model, ...Condition) ConditionalAPI
 
 	// Create a ConditionalAPI from a Model's index data or a list of Conditions
 	// where operations apply to elements that match all the conditions
-	WhereAll(mapper.Model, ...Condition) ConditionalAPI
+	WhereAll(model.Model, ...Condition) ConditionalAPI
 
 	// Get retrieves a model from the cache
 	// The way the object will be fetch depends on the data contained in the
 	// provided model and the indexes defined in the associated schema
 	// For more complex ways of searching for elements in the cache, the
 	// preferred way is Where({condition}).List()
-	Get(mapper.Model) error
+	Get(model.Model) error
 
 	// Create returns the operation needed to add the model(s) to the Database
 	// Only fields with non-default values will be added to the transaction
 	// If the field associated with column "_uuid" has some content, it will be
 	// treated as named-uuid
-	Create(...mapper.Model) ([]ovsdb.Operation, error)
+	Create(...model.Model) ([]ovsdb.Operation, error)
 }
 
 // ConditionalAPI is an interface used to perform operations that require / use Conditions
@@ -62,14 +63,14 @@ type ConditionalAPI interface {
 	// Mutate returns the operations needed to perform the mutation specified
 	// By the model and the list of Mutation objects
 	// Depending on the Condition, it might return one or many operations
-	Mutate(mapper.Model, ...Mutation) ([]ovsdb.Operation, error)
+	Mutate(model.Model, ...Mutation) ([]ovsdb.Operation, error)
 
 	// Update returns the operations needed to update any number of rows according
 	// to the data in the given model.
 	// By default, all the non-default values contained in model will be updated.
 	// Optional fields can be passed (pointer to fields in the model) to select the
 	// the fields to be updated
-	Update(mapper.Model, ...interface{}) ([]ovsdb.Operation, error)
+	Update(model.Model, ...interface{}) ([]ovsdb.Operation, error)
 
 	// Delete returns the Operations needed to delete the models seleted via the condition
 	Delete() ([]ovsdb.Operation, error)
@@ -170,12 +171,12 @@ func (a api) List(result interface{}) error {
 }
 
 // Where returns a conditionalAPI based on a Condition list
-func (a api) Where(model mapper.Model, cond ...Condition) ConditionalAPI {
+func (a api) Where(model model.Model, cond ...Condition) ConditionalAPI {
 	return newConditionalAPI(a.cache, a.conditionFromModel(false, model, cond...))
 }
 
 // Where returns a conditionalAPI based on a Condition list
-func (a api) WhereAll(model mapper.Model, cond ...Condition) ConditionalAPI {
+func (a api) WhereAll(model model.Model, cond ...Condition) ConditionalAPI {
 	return newConditionalAPI(a.cache, a.conditionFromModel(true, model, cond...))
 }
 
@@ -200,7 +201,7 @@ func (a api) conditionFromFunc(predicate interface{}) Conditional {
 }
 
 // FromModel returns a Condition from a model and a list of fields
-func (a api) conditionFromModel(any bool, model mapper.Model, cond ...Condition) Conditional {
+func (a api) conditionFromModel(any bool, model model.Model, cond ...Condition) Conditional {
 	var conditional Conditional
 	var err error
 
@@ -230,8 +231,8 @@ func (a api) conditionFromModel(any bool, model mapper.Model, cond ...Condition)
 //
 // The way the cache is search depends on the fields already populated in 'result'
 // Any table index (including _uuid) will be used for comparison
-func (a api) Get(model mapper.Model) error {
-	table, err := a.getTableFromModel(model)
+func (a api) Get(m model.Model) error {
+	table, err := a.getTableFromModel(m)
 	if err != nil {
 		return err
 	}
@@ -242,7 +243,7 @@ func (a api) Get(model mapper.Model) error {
 	}
 
 	// If model contains _uuid value, we can access it via cache index
-	mapperInfo, err := mapper.NewMapperInfo(a.cache.mapper.Schema.Table(table), model)
+	mapperInfo, err := mapper.NewMapperInfo(a.cache.mapper.Schema.Table(table), m)
 	if err != nil {
 		return err
 	}
@@ -250,7 +251,7 @@ func (a api) Get(model mapper.Model) error {
 		if found := tableCache.Row(uuid.(string)); found == nil {
 			return ErrNotFound
 		} else {
-			reflect.ValueOf(model).Elem().Set(reflect.Indirect(reflect.ValueOf(found)))
+			reflect.ValueOf(m).Elem().Set(reflect.Indirect(reflect.ValueOf(found)))
 			return nil
 		}
 	}
@@ -258,12 +259,12 @@ func (a api) Get(model mapper.Model) error {
 	// Look across the entire cache for table index equality
 	for _, row := range tableCache.Rows() {
 		elem := tableCache.Row(row)
-		equal, err := a.cache.mapper.EqualFields(table, model, elem.(mapper.Model))
+		equal, err := a.cache.mapper.EqualFields(table, m, elem.(model.Model))
 		if err != nil {
 			return err
 		}
 		if equal {
-			reflect.ValueOf(model).Elem().Set(reflect.Indirect(reflect.ValueOf(elem)))
+			reflect.ValueOf(m).Elem().Set(reflect.Indirect(reflect.ValueOf(elem)))
 			return nil
 		}
 	}
@@ -272,7 +273,7 @@ func (a api) Get(model mapper.Model) error {
 
 // Create is a generic function capable of creating any row in the DB
 // A valud Model (pointer to object) must be provided.
-func (a api) Create(models ...mapper.Model) ([]ovsdb.Operation, error) {
+func (a api) Create(models ...model.Model) ([]ovsdb.Operation, error) {
 	var operations []ovsdb.Operation
 
 	for _, model := range models {
@@ -313,7 +314,7 @@ func (a api) Create(models ...mapper.Model) ([]ovsdb.Operation, error) {
 }
 
 // Mutate returns the operations needed to transform the one Model into another one
-func (a api) Mutate(model mapper.Model, mutationObjs ...Mutation) ([]ovsdb.Operation, error) {
+func (a api) Mutate(model model.Model, mutationObjs ...Mutation) ([]ovsdb.Operation, error) {
 	var mutations []interface{}
 	var operations []ovsdb.Operation
 
@@ -365,7 +366,7 @@ func (a api) Mutate(model mapper.Model, mutationObjs ...Mutation) ([]ovsdb.Opera
 
 // Update is a generic function capable of updating any field in any row in the database
 // Additional fields can be passed (variadic opts) to indicate fields to be updated
-func (a api) Update(model mapper.Model, fields ...interface{}) ([]ovsdb.Operation, error) {
+func (a api) Update(model model.Model, fields ...interface{}) ([]ovsdb.Operation, error) {
 	var operations []ovsdb.Operation
 	table, err := a.getTableFromModel(model)
 	if err != nil {
@@ -418,16 +419,14 @@ func (a api) Delete() ([]ovsdb.Operation, error) {
 
 // getTableFromModel returns the table name from a Model object after performing
 // type verifications on the model
-func (a api) getTableFromModel(model interface{}) (string, error) {
-	if _, ok := model.(mapper.Model); !ok {
-		return "", &ErrWrongType{reflect.TypeOf(model), "Type does not implement Model interface"}
+func (a api) getTableFromModel(m interface{}) (string, error) {
+	if _, ok := m.(model.Model); !ok {
+		return "", &ErrWrongType{reflect.TypeOf(m), "Type does not implement Model interface"}
 	}
-
-	table := a.cache.dbModel.FindTable(reflect.TypeOf(model))
+	table := a.cache.dbModel.FindTable(reflect.TypeOf(m))
 	if table == "" {
-		return "", &ErrWrongType{reflect.TypeOf(model), "Model not found in Database Model"}
+		return "", &ErrWrongType{reflect.TypeOf(m), "Model not found in Database Model"}
 	}
-
 	return table, nil
 }
 
@@ -442,7 +441,7 @@ func (a api) getTableFromFunc(predicate interface{}) (string, error) {
 		return "", &ErrWrongType{predType, "Expected func(Model) bool"}
 	}
 
-	modelInterface := reflect.TypeOf((*mapper.Model)(nil)).Elem()
+	modelInterface := reflect.TypeOf((*model.Model)(nil)).Elem()
 	modelType := predType.In(0)
 	if !modelType.Implements(modelInterface) {
 		return "", &ErrWrongType{predType,

@@ -1,9 +1,10 @@
-package mapper
+package model
 
 import (
 	"fmt"
 	"reflect"
 
+	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
@@ -82,7 +83,7 @@ func (db DBModel) Validate(schema *ovsdb.DatabaseSchema) []error {
 			errors = append(errors, err)
 			continue
 		}
-		if _, err := NewMapperInfo(tableSchema, model); err != nil {
+		if _, err := mapper.NewMapperInfo(tableSchema, model); err != nil {
 			errors = append(errors, err)
 		}
 	}

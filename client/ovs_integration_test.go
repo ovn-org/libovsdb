@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ovn-org/libovsdb/mapper"
+	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
 )
@@ -33,7 +33,7 @@ type ovsType struct {
 	Bridges []string `ovs:"bridges"`
 }
 
-var defDB, _ = mapper.NewDBModel("Open_vSwitch", map[string]mapper.Model{
+var defDB, _ = model.NewDBModel("Open_vSwitch", map[string]model.Model{
 	"Open_vSwitch": &ovsType{},
 	"Bridge":       &bridgeType{}})
 

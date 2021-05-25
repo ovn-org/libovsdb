@@ -12,7 +12,7 @@ import (
 
 	"github.com/cenkalti/rpc2"
 	"github.com/cenkalti/rpc2/jsonrpc"
-	"github.com/ovn-org/libovsdb/mapper"
+	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
@@ -47,7 +47,7 @@ const (
 
 // Connect to ovn, using endpoint in format ovsdb Connection Methods
 // If address is empty, use default address for specified protocol
-func Connect(endpoints string, database *mapper.DBModel, tlsConfig *tls.Config) (*OvsdbClient, error) {
+func Connect(endpoints string, database *model.DBModel, tlsConfig *tls.Config) (*OvsdbClient, error) {
 	var c net.Conn
 	var err error
 	var u *url.URL
@@ -85,7 +85,7 @@ func Connect(endpoints string, database *mapper.DBModel, tlsConfig *tls.Config) 
 	return nil, fmt.Errorf("failed to connect to endpoints %q: %v", endpoints, err)
 }
 
-func newRPC2Client(conn net.Conn, database *mapper.DBModel) (*OvsdbClient, error) {
+func newRPC2Client(conn net.Conn, database *model.DBModel) (*OvsdbClient, error) {
 	ovs := newOvsdbClient()
 	ovs.rpcClient = rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
 	ovs.rpcClient.SetBlocking(true)
@@ -353,12 +353,12 @@ func (ovs OvsdbClient) Disconnect() {
 var _ API = OvsdbClient{}
 
 //Get implements the API interface's Get function
-func (ovs OvsdbClient) Get(model mapper.Model) error {
+func (ovs OvsdbClient) Get(model model.Model) error {
 	return ovs.api.Get(model)
 }
 
 //Create implementes the API interface's Create function
-func (ovs OvsdbClient) Create(models ...mapper.Model) ([]ovsdb.Operation, error) {
+func (ovs OvsdbClient) Create(models ...model.Model) ([]ovsdb.Operation, error) {
 	return ovs.api.Create(models...)
 }
 
@@ -368,12 +368,12 @@ func (ovs OvsdbClient) List(result interface{}) error {
 }
 
 //Where implements the API interface's Where function
-func (ovs OvsdbClient) Where(m mapper.Model, conditions ...Condition) ConditionalAPI {
+func (ovs OvsdbClient) Where(m model.Model, conditions ...Condition) ConditionalAPI {
 	return ovs.api.Where(m, conditions...)
 }
 
 //WhereAll implements the API interface's WhereAll function
-func (ovs OvsdbClient) WhereAll(m mapper.Model, conditions ...Condition) ConditionalAPI {
+func (ovs OvsdbClient) WhereAll(m model.Model, conditions ...Condition) ConditionalAPI {
 	return ovs.api.WhereAll(m, conditions...)
 }
 

@@ -1,4 +1,4 @@
-package mapper
+package model
 
 import (
 	"encoding/json"

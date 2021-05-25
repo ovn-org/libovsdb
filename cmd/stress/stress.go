@@ -9,7 +9,7 @@ import (
 	"runtime/pprof"
 
 	"github.com/ovn-org/libovsdb/client"
-	"github.com/ovn-org/libovsdb/mapper"
+	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
@@ -35,7 +35,7 @@ var (
 	nins       = flag.Int("ninserts", 100, "insert this number of elements in the database")
 	verbose    = flag.Bool("verbose", false, "Be verbose")
 	connection = flag.String("ovsdb", "unix:/var/run/openvswitch/db.sock", "OVSDB connection string")
-	dbModel    *mapper.DBModel
+	dbModel    *model.DBModel
 
 	ready      bool
 	rootUUID   string
@@ -51,7 +51,7 @@ func run() {
 	defer ovs.Disconnect()
 	ovs.Cache.AddEventHandler(
 		&client.EventHandlerFuncs{
-			AddFunc: func(table string, model mapper.Model) {
+			AddFunc: func(table string, model model.Model) {
 				if ready && table == "Bridge" {
 					insertions++
 					if *verbose {
@@ -59,7 +59,7 @@ func run() {
 					}
 				}
 			},
-			DeleteFunc: func(table string, model mapper.Model) {
+			DeleteFunc: func(table string, model model.Model) {
 				if table == "Bridge" {
 					deletions++
 				}
@@ -187,7 +187,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	dbModel, err = mapper.NewDBModel("Open_vSwitch", map[string]mapper.Model{"Open_vSwitch": &ovsType{}, "Bridge": &bridgeType{}})
+	dbModel, err = model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &ovsType{}, "Bridge": &bridgeType{}})
 	if err != nil {
 		log.Fatal(err)
 	}
