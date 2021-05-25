@@ -16,22 +16,6 @@ const (
 	ovsTable    = "Open_vSwitch"
 )
 
-// ORMBridge is the simplified ORM model of the Bridge table
-type ormBridge struct {
-	UUID        string            `ovs:"_uuid"`
-	Name        string            `ovs:"name"`
-	OtherConfig map[string]string `ovs:"other_config"`
-	ExternalIds map[string]string `ovs:"external_ids"`
-	Ports       []string          `ovs:"ports"`
-	Status      map[string]string `ovs:"status"`
-}
-
-// ORMOVS is the simplified ORM model of the Open_vSwitch table
-type ormOvs struct {
-	UUID    string   `ovs:"_uuid"`
-	Bridges []string `ovs:"bridges"`
-}
-
 var quit chan bool
 var update chan client.Model
 
@@ -41,14 +25,14 @@ var connection = flag.String("ovsdb", "unix:/var/run/openvswitch/db.sock", "OVSD
 func play(ovs *client.OvsdbClient) {
 	go processInput(ovs)
 	for model := range update {
-		bridge := model.(*ormBridge)
+		bridge := model.(*Bridge)
 		if bridge.Name == "stop" {
 			fmt.Printf("Bridge stop detected: %+v\n", *bridge)
 			ovs.Disconnect()
 			quit <- true
 		} else {
 			fmt.Printf("Current list of bridges:\n")
-			var bridges []ormBridge
+			var bridges []Bridge
 			if err := ovs.List(&bridges); err != nil {
 				log.Fatal(err)
 			}
@@ -60,7 +44,7 @@ func play(ovs *client.OvsdbClient) {
 }
 
 func createBridge(ovs *client.OvsdbClient, bridgeName string) {
-	bridge := ormBridge{
+	bridge := Bridge{
 		UUID: "gopher",
 		Name: bridgeName,
 	}
@@ -69,7 +53,7 @@ func createBridge(ovs *client.OvsdbClient, bridgeName string) {
 		log.Fatal(err)
 	}
 
-	ovsRow := ormOvs{
+	ovsRow := OpenvSwitch{
 		UUID: rootUUID,
 	}
 	mutateOps, err := ovs.Where(&ovsRow).Mutate(&ovsRow, client.Mutation{
@@ -110,7 +94,7 @@ func main() {
 	update = make(chan client.Model)
 
 	dbmodel, err := client.NewDBModel("Open_vSwitch",
-		map[string]client.Model{bridgeTable: &ormBridge{}, ovsTable: &ormOvs{}})
+		map[string]client.Model{bridgeTable: &Bridge{}, ovsTable: &OpenvSwitch{}})
 	if err != nil {
 		log.Fatal("Unable to create DB model ", err)
 	}
