@@ -5,6 +5,7 @@ import (
 
 	"encoding/json"
 
+	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
 )
@@ -17,7 +18,7 @@ type testModel struct {
 func TestRowCache_Row(t *testing.T) {
 
 	type fields struct {
-		cache map[string]Model
+		cache map[string]model.Model
 	}
 	type args struct {
 		uuid string
@@ -26,17 +27,17 @@ func TestRowCache_Row(t *testing.T) {
 		name   string
 		fields fields
 		args   args
-		want   Model
+		want   model.Model
 	}{
 		{
 			"returns a row that exists",
-			fields{cache: map[string]Model{"test": &testModel{}}},
+			fields{cache: map[string]model.Model{"test": &testModel{}}},
 			args{uuid: "test"},
 			&testModel{},
 		},
 		{
 			"returns a nil for a row that does not exist",
-			fields{cache: map[string]Model{"test": &testModel{}}},
+			fields{cache: map[string]model.Model{"test": &testModel{}}},
 			args{uuid: "foo"},
 			nil,
 		},
@@ -54,7 +55,7 @@ func TestRowCache_Row(t *testing.T) {
 
 func TestRowCache_Rows(t *testing.T) {
 	type fields struct {
-		cache map[string]Model
+		cache map[string]model.Model
 	}
 	tests := []struct {
 		name   string
@@ -63,7 +64,7 @@ func TestRowCache_Rows(t *testing.T) {
 	}{
 		{
 			"returns a rows that exist",
-			fields{cache: map[string]Model{"test1": &testModel{}, "test2": &testModel{}, "test3": &testModel{}}},
+			fields{cache: map[string]model.Model{"test1": &testModel{}, "test2": &testModel{}, "test3": &testModel{}}},
 			[]string{"test1", "test2", "test3"},
 		},
 	}
@@ -81,13 +82,13 @@ func TestRowCache_Rows(t *testing.T) {
 func TestEventHandlerFuncs_OnAdd(t *testing.T) {
 	calls := 0
 	type fields struct {
-		AddFunc    func(table string, row Model)
-		UpdateFunc func(table string, old Model, new Model)
-		DeleteFunc func(table string, row Model)
+		AddFunc    func(table string, row model.Model)
+		UpdateFunc func(table string, old model.Model, new model.Model)
+		DeleteFunc func(table string, row model.Model)
 	}
 	type args struct {
 		table string
-		row   Model
+		row   model.Model
 	}
 	tests := []struct {
 		name   string
@@ -101,7 +102,7 @@ func TestEventHandlerFuncs_OnAdd(t *testing.T) {
 		},
 		{
 			"calls onadd function",
-			fields{func(string, Model) {
+			fields{func(string, model.Model) {
 				calls++
 			}, nil, nil},
 			args{"testTable", &testModel{}},
@@ -125,14 +126,14 @@ func TestEventHandlerFuncs_OnAdd(t *testing.T) {
 func TestEventHandlerFuncs_OnUpdate(t *testing.T) {
 	calls := 0
 	type fields struct {
-		AddFunc    func(table string, row Model)
-		UpdateFunc func(table string, old Model, new Model)
-		DeleteFunc func(table string, row Model)
+		AddFunc    func(table string, row model.Model)
+		UpdateFunc func(table string, old model.Model, new model.Model)
+		DeleteFunc func(table string, row model.Model)
 	}
 	type args struct {
 		table string
-		old   Model
-		new   Model
+		old   model.Model
+		new   model.Model
 	}
 	tests := []struct {
 		name   string
@@ -146,7 +147,7 @@ func TestEventHandlerFuncs_OnUpdate(t *testing.T) {
 		},
 		{
 			"calls onupdate function",
-			fields{nil, func(string, Model, Model) {
+			fields{nil, func(string, model.Model, model.Model) {
 				calls++
 			}, nil},
 			args{"testTable", &testModel{}, &testModel{}},
@@ -170,13 +171,13 @@ func TestEventHandlerFuncs_OnUpdate(t *testing.T) {
 func TestEventHandlerFuncs_OnDelete(t *testing.T) {
 	calls := 0
 	type fields struct {
-		AddFunc    func(table string, row Model)
-		UpdateFunc func(table string, old Model, new Model)
-		DeleteFunc func(table string, row Model)
+		AddFunc    func(table string, row model.Model)
+		UpdateFunc func(table string, old model.Model, new model.Model)
+		DeleteFunc func(table string, row model.Model)
 	}
 	type args struct {
 		table string
-		row   Model
+		row   model.Model
 	}
 	tests := []struct {
 		name   string
@@ -190,7 +191,7 @@ func TestEventHandlerFuncs_OnDelete(t *testing.T) {
 		},
 		{
 			"calls ondelete function",
-			fields{nil, nil, func(string, Model) {
+			fields{nil, nil, func(string, model.Model) {
 				calls++
 			}},
 			args{"testTable", &testModel{}},
@@ -289,7 +290,7 @@ func TestTableCache_Tables(t *testing.T) {
 
 func TestTableCache_populate(t *testing.T) {
 	t.Log("Create")
-	db, err := NewDBModel("Open_vSwitch", map[string]Model{"Open_vSwitch": &testModel{}})
+	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
 	assert.Nil(t, err)
 	var schema ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(`

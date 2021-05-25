@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
 )
@@ -155,7 +156,7 @@ func apiTestCache(t *testing.T) *TableCache {
 	var schema ovsdb.DatabaseSchema
 	err := json.Unmarshal(apiTestSchema, &schema)
 	assert.Nil(t, err)
-	db, err := NewDBModel("OVN_NorthBound", map[string]Model{"Logical_Switch": &testLogicalSwitch{}, "Logical_Switch_Port": &testLogicalSwitchPort{}})
+	db, err := model.NewDBModel("OVN_NorthBound", map[string]model.Model{"Logical_Switch": &testLogicalSwitch{}, "Logical_Switch_Port": &testLogicalSwitchPort{}})
 	assert.Nil(t, err)
 	cache, err := newTableCache(&schema, db)
 	assert.Nil(t, err)

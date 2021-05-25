@@ -24,7 +24,7 @@ The API to interact with OVSDB is based on tagged golang structs. We call it a M
 
 A Open vSwitch Database is modeled using a DBModel which is a created by assigning table names to pointers to these structs:
 
-    dbModel, _ := client.NewDBModel("OVN_Northbound", map[string]client.Model{
+    dbModel, _ := model.NewDBModel("OVN_Northbound", map[string]model.Model{
                 "Logical_Switch": &MyLogicalSwitch{},
     })
 
@@ -73,15 +73,21 @@ The table is infered from the type that the function accepts as only argument.
 
 ## Documentation
 
-This package is divided into two subpackages. Documentation for each subpackage is available at [pkg.go.dev][doc]:
+This package is divided into several subpackages. Documentation for each subpackage is available at [pkg.go.dev][doc]:
 
 * **client**: ovsdb client, cache and API [![godoc for libovsdb/client][clientbadge]][clientdoc]
+* **mapper**: mapping from tagged structs to ovsdb types [![godoc for libovsdb/mapper][mapperbadge]][mapperdoc]
+* **model**: model and database model used for mapping [![godoc for libovsdb/model][modelbadge]][modeldoc]
 * **ovsdb**: low level OVS types [![godoc for libovsdb/ovsdb][ovsdbbadge]][ovsdbdoc]
 
 [doc]: https://pkg.go.dev/
 [clientbadge]: https://pkg.go.dev/badge/github.com/ovn-org/libovsdb/client
+[mapperbadge]: https://pkg.go.dev/badge/github.com/ovn-org/libovsdb/mapper
+[modelbadge]: https://pkg.go.dev/badge/github.com/ovn-org/libovsdb/model
 [ovsdbbadge]: https://pkg.go.dev/badge/github.com/ovn-org/libovsdb/ovsdb
 [clientdoc]: https://pkg.go.dev/github.com/ovn-org/libovsdb/client
+[mapperdoc]: https://pkg.go.dev/github.com/ovn-org/libovsdb/mapper
+[modeldoc]: https://pkg.go.dev/github.com/ovn-org/libovsdb/model
 [ovsdbdoc]: https://pkg.go.dev/github.com/ovn-org/libovsdb/ovsdb
 
 
@@ -170,7 +176,7 @@ They can also be created based on a list of Conditions:
 You can also register a notification handler to get notified every time an element is added, deleted or updated from the database.
 
     handler := &client.EventHandlerFuncs{
-        AddFunc: func(table string, model client.Model) {
+        AddFunc: func(table string, model model.Model) {
             if table == "Logical_Switch" {
                 fmt.Printf("A new switch named %s was added!!\n!", model.(*MyLogicalSwitch).Name)
             }

@@ -6,7 +6,27 @@ import (
 	"testing"
 
 	"github.com/ovn-org/libovsdb/ovsdb"
+	"github.com/stretchr/testify/assert"
 )
+
+var (
+	aUUID0 = "2f77b348-9768-4866-b761-89d5177ecda0"
+	aUUID1 = "2f77b348-9768-4866-b761-89d5177ecda1"
+	aUUID2 = "2f77b348-9768-4866-b761-89d5177ecda2"
+	aUUID3 = "2f77b348-9768-4866-b761-89d5177ecda3"
+)
+
+func testOvsSet(t *testing.T, set interface{}) *ovsdb.OvsSet {
+	oSet, err := ovsdb.NewOvsSet(set)
+	assert.Nil(t, err)
+	return oSet
+}
+
+func testOvsMap(t *testing.T, set interface{}) *ovsdb.OvsMap {
+	oMap, err := ovsdb.NewOvsMap(set)
+	assert.Nil(t, err)
+	return oMap
+}
 
 func updateBenchmark(bridges []string, b *testing.B) {
 	bridgeInsert := ovsdb.TableUpdate{

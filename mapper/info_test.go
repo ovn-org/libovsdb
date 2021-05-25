@@ -1,4 +1,4 @@
-package client
+package mapper
 
 import (
 	"encoding/json"
@@ -33,7 +33,7 @@ var sampleTable = []byte(`{
     }
 }`)
 
-func TestNewOrmInfo(t *testing.T) {
+func TestNewMapperInfo(t *testing.T) {
 	type test struct {
 		name         string
 		table        []byte
@@ -53,26 +53,26 @@ func TestNewOrmInfo(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("NewOrm_%s", tt.name), func(t *testing.T) {
+		t.Run(fmt.Sprintf("NewMapper_%s", tt.name), func(t *testing.T) {
 			var table ovsdb.TableSchema
 			err := json.Unmarshal(tt.table, &table)
 			assert.Nil(t, err)
 
-			info, err := newORMInfo(&table, tt.obj)
+			info, err := NewMapperInfo(&table, tt.obj)
 			if tt.err {
 				assert.NotNil(t, err)
 			} else {
 				assert.Nil(t, err)
 			}
 			for _, col := range tt.expectedCols {
-				assert.Truef(t, info.hasColumn(col), "Expected column should be present in ORM Info")
+				assert.Truef(t, info.hasColumn(col), "Expected column should be present in Mapper Info")
 			}
 
 		})
 	}
 }
 
-func TestOrmInfoSet(t *testing.T) {
+func TestMapperInfoSet(t *testing.T) {
 	type obj struct {
 		Ostring string            `ovs:"aString"`
 		Oint    int               `ovs:"aInteger"`
@@ -141,15 +141,15 @@ func TestOrmInfoSet(t *testing.T) {
 			err := json.Unmarshal(tt.table, &table)
 			assert.Nil(t, err)
 
-			info, err := newORMInfo(&table, tt.obj)
+			info, err := NewMapperInfo(&table, tt.obj)
 			assert.Nil(t, err)
 
-			err = info.setField(tt.column, tt.field)
+			err = info.SetField(tt.column, tt.field)
 			if tt.err {
 				assert.NotNil(t, err)
 			} else {
 				assert.Nil(t, err)
-				readBack, err := info.fieldByColumn(tt.column)
+				readBack, err := info.FieldByColumn(tt.column)
 				assert.Nil(t, err)
 				assert.Equalf(t, tt.field, readBack, "Set field should match original")
 			}
@@ -158,7 +158,7 @@ func TestOrmInfoSet(t *testing.T) {
 	}
 }
 
-func TestOrmInfoColByPtr(t *testing.T) {
+func TestMapperInfoColByPtr(t *testing.T) {
 	type obj struct {
 		ostring string            `ovs:"aString"`
 		oint    int               `ovs:"aInteger"`
@@ -222,10 +222,10 @@ func TestOrmInfoColByPtr(t *testing.T) {
 			err := json.Unmarshal(tt.table, &table)
 			assert.Nil(t, err)
 
-			info, err := newORMInfo(&table, tt.obj)
+			info, err := NewMapperInfo(&table, tt.obj)
 			assert.Nil(t, err)
 
-			col, err := info.columnByPtr(tt.field)
+			col, err := info.ColumnByPtr(tt.field)
 			if tt.err {
 				assert.NotNil(t, err)
 			} else {
@@ -354,10 +354,10 @@ func TestOrmGetIndex(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("GetValidIndexes_%s", tt.name), func(t *testing.T) {
-			info, err := newORMInfo(&table, tt.obj)
+			info, err := NewMapperInfo(&table, tt.obj)
 			assert.Nil(t, err)
 
-			indexes, err := info.getValidORMIndexes()
+			indexes, err := info.getValidIndexes()
 			if tt.err {
 				assert.NotNil(t, err)
 			} else {

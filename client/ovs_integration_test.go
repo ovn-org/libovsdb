@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
 )
@@ -32,7 +33,7 @@ type ovsType struct {
 	Bridges []string `ovs:"bridges"`
 }
 
-var defDB, _ = NewDBModel("Open_vSwitch", map[string]Model{
+var defDB, _ = model.NewDBModel("Open_vSwitch", map[string]model.Model{
 	"Open_vSwitch": &ovsType{},
 	"Bridge":       &bridgeType{}})
 
@@ -192,7 +193,7 @@ func TestInsertTransactIntegration(t *testing.T) {
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
 	ovsRow := ovsType{}
 	mutateOp, err := ovs.WhereCache(func(*ovsType) bool { return true }).
-		Mutate(&ovsRow, Mutation{
+		Mutate(&ovsRow, model.Mutation{
 			Field:   &ovsRow.Bridges,
 			Mutator: ovsdb.MutateOperationInsert,
 			Value:   []string{namedUUID},
@@ -238,7 +239,7 @@ func TestDeleteTransactIntegration(t *testing.T) {
 
 	ovsRow := ovsType{}
 	mutateOp, err := ovs.WhereCache(func(*ovsType) bool { return true }).
-		Mutate(&ovsRow, Mutation{
+		Mutate(&ovsRow, model.Mutation{
 			Field:   &ovsRow.Bridges,
 			Mutator: ovsdb.MutateOperationDelete,
 			Value:   []string{bridgeUUID},
@@ -540,7 +541,7 @@ func TestInsertDuplicateTransactIntegration(t *testing.T) {
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
 	ovsRow := ovsType{}
 	mutateOp, err := ovs.WhereCache(func(*ovsType) bool { return true }).
-		Mutate(&ovsRow, Mutation{
+		Mutate(&ovsRow, model.Mutation{
 			Field:   &ovsRow.Bridges,
 			Mutator: ovsdb.MutateOperationInsert,
 			Value:   []string{namedUUID},
