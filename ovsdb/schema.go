@@ -588,10 +588,7 @@ func (column *ColumnSchema) String() string {
 		if column.TypeObj.Key.Type == TypeUUID {
 			// ignore err as we've already asserted this is a uuid
 			reftable, _ := column.TypeObj.Key.RefTable()
-			reftype := ""
-			if s, err := column.TypeObj.Key.RefType(); err != nil {
-				reftype = s
-			}
+			reftype, _ := column.TypeObj.Key.RefType()
 			keyStr = fmt.Sprintf(" [%s (%s)]", reftable, reftype)
 		} else {
 			keyStr = string(column.TypeObj.Key.Type)
