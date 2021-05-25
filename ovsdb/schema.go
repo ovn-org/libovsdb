@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"os"
 	"strings"
 )
@@ -163,20 +164,120 @@ const (
 
 // BaseType is a base-type structure as per RFC7047
 type BaseType struct {
-	Type       string        `json:"type"`
-	Enum       []interface{} `json:"-"`
-	MinReal    *float64      `json:"minReal,omitempty"`
-	MaxReal    *float64      `json:"maxReal,omitempty"`
-	MinInteger *int          `json:"minInteger,omitempty"`
-	MaxInteger *int          `json:"maxInteger,omitempty"`
-	MinLength  *int          `json:"minLength,omitempty"`
-	MaxLength  *int          `json:"maxLength,omitempty"`
-	RefTable   *string       `json:"refTable,omitempty"`
-	RefType    *RefType      `json:"refType,omitempty"`
+	Type       string
+	Enum       []interface{}
+	minReal    *float64
+	maxReal    *float64
+	minInteger *int
+	maxInteger *int
+	minLength  *int
+	maxLength  *int
+	refTable   *string
+	refType    *RefType
 }
 
 func (b *BaseType) simpleAtomic() bool {
-	return isAtomicType(b.Type) && b.Enum == nil && b.MinReal == nil && b.MaxReal == nil && b.MinInteger == nil && b.MaxInteger == nil && b.MinLength == nil && b.MaxLength == nil && b.RefTable == nil && b.RefType == nil
+	return isAtomicType(b.Type) && b.Enum == nil && b.minReal == nil && b.maxReal == nil && b.minInteger == nil && b.maxInteger == nil && b.minLength == nil && b.maxLength == nil && b.refTable == nil && b.refType == nil
+}
+
+// MinReal returns the minimum real value
+// RFC7047 does not define a default, but we assume this to be
+// the smallest non zero value a float64 could hold
+func (b *BaseType) MinReal() (float64, error) {
+	if b.Type != TypeReal {
+		return 0, fmt.Errorf("%s is not a real", b.Type)
+	}
+	if b.minReal != nil {
+		return *b.minReal, nil
+	}
+	return math.SmallestNonzeroFloat64, nil
+}
+
+// MaxReal returns the maximum real value
+// RFC7047 does not define a default, but this would be the maximum
+// value held by a float64
+func (b *BaseType) MaxReal() (float64, error) {
+	if b.Type != TypeReal {
+		return 0, fmt.Errorf("%s is not a real", b.Type)
+	}
+	if b.maxReal != nil {
+		return *b.maxReal, nil
+	}
+	return math.MaxFloat64, nil
+}
+
+// MinInteger returns the minimum real value
+// RFC7047 species the minimum to be -2^63
+func (b *BaseType) MinInteger() (int, error) {
+	if b.Type != TypeInteger {
+		return 0, fmt.Errorf("%s is not an integer", b.Type)
+	}
+	if b.minInteger != nil {
+		return *b.minInteger, nil
+	}
+	return int(math.Pow(-2, 63)), nil
+}
+
+// MinInteger returns the minimum real value
+// RFC7047 species the minimum to be 2^63-1
+func (b *BaseType) MaxInteger() (int, error) {
+	if b.Type != TypeInteger {
+		return 0, fmt.Errorf("%s is not an integer", b.Type)
+	}
+	if b.maxInteger != nil {
+		return *b.maxInteger, nil
+	}
+	return int(math.Pow(2, 63)) - 1, nil
+}
+
+// MinLength returns the minimum string length
+// RFC7047 doesn't specify a default, but we assume
+// that it must be >= 0
+func (b *BaseType) MinLength() (int, error) {
+	if b.Type != TypeString {
+		return 0, fmt.Errorf("%s is not an string", b.Type)
+	}
+	if b.minLength != nil {
+		return *b.minLength, nil
+	}
+	return 0, nil
+}
+
+// MaxLength returns the maximum string length
+// RFC7047 doesn't specify a default, but we assume
+// that it must 2^63-1
+func (b *BaseType) MaxLength() (int, error) {
+	if b.Type != TypeString {
+		return 0, fmt.Errorf("%s is not an string", b.Type)
+	}
+	if b.maxLength != nil {
+		return *b.maxLength, nil
+	}
+	return int(math.Pow(2, 63)) - 1, nil
+}
+
+// RefTable returns the table to which a UUID type refers
+// It will return an empry string if not set
+func (b *BaseType) RefTable() (string, error) {
+	if b.Type != TypeUUID {
+		return "", fmt.Errorf("%s is not a uuid", b.Type)
+	}
+	if b.refTable != nil {
+		return *b.refTable, nil
+	}
+	return "", nil
+}
+
+// RefType returns the reference type for a UUID field
+// RFC7047 infers the RefType is strong if omitted
+func (b *BaseType) RefType() (RefType, error) {
+	if b.Type != TypeUUID {
+		return "", fmt.Errorf("%s is not a uuid", b.Type)
+	}
+	if b.refType != nil {
+		return *b.refType, nil
+	}
+	return Strong, nil
 }
 
 // UnmarshalJSON unmarshalls a json-formatted base type
@@ -224,18 +325,18 @@ func (b *BaseType) UnmarshalJSON(data []byte) error {
 		}
 	}
 	b.Type = bt.Type
-	b.MinReal = bt.MinReal
-	b.MaxReal = bt.MaxReal
-	b.MinInteger = bt.MinInteger
-	b.MaxInteger = bt.MaxInteger
-	b.MinLength = bt.MaxLength
-	b.MaxLength = bt.MaxLength
-	b.RefTable = bt.RefTable
-	b.RefType = bt.RefType
+	b.minReal = bt.MinReal
+	b.maxReal = bt.MaxReal
+	b.minInteger = bt.MinInteger
+	b.maxInteger = bt.MaxInteger
+	b.minLength = bt.MaxLength
+	b.maxLength = bt.MaxLength
+	b.refTable = bt.RefTable
+	b.refType = bt.RefType
 	return nil
 }
 
-// MarshalJSON marshalls a base type to JSON
+// MarshalJSON marshals a base type to JSON
 func (b BaseType) MarshalJSON() ([]byte, error) {
 	j := struct {
 		Type       string   `json:"type,omitempty"`
@@ -250,14 +351,14 @@ func (b BaseType) MarshalJSON() ([]byte, error) {
 		RefType    *RefType `json:"refType,omitempty"`
 	}{
 		Type:       b.Type,
-		MinReal:    b.MinReal,
-		MaxReal:    b.MaxReal,
-		MinInteger: b.MinInteger,
-		MaxInteger: b.MaxInteger,
-		MinLength:  b.MaxLength,
-		MaxLength:  b.MaxLength,
-		RefTable:   b.RefTable,
-		RefType:    b.RefType,
+		MinReal:    b.minReal,
+		MaxReal:    b.maxReal,
+		MinInteger: b.minInteger,
+		MaxInteger: b.maxInteger,
+		MinLength:  b.maxLength,
+		MaxLength:  b.maxLength,
+		RefTable:   b.refTable,
+		RefType:    b.refType,
 	}
 	if len(b.Enum) > 0 {
 		var err error
@@ -467,7 +568,13 @@ func (column *ColumnSchema) String() string {
 		typeStr = string(column.Type)
 	case TypeUUID:
 		if column.TypeObj != nil && column.TypeObj.Key != nil {
-			typeStr = fmt.Sprintf("uuid [%s (%s)]", *column.TypeObj.Key.RefTable, *column.TypeObj.Key.RefType)
+			// ignore err as we've already asserted this is a uuid
+			reftable, _ := column.TypeObj.Key.RefTable()
+			reftype := ""
+			if s, err := column.TypeObj.Key.RefType(); err != nil {
+				reftype = s
+			}
+			typeStr = fmt.Sprintf("uuid [%s (%s)]", reftable, reftype)
 		} else {
 			typeStr = "uuid"
 		}
@@ -479,7 +586,13 @@ func (column *ColumnSchema) String() string {
 	case TypeSet:
 		var keyStr string
 		if column.TypeObj.Key.Type == TypeUUID {
-			keyStr = fmt.Sprintf(" [%s (%s)]", *column.TypeObj.Key.RefTable, *column.TypeObj.Key.RefType)
+			// ignore err as we've already asserted this is a uuid
+			reftable, _ := column.TypeObj.Key.RefTable()
+			reftype := ""
+			if s, err := column.TypeObj.Key.RefType(); err != nil {
+				reftype = s
+			}
+			keyStr = fmt.Sprintf(" [%s (%s)]", reftable, reftype)
 		} else {
 			keyStr = string(column.TypeObj.Key.Type)
 		}

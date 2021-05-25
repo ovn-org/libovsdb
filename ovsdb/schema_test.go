@@ -3,6 +3,7 @@ package ovsdb
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"reflect"
 	"testing"
 
@@ -455,7 +456,7 @@ func TestBaseTypeMarshalUnmarshalJSON(t *testing.T) {
 		{
 			"uuid",
 			[]byte(`{"type": "uuid", "refTable": "Datapath", "refType": "strong"}`),
-			BaseType{Type: TypeUUID, RefTable: &datapath, RefType: &strong},
+			BaseType{Type: TypeUUID, refTable: &datapath, refType: &strong},
 			[]byte(`{"type": "uuid", "refTable": "Datapath", "refType": "strong"}`),
 			false,
 		},
@@ -469,7 +470,7 @@ func TestBaseTypeMarshalUnmarshalJSON(t *testing.T) {
 		{
 			"int with min and max",
 			[]byte(`{"type":"integer","minInteger":0,"maxInteger": 4294967295}`),
-			BaseType{Type: TypeInteger, MinInteger: &zero, MaxInteger: &max},
+			BaseType{Type: TypeInteger, minInteger: &zero, maxInteger: &max},
 			[]byte(`{"type":"integer","minInteger":0,"maxInteger": 4294967295}`),
 			false,
 		},
@@ -626,7 +627,7 @@ func TestColumnSchemaMarshalUnmarshalJSON(t *testing.T) {
 				Type: TypeMap,
 				TypeObj: &ColumnType{
 					Key:   &BaseType{Type: TypeString},
-					Value: &BaseType{Type: TypeUUID, RefTable: &datapath},
+					Value: &BaseType{Type: TypeUUID, refTable: &datapath},
 					min:   &zero,
 					max:   &unlimted,
 				},
@@ -639,7 +640,7 @@ func TestColumnSchemaMarshalUnmarshalJSON(t *testing.T) {
 			ColumnSchema{
 				Type: TypeSet,
 				TypeObj: &ColumnType{
-					Key: &BaseType{Type: TypeUUID, RefTable: &datapath},
+					Key: &BaseType{Type: TypeUUID, refTable: &datapath},
 					min: &zero,
 					max: &unlimted,
 				}},
@@ -673,10 +674,330 @@ func TestColumnSchemaMarshalUnmarshalJSON(t *testing.T) {
 	}
 }
 
-func TestBaseTypesimpleAtomic(t *testing.T) {
+func TestBaseTypeSimpleAtomic(t *testing.T) {
 	b := BaseType{Type: TypeString}
 	assert.True(t, b.simpleAtomic())
 	max := 1024
-	b1 := BaseType{Type: TypeInteger, MaxInteger: &max}
+	b1 := BaseType{Type: TypeInteger, maxInteger: &max}
 	assert.False(t, b1.simpleAtomic())
+}
+
+func TestBaseTypeMinReal(t *testing.T) {
+	value := float64(1024)
+	tests := []struct {
+		name    string
+		bt      *BaseType
+		want    float64
+		wantErr bool
+	}{
+		{
+			"not a real",
+			&BaseType{Type: TypeUUID},
+			0,
+			true,
+		},
+		{
+			"nil",
+			&BaseType{Type: TypeReal},
+			math.SmallestNonzeroFloat64,
+			false,
+		},
+		{
+			"set",
+			&BaseType{Type: TypeReal, minReal: &value},
+			value,
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.bt.MinReal()
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestBaseTypeMaxReal(t *testing.T) {
+	value := float64(1024)
+	tests := []struct {
+		name    string
+		bt      *BaseType
+		want    float64
+		wantErr bool
+	}{
+		{
+			"not a real",
+			&BaseType{Type: TypeUUID},
+			0,
+			true,
+		},
+		{
+			"nil",
+			&BaseType{Type: TypeReal},
+			math.MaxFloat64,
+			false,
+		},
+		{
+			"set",
+			&BaseType{Type: TypeReal, maxReal: &value},
+			value,
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.bt.MaxReal()
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestBaseTypeMinInteger(t *testing.T) {
+	value := 1024
+	tests := []struct {
+		name    string
+		bt      *BaseType
+		want    int
+		wantErr bool
+	}{
+		{
+			"not an int",
+			&BaseType{Type: TypeUUID},
+			0,
+			true,
+		},
+		{
+			"nil",
+			&BaseType{Type: TypeInteger},
+			int(math.Pow(-2, 63)),
+			false,
+		},
+		{
+			"set",
+			&BaseType{Type: TypeInteger, minInteger: &value},
+			value,
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.bt.MinInteger()
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestBaseTypeMaxInteger(t *testing.T) {
+	value := 1024
+	tests := []struct {
+		name    string
+		bt      *BaseType
+		want    int
+		wantErr bool
+	}{
+		{
+			"not an int",
+			&BaseType{Type: TypeUUID},
+			0,
+			true,
+		},
+		{
+			"nil",
+			&BaseType{Type: TypeInteger},
+			int(math.Pow(2, 63)) - 1,
+			false,
+		},
+		{
+			"set",
+			&BaseType{Type: TypeInteger, maxInteger: &value},
+			value,
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.bt.MaxInteger()
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestBaseTypeMinLength(t *testing.T) {
+	value := 12
+	tests := []struct {
+		name    string
+		bt      *BaseType
+		want    int
+		wantErr bool
+	}{
+		{
+			"not a string",
+			&BaseType{Type: TypeUUID},
+			0,
+			true,
+		},
+		{
+			"nil",
+			&BaseType{Type: TypeString},
+			0,
+			false,
+		},
+		{
+			"set",
+			&BaseType{Type: TypeString, minLength: &value},
+			value,
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.bt.MinLength()
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestBaseTypeMaxLength(t *testing.T) {
+	value := 1024
+	tests := []struct {
+		name    string
+		bt      *BaseType
+		want    int
+		wantErr bool
+	}{
+		{
+			"not a string",
+			&BaseType{Type: TypeUUID},
+			0,
+			true,
+		},
+		{
+			"nil",
+			&BaseType{Type: TypeString},
+			int(math.Pow(2, 63)) - 1,
+			false,
+		},
+		{
+			"set",
+			&BaseType{Type: TypeString, maxLength: &value},
+			value,
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.bt.MaxLength()
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestBaseTypeRefTable(t *testing.T) {
+	value := "Bridge"
+	tests := []struct {
+		name    string
+		bt      *BaseType
+		want    string
+		wantErr bool
+	}{
+		{
+			"not a uuid",
+			&BaseType{Type: TypeString},
+			"",
+			true,
+		},
+		{
+			"nil",
+			&BaseType{Type: TypeUUID},
+			"",
+			false,
+		},
+		{
+			"set",
+			&BaseType{Type: TypeUUID, refTable: &value},
+			value,
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.bt.RefTable()
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestBaseTypeRefType(t *testing.T) {
+	value := "weak"
+	tests := []struct {
+		name    string
+		bt      *BaseType
+		want    RefType
+		wantErr bool
+	}{
+		{
+			"not a uuid",
+			&BaseType{Type: TypeString},
+			"",
+			true,
+		},
+		{
+			"nil",
+			&BaseType{Type: TypeUUID},
+			Strong,
+			false,
+		},
+		{
+			"set",
+			&BaseType{Type: TypeUUID, refType: &value},
+			Weak,
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.bt.RefType()
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.Nil(t, err)
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
