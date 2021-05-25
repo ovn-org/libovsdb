@@ -56,27 +56,21 @@ func TestAddRowUpdate(t *testing.T) {
 			"new row",
 			TableUpdate{},
 			"foo",
-			&RowUpdate{},
+			newRowUpdate(nil, nil),
 			TableUpdate{"foo": {}},
 		},
 		{
 			"update existing row",
 			TableUpdate{
-				"foo": {
-					Old: nil,
-					New: &Row{Fields: map[string]interface{}{"foo": "bar"}},
-				},
+				"foo": newRowUpdate(nil, Row(map[string]interface{}{"foo": "bar"})),
 			},
 			"foo",
-			&RowUpdate{
-				Old: &Row{Fields: map[string]interface{}{"foo": "bar"}},
-				New: &Row{Fields: map[string]interface{}{"foo": "baz"}},
-			},
+			newRowUpdate(
+				Row(map[string]interface{}{"foo": "bar"}),
+				Row(map[string]interface{}{"foo": "baz"}),
+			),
 			TableUpdate{
-				"foo": {
-					Old: nil,
-					New: &Row{Fields: map[string]interface{}{"foo": "baz"}},
-				},
+				"foo": newRowUpdate(nil, Row(map[string]interface{}{"foo": "baz"})),
 			},
 		},
 	}
@@ -97,60 +91,42 @@ func TestAddRowUpdateMerge(t *testing.T) {
 	}{
 		{
 			"insert then modify",
-			&RowUpdate{
-				Old: nil,
-				New: &Row{Fields: map[string]interface{}{"foo": "bar"}},
-			},
-			&RowUpdate{
-				Old: &Row{Fields: map[string]interface{}{"foo": "bar"}},
-				New: &Row{Fields: map[string]interface{}{"foo": "baz"}},
-			},
-			&RowUpdate{
-				Old: nil,
-				New: &Row{Fields: map[string]interface{}{"foo": "baz"}},
-			},
+			newRowUpdate(nil, Row(map[string]interface{}{"foo": "bar"})),
+			newRowUpdate(
+				Row(map[string]interface{}{"foo": "bar"}),
+				Row(map[string]interface{}{"foo": "baz"}),
+			),
+			newRowUpdate(nil, Row(map[string]interface{}{"foo": "baz"})),
 		},
 		{
 			"insert then delete",
-			&RowUpdate{
-				New: &Row{Fields: map[string]interface{}{"foo": "bar"}},
-			},
-			&RowUpdate{
-				Old: &Row{Fields: map[string]interface{}{"foo": "bar"}},
-			},
-			&RowUpdate{
-				Old: &Row{Fields: map[string]interface{}{"foo": "bar"}},
-				New: nil,
-			},
+			newRowUpdate(nil, Row(map[string]interface{}{"foo": "bar"})),
+			newRowUpdate(Row(map[string]interface{}{"foo": "bar"}), nil),
+			newRowUpdate(Row(map[string]interface{}{"foo": "bar"}), nil),
 		},
 		{
 			"modify then delete",
-			&RowUpdate{
-				New: &Row{Fields: map[string]interface{}{"foo": "baz"}},
-				Old: &Row{Fields: map[string]interface{}{"foo": "bar"}},
-			},
-			&RowUpdate{
-				Old: &Row{Fields: map[string]interface{}{"foo": "baz"}},
-			},
-			&RowUpdate{
-				Old: &Row{Fields: map[string]interface{}{"foo": "baz"}},
-				New: nil,
-			},
+			newRowUpdate(
+				Row(map[string]interface{}{"foo": "bar"}),
+				Row(map[string]interface{}{"foo": "baz"}),
+			),
+			newRowUpdate(Row(map[string]interface{}{"foo": "baz"}), nil),
+			newRowUpdate(Row(map[string]interface{}{"foo": "baz"}), nil),
 		},
 		{
 			"modify then modify",
-			&RowUpdate{
-				New: &Row{Fields: map[string]interface{}{"foo": "baz"}},
-				Old: &Row{Fields: map[string]interface{}{"foo": "bar"}},
-			},
-			&RowUpdate{
-				New: &Row{Fields: map[string]interface{}{"foo": "quux"}},
-				Old: &Row{Fields: map[string]interface{}{"foo": "baz"}},
-			},
-			&RowUpdate{
-				New: &Row{Fields: map[string]interface{}{"foo": "quux"}},
-				Old: &Row{Fields: map[string]interface{}{"foo": "bar"}},
-			},
+			newRowUpdate(
+				Row(map[string]interface{}{"foo": "bar"}),
+				Row(map[string]interface{}{"foo": "baz"}),
+			),
+			newRowUpdate(
+				Row(map[string]interface{}{"foo": "baz"}),
+				Row(map[string]interface{}{"foo": "quux"}),
+			),
+			newRowUpdate(
+				Row(map[string]interface{}{"foo": "bar"}),
+				Row(map[string]interface{}{"foo": "quux"}),
+			),
 		},
 	}
 	for _, tt := range tests {
