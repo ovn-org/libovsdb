@@ -39,6 +39,22 @@ type RowUpdate struct {
 	Old *Row `json:"old,omitempty"`
 }
 
+// newRowUpdate creates a *RowUpdate using the provided rows
+func newRowUpdate(old, new Row) *RowUpdate {
+	r := &RowUpdate{}
+	if old != nil {
+		r.Old = &old
+	} else {
+		r.Old = nil
+	}
+	if new != nil {
+		r.New = &new
+	} else {
+		r.New = nil
+	}
+	return r
+}
+
 // Insert returns true if this is an update for an insert operation
 func (r RowUpdate) Insert() bool {
 	return r.New != nil && r.Old == nil

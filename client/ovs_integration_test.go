@@ -369,13 +369,10 @@ func TestTableSchemaValidationIntegration(t *testing.T) {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
 
-	bridge := make(map[string]interface{})
-	bridge["name"] = "docker-ovs"
-
 	operation := ovsdb.Operation{
 		Op:    "insert",
 		Table: "InvalidTable",
-		Row:   bridge,
+		Row:   ovsdb.Row(map[string]interface{}{"name": "docker-ovs"}),
 	}
 	_, err = ovs.Transact(operation)
 
@@ -397,14 +394,10 @@ func TestColumnSchemaInRowValidationIntegration(t *testing.T) {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
 
-	bridge := make(map[string]interface{})
-	bridge["name"] = "docker-ovs"
-	bridge["invalid_column"] = "invalid_column"
-
 	operation := ovsdb.Operation{
 		Op:    "insert",
 		Table: "Bridge",
-		Row:   bridge,
+		Row:   ovsdb.Row(map[string]interface{}{"name": "docker-ovs", "invalid_column": "invalid_column"}),
 	}
 
 	_, err = ovs.Transact(operation)
@@ -427,16 +420,10 @@ func TestColumnSchemaInMultipleRowsValidationIntegration(t *testing.T) {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
 
-	rows := make([]map[string]interface{}, 2)
+	invalidBridge := ovsdb.Row(map[string]interface{}{"invalid_column": "invalid_column"})
+	bridge := ovsdb.Row(map[string]interface{}{"name": "docker-ovs"})
+	rows := []ovsdb.Row{invalidBridge, bridge}
 
-	invalidBridge := make(map[string]interface{})
-	invalidBridge["invalid_column"] = "invalid_column"
-
-	bridge := make(map[string]interface{})
-	bridge["name"] = "docker-ovs"
-
-	rows[0] = invalidBridge
-	rows[1] = bridge
 	operation := ovsdb.Operation{
 		Op:    "insert",
 		Table: "Bridge",

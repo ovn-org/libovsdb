@@ -310,13 +310,13 @@ func TestTableCache_populate(t *testing.T) {
 	tc, err := newTableCache(&schema, db)
 	assert.Nil(t, err)
 
-	testRow := &ovsdb.Row{Fields: map[string]interface{}{"_uuid": "test", "foo": "bar"}}
+	testRow := ovsdb.Row(map[string]interface{}{"_uuid": "test", "foo": "bar"})
 	testRowModel := &testModel{UUID: "test", Foo: "bar"}
 	updates := ovsdb.TableUpdates{
 		"Open_vSwitch": {
 			"test": &ovsdb.RowUpdate{
 				Old: nil,
-				New: testRow,
+				New: &testRow,
 			},
 		},
 	}
@@ -326,11 +326,11 @@ func TestTableCache_populate(t *testing.T) {
 	assert.Equal(t, testRowModel, got)
 
 	t.Log("Update")
-	updatedRow := &ovsdb.Row{Fields: map[string]interface{}{"_uuid": "test", "foo": "quux"}}
+	updatedRow := ovsdb.Row(map[string]interface{}{"_uuid": "test", "foo": "quux"})
 	updatedRowModel := &testModel{UUID: "test", Foo: "quux"}
 	updates["Open_vSwitch"]["test"] = &ovsdb.RowUpdate{
-		Old: testRow,
-		New: updatedRow,
+		Old: &testRow,
+		New: &updatedRow,
 	}
 	tc.populate(updates)
 
@@ -339,7 +339,7 @@ func TestTableCache_populate(t *testing.T) {
 
 	t.Log("Delete")
 	updates["Open_vSwitch"]["test"] = &ovsdb.RowUpdate{
-		Old: updatedRow,
+		Old: &updatedRow,
 		New: nil,
 	}
 

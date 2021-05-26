@@ -153,31 +153,31 @@ var testSchema = []byte(`{
 }`)
 
 func getOvsTestRow(t *testing.T) ovsdb.Row {
-	ovsRow := ovsdb.Row{Fields: make(map[string]interface{})}
-	ovsRow.Fields["aString"] = aString
-	ovsRow.Fields["aSet"] = *testOvsSet(t, aSet)
+	ovsRow := ovsdb.NewRow()
+	ovsRow["aString"] = aString
+	ovsRow["aSet"] = *testOvsSet(t, aSet)
 	// Set's can hold the value if they have len == 1
-	ovsRow.Fields["aSingleSet"] = aString
+	ovsRow["aSingleSet"] = aString
 
 	us := make([]ovsdb.UUID, 0)
 	for _, u := range aUUIDSet {
 		us = append(us, ovsdb.UUID{GoUUID: u})
 	}
-	ovsRow.Fields["aUUIDSet"] = *testOvsSet(t, us)
+	ovsRow["aUUIDSet"] = *testOvsSet(t, us)
 
-	ovsRow.Fields["aUUID"] = ovsdb.UUID{GoUUID: aUUID0}
+	ovsRow["aUUID"] = ovsdb.UUID{GoUUID: aUUID0}
 
-	ovsRow.Fields["aIntSet"] = *testOvsSet(t, aIntSet)
+	ovsRow["aIntSet"] = *testOvsSet(t, aIntSet)
 
-	ovsRow.Fields["aFloat"] = aFloat
+	ovsRow["aFloat"] = aFloat
 
-	ovsRow.Fields["aFloatSet"] = *testOvsSet(t, aFloatSet)
+	ovsRow["aFloatSet"] = *testOvsSet(t, aFloatSet)
 
-	ovsRow.Fields["aEmptySet"] = *testOvsSet(t, []string{})
+	ovsRow["aEmptySet"] = *testOvsSet(t, []string{})
 
-	ovsRow.Fields["aEnum"] = aEnum
+	ovsRow["aEnum"] = aEnum
 
-	ovsRow.Fields["aMap"] = *testOvsMap(t, aMap)
+	ovsRow["aMap"] = *testOvsMap(t, aMap)
 
 	return ovsRow
 }
@@ -242,7 +242,7 @@ func TestMapperNewRow(t *testing.T) {
 	tests := []struct {
 		name        string
 		objInput    interface{}
-		expectedRow map[string]interface{}
+		expectedRow ovsdb.Row
 		shoulderr   bool
 	}{{
 		name: "string",
@@ -251,7 +251,7 @@ func TestMapperNewRow(t *testing.T) {
 		}{
 			AString: aString,
 		},
-		expectedRow: map[string]interface{}{"aString": aString},
+		expectedRow: ovsdb.Row(map[string]interface{}{"aString": aString}),
 	}, {
 		name: "set",
 		objInput: &struct {
@@ -259,7 +259,7 @@ func TestMapperNewRow(t *testing.T) {
 		}{
 			SomeSet: aSet,
 		},
-		expectedRow: map[string]interface{}{"aSet": testOvsSet(t, aSet)},
+		expectedRow: ovsdb.Row(map[string]interface{}{"aSet": testOvsSet(t, aSet)}),
 	}, {
 		name: "emptySet with no column specification",
 		objInput: &struct {
@@ -267,7 +267,7 @@ func TestMapperNewRow(t *testing.T) {
 		}{
 			EmptySet: []string{},
 		},
-		expectedRow: map[string]interface{}{},
+		expectedRow: ovsdb.Row(map[string]interface{}{}),
 	}, {
 		name: "UUID",
 		objInput: &struct {
@@ -275,7 +275,7 @@ func TestMapperNewRow(t *testing.T) {
 		}{
 			MyUUID: aUUID0,
 		},
-		expectedRow: map[string]interface{}{"aUUID": ovsdb.UUID{GoUUID: aUUID0}},
+		expectedRow: ovsdb.Row(map[string]interface{}{"aUUID": ovsdb.UUID{GoUUID: aUUID0}}),
 	}, {
 		name: "aUUIDSet",
 		objInput: &struct {
@@ -283,7 +283,7 @@ func TestMapperNewRow(t *testing.T) {
 		}{
 			MyUUIDSet: []string{aUUID0, aUUID1},
 		},
-		expectedRow: map[string]interface{}{"aUUIDSet": testOvsSet(t, []ovsdb.UUID{{GoUUID: aUUID0}, {GoUUID: aUUID1}})},
+		expectedRow: ovsdb.Row(map[string]interface{}{"aUUIDSet": testOvsSet(t, []ovsdb.UUID{{GoUUID: aUUID0}, {GoUUID: aUUID1}})}),
 	}, {
 		name: "aIntSet",
 		objInput: &struct {
@@ -291,7 +291,7 @@ func TestMapperNewRow(t *testing.T) {
 		}{
 			MyIntSet: []int{0, 42},
 		},
-		expectedRow: map[string]interface{}{"aIntSet": testOvsSet(t, []int{0, 42})},
+		expectedRow: ovsdb.Row(map[string]interface{}{"aIntSet": testOvsSet(t, []int{0, 42})}),
 	}, {
 		name: "aFloat",
 		objInput: &struct {
@@ -299,7 +299,7 @@ func TestMapperNewRow(t *testing.T) {
 		}{
 			MyFloat: 42.42,
 		},
-		expectedRow: map[string]interface{}{"aFloat": 42.42},
+		expectedRow: ovsdb.Row(map[string]interface{}{"aFloat": 42.42}),
 	}, {
 		name: "aFloatSet",
 		objInput: &struct {
@@ -307,7 +307,7 @@ func TestMapperNewRow(t *testing.T) {
 		}{
 			MyFloatSet: aFloatSet,
 		},
-		expectedRow: map[string]interface{}{"aFloatSet": testOvsSet(t, aFloatSet)},
+		expectedRow: ovsdb.Row(map[string]interface{}{"aFloatSet": testOvsSet(t, aFloatSet)}),
 	}, {
 		name: "Enum",
 		objInput: &struct {
@@ -315,7 +315,7 @@ func TestMapperNewRow(t *testing.T) {
 		}{
 			MyEnum: aEnum,
 		},
-		expectedRow: map[string]interface{}{"aEnum": aEnum},
+		expectedRow: ovsdb.Row(map[string]interface{}{"aEnum": aEnum}),
 	}, {
 		name: "untagged fields should not affect row",
 		objInput: &struct {
@@ -325,7 +325,7 @@ func TestMapperNewRow(t *testing.T) {
 			AString: aString,
 			MyStuff: map[string]string{"this is": "private"},
 		},
-		expectedRow: map[string]interface{}{"aString": aString},
+		expectedRow: ovsdb.Row(map[string]interface{}{"aString": aString}),
 	}, {
 		name: "Maps",
 		objInput: &struct {
@@ -333,7 +333,7 @@ func TestMapperNewRow(t *testing.T) {
 		}{
 			MyMap: aMap,
 		},
-		expectedRow: map[string]interface{}{"aMap": testOvsMap(t, aMap)},
+		expectedRow: ovsdb.Row(map[string]interface{}{"aMap": testOvsMap(t, aMap)}),
 	},
 	}
 	for _, test := range tests {
@@ -367,7 +367,7 @@ func TestMapperNewRowFields(t *testing.T) {
 	tests := []struct {
 		name        string
 		prepare     func(*obj)
-		expectedRow map[string]interface{}
+		expectedRow ovsdb.Row
 		fields      []interface{}
 		err         bool
 	}{{
@@ -375,38 +375,38 @@ func TestMapperNewRowFields(t *testing.T) {
 		prepare: func(o *obj) {
 			o.MyString = aString
 		},
-		expectedRow: map[string]interface{}{"aString": aString},
+		expectedRow: ovsdb.Row(map[string]interface{}{"aString": aString}),
 	}, {
 		name: "empty string with field specification",
 		prepare: func(o *obj) {
 			o.MyString = ""
 		},
 		fields:      []interface{}{&testObj.MyString},
-		expectedRow: map[string]interface{}{"aString": ""},
+		expectedRow: ovsdb.Row(map[string]interface{}{"aString": ""}),
 	}, {
 		name: "empty set without field specification",
 		prepare: func(o *obj) {
 		},
-		expectedRow: map[string]interface{}{},
+		expectedRow: ovsdb.Row(map[string]interface{}{}),
 	}, {
 		name: "empty set without field specification",
 		prepare: func(o *obj) {
 		},
 		fields:      []interface{}{&testObj.MySet},
-		expectedRow: map[string]interface{}{"aSet": testOvsSet(t, []string{})},
+		expectedRow: ovsdb.Row(map[string]interface{}{"aSet": testOvsSet(t, []string{})}),
 	}, {
 		name: "empty maps",
 		prepare: func(o *obj) {
 			o.MyString = "foo"
 		},
-		expectedRow: map[string]interface{}{"aString": aString},
+		expectedRow: ovsdb.Row(map[string]interface{}{"aString": aString}),
 	}, {
 		name: "empty maps with field specification",
 		prepare: func(o *obj) {
 			o.MyString = "foo"
 		},
 		fields:      []interface{}{&testObj.MyMap},
-		expectedRow: map[string]interface{}{"aMap": testOvsMap(t, map[string]string{})},
+		expectedRow: ovsdb.Row(map[string]interface{}{"aMap": testOvsMap(t, map[string]string{})}),
 	}, {
 		name: "Complex object with field selection",
 		prepare: func(o *obj) {
@@ -416,7 +416,7 @@ func TestMapperNewRowFields(t *testing.T) {
 			o.MyFloat = aFloat
 		},
 		fields:      []interface{}{&testObj.MyMap, &testObj.MySet},
-		expectedRow: map[string]interface{}{"aMap": testOvsMap(t, aMap), "aSet": testOvsSet(t, aSet)},
+		expectedRow: ovsdb.Row(map[string]interface{}{"aMap": testOvsMap(t, aMap), "aSet": testOvsSet(t, aSet)}),
 	},
 	}
 

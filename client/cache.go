@@ -182,14 +182,14 @@ func (t *TableCache) populate(tableUpdates ovsdb.TableUpdates) {
 		tCache.mutex.Lock()
 		for uuid, row := range updates {
 			if row.New != nil {
-				newModel, err := t.createModel(table, row.New, uuid)
+				newModel, err := t.CreateModel(table, row.New, uuid)
 				if err != nil {
 					panic(err)
 				}
 				if existing, ok := tCache.cache[uuid]; ok {
 					if !reflect.DeepEqual(newModel, existing) {
 						tCache.cache[uuid] = newModel
-						oldModel, err := t.createModel(table, row.Old, uuid)
+						oldModel, err := t.CreateModel(table, row.Old, uuid)
 						if err != nil {
 							panic(err)
 						}
@@ -202,7 +202,7 @@ func (t *TableCache) populate(tableUpdates ovsdb.TableUpdates) {
 				t.eventProcessor.AddEvent(addEvent, table, nil, newModel)
 				continue
 			} else {
-				oldModel, err := t.createModel(table, row.Old, uuid)
+				oldModel, err := t.CreateModel(table, row.Old, uuid)
 				if err != nil {
 					panic(err)
 				}
@@ -307,7 +307,7 @@ func (e *eventProcessor) Run(stopCh <-chan struct{}) {
 }
 
 // createModel creates a new Model instance based on the Row information
-func (t *TableCache) createModel(tableName string, row *ovsdb.Row, uuid string) (model.Model, error) {
+func (t *TableCache) CreateModel(tableName string, row *ovsdb.Row, uuid string) (model.Model, error) {
 	table := t.mapper.Schema.Table(tableName)
 	if table == nil {
 		return nil, fmt.Errorf("table %s not found", tableName)

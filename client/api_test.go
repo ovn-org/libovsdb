@@ -522,6 +522,8 @@ func TestAPICreate(t *testing.T) {
 	cache.cache["Logical_Switch"] = &RowCache{cache: lsCache}
 	cache.cache["Logical_Switch_Port"] = &RowCache{cache: lspCache}
 
+	rowFoo := ovsdb.Row(map[string]interface{}{"name": "foo"})
+	rowBar := ovsdb.Row(map[string]interface{}{"name": "bar"})
 	test := []struct {
 		name   string
 		input  []model.Model
@@ -534,7 +536,7 @@ func TestAPICreate(t *testing.T) {
 			result: []ovsdb.Operation{{
 				Op:       "insert",
 				Table:    "Logical_Switch",
-				Row:      map[string]interface{}{},
+				Row:      ovsdb.Row{},
 				UUIDName: "",
 			}},
 			err: false,
@@ -547,7 +549,7 @@ func TestAPICreate(t *testing.T) {
 			result: []ovsdb.Operation{{
 				Op:       "insert",
 				Table:    "Logical_Switch",
-				Row:      map[string]interface{}{"name": "foo"},
+				Row:      rowFoo,
 				UUIDName: "",
 			}},
 			err: false,
@@ -560,7 +562,7 @@ func TestAPICreate(t *testing.T) {
 			result: []ovsdb.Operation{{
 				Op:       "insert",
 				Table:    "Logical_Switch",
-				Row:      map[string]interface{}{},
+				Row:      ovsdb.Row{},
 				UUIDName: "foo",
 			}},
 			err: false,
@@ -580,12 +582,12 @@ func TestAPICreate(t *testing.T) {
 			result: []ovsdb.Operation{{
 				Op:       "insert",
 				Table:    "Logical_Switch",
-				Row:      map[string]interface{}{"name": "foo"},
+				Row:      rowFoo,
 				UUIDName: "fooUUID",
 			}, {
 				Op:       "insert",
 				Table:    "Logical_Switch",
-				Row:      map[string]interface{}{"name": "bar"},
+				Row:      rowBar,
 				UUIDName: "barUUID",
 			}},
 			err: false,
@@ -802,7 +804,8 @@ func TestAPIUpdate(t *testing.T) {
 	cache.cache["Logical_Switch_Port"] = &RowCache{cache: lspCache}
 
 	testObj := testLogicalSwitchPort{}
-
+	testRow := ovsdb.Row(map[string]interface{}{"type": "somethingElse", "tag": testOvsSet(t, []int{6})})
+	tagRow := ovsdb.Row(map[string]interface{}{"tag": testOvsSet(t, []int{6})})
 	test := []struct {
 		name      string
 		condition func(API) ConditionalAPI
@@ -825,7 +828,7 @@ func TestAPIUpdate(t *testing.T) {
 				{
 					Op:    opUpdate,
 					Table: "Logical_Switch_Port",
-					Row:   map[string]interface{}{"type": "somethingElse", "tag": testOvsSet(t, []int{6})},
+					Row:   testRow,
 					Where: []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID0}}},
 				},
 			},
@@ -846,7 +849,7 @@ func TestAPIUpdate(t *testing.T) {
 				{
 					Op:    opUpdate,
 					Table: "Logical_Switch_Port",
-					Row:   map[string]interface{}{"type": "somethingElse", "tag": testOvsSet(t, []int{6})},
+					Row:   testRow,
 					Where: []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "lsp1"}},
 				},
 			},
@@ -872,7 +875,7 @@ func TestAPIUpdate(t *testing.T) {
 				{
 					Op:    opUpdate,
 					Table: "Logical_Switch_Port",
-					Row:   map[string]interface{}{"tag": testOvsSet(t, []int{6})},
+					Row:   tagRow,
 					Where: []ovsdb.Condition{{Column: "type", Function: ovsdb.ConditionEqual, Value: "sometype"}},
 				},
 			},
@@ -901,13 +904,13 @@ func TestAPIUpdate(t *testing.T) {
 				{
 					Op:    opUpdate,
 					Table: "Logical_Switch_Port",
-					Row:   map[string]interface{}{"tag": testOvsSet(t, []int{6})},
+					Row:   tagRow,
 					Where: []ovsdb.Condition{{Column: "type", Function: ovsdb.ConditionEqual, Value: "sometype"}},
 				},
 				{
 					Op:    opUpdate,
 					Table: "Logical_Switch_Port",
-					Row:   map[string]interface{}{"tag": testOvsSet(t, []int{6})},
+					Row:   tagRow,
 					Where: []ovsdb.Condition{{Column: "enabled", Function: ovsdb.ConditionIncludes, Value: testOvsSet(t, []bool{true})}},
 				},
 			},
@@ -936,7 +939,7 @@ func TestAPIUpdate(t *testing.T) {
 				{
 					Op:    opUpdate,
 					Table: "Logical_Switch_Port",
-					Row:   map[string]interface{}{"tag": testOvsSet(t, []int{6})},
+					Row:   tagRow,
 					Where: []ovsdb.Condition{
 						{Column: "type", Function: ovsdb.ConditionEqual, Value: "sometype"},
 						{Column: "enabled", Function: ovsdb.ConditionIncludes, Value: testOvsSet(t, []bool{true})},
@@ -965,7 +968,7 @@ func TestAPIUpdate(t *testing.T) {
 				{
 					Op:    opUpdate,
 					Table: "Logical_Switch_Port",
-					Row:   map[string]interface{}{"tag": testOvsSet(t, []int{6})},
+					Row:   tagRow,
 					Where: []ovsdb.Condition{{Column: "type", Function: ovsdb.ConditionNotEqual, Value: "sometype"}},
 				},
 			},
@@ -986,13 +989,13 @@ func TestAPIUpdate(t *testing.T) {
 				{
 					Op:    opUpdate,
 					Table: "Logical_Switch_Port",
-					Row:   map[string]interface{}{"type": "somethingElse", "tag": testOvsSet(t, []int{6})},
+					Row:   testRow,
 					Where: []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID0}}},
 				},
 				{
 					Op:    opUpdate,
 					Table: "Logical_Switch_Port",
-					Row:   map[string]interface{}{"type": "somethingElse", "tag": testOvsSet(t, []int{6})},
+					Row:   testRow,
 					Where: []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID1}}},
 				},
 			},

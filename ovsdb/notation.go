@@ -19,19 +19,19 @@ const (
 
 // Operation represents an operation according to RFC7047 section 5.2
 type Operation struct {
-	Op        string                   `json:"op"`
-	Table     string                   `json:"table"`
-	Row       map[string]interface{}   `json:"row,omitempty"`
-	Rows      []map[string]interface{} `json:"rows,omitempty"`
-	Columns   []string                 `json:"columns,omitempty"`
-	Mutations []Mutation               `json:"mutations,omitempty"`
-	Timeout   int                      `json:"timeout,omitempty"`
-	Where     []Condition              `json:"where,omitempty"`
-	Until     string                   `json:"until,omitempty"`
-	Durable   *bool                    `json:"durable,omitempty"`
-	Comment   *string                  `json:"comment,omitempty"`
-	Lock      *string                  `json:"lock,omitempty"`
-	UUIDName  string                   `json:"uuid-name,omitempty"`
+	Op        string      `json:"op"`
+	Table     string      `json:"table"`
+	Row       Row         `json:"row,omitempty"`
+	Rows      []Row       `json:"rows,omitempty"`
+	Columns   []string    `json:"columns,omitempty"`
+	Mutations []Mutation  `json:"mutations,omitempty"`
+	Timeout   int         `json:"timeout,omitempty"`
+	Where     []Condition `json:"where,omitempty"`
+	Until     string      `json:"until,omitempty"`
+	Durable   *bool       `json:"durable,omitempty"`
+	Comment   *string     `json:"comment,omitempty"`
+	Lock      *string     `json:"lock,omitempty"`
+	UUIDName  string      `json:"uuid-name,omitempty"`
 }
 
 // MarshalJSON marshalls 'Operation' to a byte array
@@ -89,11 +89,11 @@ type TransactResponse struct {
 
 // OperationResult is the result of an Operation
 type OperationResult struct {
-	Count   int         `json:"count,omitempty"`
-	Error   string      `json:"error,omitempty"`
-	Details string      `json:"details,omitempty"`
-	UUID    UUID        `json:"uuid,omitempty"`
-	Rows    []ResultRow `json:"rows,omitempty"`
+	Count   int    `json:"count,omitempty"`
+	Error   string `json:"error,omitempty"`
+	Details string `json:"details,omitempty"`
+	UUID    UUID   `json:"uuid,omitempty"`
+	Rows    []Row  `json:"rows,omitempty"`
 }
 
 func ovsSliceToGoNotation(val interface{}) (interface{}, error) {

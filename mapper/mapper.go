@@ -64,13 +64,13 @@ func (m Mapper) GetRowData(tableName string, row *ovsdb.Row, result interface{})
 	if row == nil {
 		return nil
 	}
-	return m.getData(tableName, row.Fields, result)
+	return m.getData(tableName, *row, result)
 }
 
 // getData transforms a map[string]interface{} containing OvS types (e.g: a ResultRow
 // has this format) to orm struct
 // The result object must be given as pointer to an object with the right tags
-func (m Mapper) getData(tableName string, ovsData map[string]interface{}, result interface{}) error {
+func (m Mapper) getData(tableName string, ovsData ovsdb.Row, result interface{}) error {
 	table := m.Schema.Table(tableName)
 	if table == nil {
 		return newErrNoTable(tableName)
@@ -109,7 +109,7 @@ func (m Mapper) getData(tableName string, ovsData map[string]interface{}, result
 // NewRow transforms an orm struct to a map[string] interface{} that can be used as libovsdb.Row
 // By default, default or null values are skipped. This behaviour can be modified by specifying
 // a list of fields (pointers to fields in the struct) to be added to the row
-func (m Mapper) NewRow(tableName string, data interface{}, fields ...interface{}) (map[string]interface{}, error) {
+func (m Mapper) NewRow(tableName string, data interface{}, fields ...interface{}) (ovsdb.Row, error) {
 	table := m.Schema.Table(tableName)
 	if table == nil {
 		return nil, newErrNoTable(tableName)
