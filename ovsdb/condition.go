@@ -42,7 +42,7 @@ func (c Condition) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON converts a 3 element JSON array to a Condition
-func (c Condition) UnmarshalJSON(b []byte) error {
+func (c *Condition) UnmarshalJSON(b []byte) error {
 	var v []interface{}
 	err := json.Unmarshal(b, &v)
 	if err != nil {
@@ -54,19 +54,23 @@ func (c Condition) UnmarshalJSON(b []byte) error {
 	c.Column = v[0].(string)
 	function := ConditionFunction(v[1].(string))
 	switch function {
-	case ConditionEqual:
-	case ConditionNotEqual:
-	case ConditionIncludes:
-	case ConditionExcludes:
-	case ConditionGreaterThan:
-	case ConditionGreaterThanOrEqual:
-	case ConditionLessThan:
-	case ConditionLessThanOrEqual:
+	case ConditionEqual,
+		ConditionNotEqual,
+		ConditionIncludes,
+		ConditionExcludes,
+		ConditionGreaterThan,
+		ConditionGreaterThanOrEqual,
+		ConditionLessThan,
+		ConditionLessThanOrEqual:
 		c.Function = function
 	default:
 		return fmt.Errorf("%s is not a valid function", function)
 	}
-	c.Value = v[2]
+	vv, err := interfaceToOVSDBNotationInterface(reflect.ValueOf(v[2]))
+	if err != nil {
+		return err
+	}
+	c.Value = vv
 	return nil
 }
 

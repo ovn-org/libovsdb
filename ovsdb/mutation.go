@@ -3,6 +3,7 @@ package ovsdb
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 )
 
 type Mutator string
@@ -40,7 +41,7 @@ func (m Mutation) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON converts a 3 element JSON array to a Mutation
-func (m Mutation) UnmarshalJSON(b []byte) error {
+func (m *Mutation) UnmarshalJSON(b []byte) error {
 	var v []interface{}
 	err := json.Unmarshal(b, &v)
 	if err != nil {
@@ -60,17 +61,21 @@ func (m Mutation) UnmarshalJSON(b []byte) error {
 	}
 	mutator := Mutator(mutatorString)
 	switch mutator {
-	case MutateOperationDelete:
-	case MutateOperationInsert:
-	case MutateOperationAdd:
-	case MutateOperationSubstract:
-	case MutateOperationMultiply:
-	case MutateOperationDivide:
-	case MutateOperationModulo:
+	case MutateOperationDelete,
+		MutateOperationInsert,
+		MutateOperationAdd,
+		MutateOperationSubstract,
+		MutateOperationMultiply,
+		MutateOperationDivide,
+		MutateOperationModulo:
 		m.Mutator = mutator
 	default:
 		return fmt.Errorf("%s is not a valid mutator", mutator)
 	}
-	m.Value = v[2]
+	vv, err := interfaceToOVSDBNotationInterface(reflect.ValueOf(v[2]))
+	if err != nil {
+		return err
+	}
+	m.Value = vv
 	return nil
 }

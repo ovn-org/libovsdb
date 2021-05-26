@@ -1,86 +1,120 @@
 package ovsdb
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestConditionMarshalJSON(t *testing.T) {
-	type fields struct {
-		Column   string
-		Function ConditionFunction
-		Value    interface{}
-	}
+func TestConditionMarshalUnmarshalJSON(t *testing.T) {
 	tests := []struct {
-		name    string
-		fields  fields
-		want    string
-		wantErr bool
+		name      string
+		condition Condition
+		want      string
+		wantErr   bool
 	}{
 		{
 			"test <",
-			fields{"foo", ConditionLessThan, "bar"},
+			Condition{"foo", ConditionLessThan, "bar"},
 			`[ "foo", "<", "bar" ]`,
 			false,
 		},
 		{
 			"test <=",
-			fields{"foo", ConditionLessThanOrEqual, "bar"},
+			Condition{"foo", ConditionLessThanOrEqual, "bar"},
 			`[ "foo", "<=", "bar" ]`,
 			false,
 		},
 		{
 			"test >",
-			fields{"foo", ConditionGreaterThan, "bar"},
+			Condition{"foo", ConditionGreaterThan, "bar"},
 			`[ "foo", ">", "bar" ]`,
 			false,
 		},
 		{
 			"test >=",
-			fields{"foo", ConditionGreaterThanOrEqual, "bar"},
+			Condition{"foo", ConditionGreaterThanOrEqual, "bar"},
 			`[ "foo", ">=", "bar" ]`,
 			false,
 		},
 		{
 			"test ==",
-			fields{"foo", ConditionEqual, "bar"},
+			Condition{"foo", ConditionEqual, "bar"},
 			`[ "foo", "==", "bar" ]`,
 			false,
 		},
 		{
 			"test !=",
-			fields{"foo", ConditionNotEqual, "bar"},
+			Condition{"foo", ConditionNotEqual, "bar"},
 			`[ "foo", "!=", "bar" ]`,
 			false,
 		},
 		{
 			"test includes",
-			fields{"foo", ConditionIncludes, "bar"},
+			Condition{"foo", ConditionIncludes, "bar"},
 			`[ "foo", "includes", "bar" ]`,
 			false,
 		},
 		{
 			"test excludes",
-			fields{"foo", ConditionExcludes, "bar"},
+			Condition{"foo", ConditionExcludes, "bar"},
 			`[ "foo", "excludes", "bar" ]`,
+			false,
+		},
+		{
+			"test uuid",
+			Condition{"foo", ConditionExcludes, UUID{GoUUID: "foo"}},
+			`[ "foo", "excludes", ["named-uuid", "foo"] ]`,
+			false,
+		},
+		{
+			"test set",
+			Condition{"foo", ConditionExcludes, OvsSet{GoSet: []interface{}{"foo", "bar", "baz"}}},
+			`[ "foo", "excludes", ["set",["foo", "bar", "baz"]] ]`,
+			false,
+		},
+		{
+			"test map",
+			Condition{"foo", ConditionExcludes, OvsMap{GoMap: map[interface{}]interface{}{"foo": "bar", "baz": "quux"}}},
+			`[ "foo", "excludes", ["map",[["foo", "bar"], ["baz", "quux"]]]]`,
+			false,
+		},
+		{
+			"test uuid set",
+			Condition{"foo", ConditionExcludes, OvsSet{GoSet: []interface{}{UUID{GoUUID: "foo"}, UUID{GoUUID: "bar"}}}},
+			`[ "foo", "excludes", ["set",[["named-uuid", "foo"], ["named-uuid", "bar"]]] ]`,
 			false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := Condition{
-				Column:   tt.fields.Column,
-				Function: tt.fields.Function,
-				Value:    tt.fields.Value,
+			got, err := json.Marshal(tt.condition)
+			if err != nil {
+				t.Fatal(err)
 			}
-			got, err := c.MarshalJSON()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Condition.MarshalJSON() error = %v, wantErr %v", err, tt.wantErr)
-				return
+			// testing JSON equality is flaky for ovsdb notated maps
+			// it's safe to skip this as we test from json->object later
+			if tt.name != "test map" {
+				assert.JSONEq(t, tt.want, string(got))
 			}
-			assert.JSONEq(t, tt.want, string(got))
+			var c Condition
+			if err := json.Unmarshal(got, &c); err != nil {
+				t.Fatal(err)
+			}
+			assert.Equal(t, tt.condition.Column, c.Column)
+			assert.Equal(t, tt.condition.Function, c.Function)
+			v := reflect.TypeOf(tt.condition.Value)
+			vv := reflect.ValueOf(c.Value)
+			if !vv.IsValid() {
+				t.Fatalf("c.Value is empty: %v", c.Value)
+			}
+			assert.Equal(t, v, vv.Type())
+			assert.Equal(t, tt.condition.Value, vv.Convert(v).Interface())
+			if vv.Kind() == reflect.String {
+				assert.Equal(t, tt.condition.Value, vv.String())
+			}
 		})
 	}
 }
