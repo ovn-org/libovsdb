@@ -257,6 +257,15 @@ func ValidateMutation(column *ColumnSchema, mutator Mutator, value interface{}) 
 	case TypeSet:
 		switch mutator {
 		case MutateOperationInsert, MutateOperationDelete:
+			// RFC7047 says a <set> may be an <atom> with a single
+			// element. Check if we can store this value in our column
+			if reflect.TypeOf(value).Kind() != reflect.Slice {
+				if NativeType(column) != reflect.SliceOf(reflect.TypeOf(value)) {
+					return NewErrWrongType(fmt.Sprintf("Mutation %s of single value in to column %s", mutator, column),
+						NativeType(column).String(), reflect.SliceOf(reflect.TypeOf(value)).String())
+				}
+				return nil
+			}
 			if NativeType(column) != reflect.TypeOf(value) {
 				return NewErrWrongType(fmt.Sprintf("Mutation %s of column %s", mutator, column),
 					NativeType(column).String(), value)

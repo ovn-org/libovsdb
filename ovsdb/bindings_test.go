@@ -847,6 +847,32 @@ func TestMutationValidation(t *testing.T) {
 			valid:    false,
 		},
 		{
+			name: "string set insert single string",
+			column: []byte(`{
+				   "type": {
+				     "key": "string",
+				     "max": "unlimited",
+				     "min": 0
+				   }
+				 }`),
+			mutators: []Mutator{MutateOperationInsert},
+			value:    "foo",
+			valid:    true,
+		},
+		{
+			name: "string set insert single int",
+			column: []byte(`{
+				   "type": {
+				     "key": "string",
+				     "max": "unlimited",
+				     "min": 0
+				   }
+				 }`),
+			mutators: []Mutator{MutateOperationInsert},
+			value:    42,
+			valid:    false,
+		},
+		{
 			name: "string set insert/delete",
 			column: []byte(`{
 				   "type": {
