@@ -9,13 +9,13 @@ import (
 type Mutator string
 
 const (
-	MutateOperationDelete    Mutator = "delete"
-	MutateOperationInsert    Mutator = "insert"
-	MutateOperationAdd       Mutator = "+="
-	MutateOperationSubstract Mutator = "-="
-	MutateOperationMultiply  Mutator = "*="
-	MutateOperationDivide    Mutator = "/="
-	MutateOperationModulo    Mutator = "%="
+	MutateOperationDelete   Mutator = "delete"
+	MutateOperationInsert   Mutator = "insert"
+	MutateOperationAdd      Mutator = "+="
+	MutateOperationSubtract Mutator = "-="
+	MutateOperationMultiply Mutator = "*="
+	MutateOperationDivide   Mutator = "/="
+	MutateOperationModulo   Mutator = "%="
 )
 
 // Mutation is described in RFC 7047: 5.1
@@ -64,7 +64,7 @@ func (m *Mutation) UnmarshalJSON(b []byte) error {
 	case MutateOperationDelete,
 		MutateOperationInsert,
 		MutateOperationAdd,
-		MutateOperationSubstract,
+		MutateOperationSubtract,
 		MutateOperationMultiply,
 		MutateOperationDivide,
 		MutateOperationModulo:

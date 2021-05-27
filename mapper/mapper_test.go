@@ -957,7 +957,7 @@ func TestMapperMutation(t *testing.T) {
 			name:    "non-mutable",
 			column:  "unmutable",
 			obj:     testType{},
-			mutator: ovsdb.MutateOperationSubstract,
+			mutator: ovsdb.MutateOperationSubtract,
 			value:   2,
 			err:     true,
 		},

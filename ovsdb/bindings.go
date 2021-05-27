@@ -230,14 +230,14 @@ func validateMutationAtomic(atype string, mutator Mutator, value interface{}) er
 		return fmt.Errorf("atomictype %s does not support mutation", atype)
 	case TypeReal:
 		switch mutator {
-		case MutateOperationAdd, MutateOperationSubstract, MutateOperationMultiply, MutateOperationDivide:
+		case MutateOperationAdd, MutateOperationSubtract, MutateOperationMultiply, MutateOperationDivide:
 			return nil
 		default:
 			return fmt.Errorf("wrong mutator for real type %s", mutator)
 		}
 	case TypeInteger:
 		switch mutator {
-		case MutateOperationAdd, MutateOperationSubstract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo:
+		case MutateOperationAdd, MutateOperationSubtract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo:
 			return nil
 		default:
 			return fmt.Errorf("wrong mutator for integer type: %s", mutator)

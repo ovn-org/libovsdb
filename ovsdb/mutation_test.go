@@ -35,7 +35,7 @@ func TestMutationMarshalUnmarshalJSON(t *testing.T) {
 		},
 		{
 			"test subtract",
-			Mutation{"foo", MutateOperationSubstract, "bar"},
+			Mutation{"foo", MutateOperationSubtract, "bar"},
 			`[ "foo", "-=", "bar" ]`,
 			false,
 		},
