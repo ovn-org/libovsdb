@@ -35,15 +35,24 @@ func (r *RowCache) Row(uuid string) model.Model {
 	return nil
 }
 
-// Set writes the provided content to the cache
-// WARNING: Do not use Set outside of testing
-// as it may case cache corruption if, for example,
-// you write a model.Model that isn't part of the
-// model.DBModel
-func (r *RowCache) Set(uuid string, m model.Model) {
+// Create writes the provided content to the cache
+func (r *RowCache) Create(uuid string, m model.Model) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	r.cache[uuid] = m
+}
+
+// Update replaces the content to the cache
+func (r *RowCache) Update(uuid string, m model.Model) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	r.cache[uuid] = m
+}
+
+func (r *RowCache) Delete(uuid string) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	delete(r.cache, uuid)
 }
 
 // Rows returns a list of row UUIDs as strings
@@ -206,28 +215,25 @@ func (t *TableCache) Disconnected() {
 
 // Populate adds data to the cache and places an event on the channel
 func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
-	t.cacheMutex.Lock()
-	defer t.cacheMutex.Unlock()
 	for table := range t.dbModel.Types() {
 		updates, ok := tableUpdates[table]
 		if !ok {
 			continue
 		}
 		var tCache *RowCache
-		if tCache, ok = t.cache[table]; !ok {
-			t.cache[table] = NewRowCache(nil)
-			tCache = t.cache[table]
+		if tCache = t.Table(table); tCache == nil {
+			t.Set(table, nil)
 		}
-		tCache.mutex.Lock()
+		tCache = t.Table(table)
 		for uuid, row := range updates {
 			if row.New != nil {
 				newModel, err := t.CreateModel(table, row.New, uuid)
 				if err != nil {
 					panic(err)
 				}
-				if existing, ok := tCache.cache[uuid]; ok {
+				if existing := tCache.Row(uuid); existing != nil {
 					if !reflect.DeepEqual(newModel, existing) {
-						tCache.cache[uuid] = newModel
+						tCache.Update(uuid, newModel)
 						oldModel, err := t.CreateModel(table, row.Old, uuid)
 						if err != nil {
 							panic(err)
@@ -237,7 +243,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 					// no diff
 					continue
 				}
-				tCache.cache[uuid] = newModel
+				tCache.Create(uuid, newModel)
 				t.eventProcessor.AddEvent(addEvent, table, nil, newModel)
 				continue
 			} else {
@@ -245,13 +251,11 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 				if err != nil {
 					panic(err)
 				}
-				// delete from cache
-				delete(tCache.cache, uuid)
+				tCache.Delete(uuid)
 				t.eventProcessor.AddEvent(deleteEvent, table, oldModel, nil)
 				continue
 			}
 		}
-		tCache.mutex.Unlock()
 	}
 }
 
