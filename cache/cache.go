@@ -1,4 +1,4 @@
-package client
+package cache
 
 import (
 	"fmt"
@@ -35,6 +35,17 @@ func (r *RowCache) Row(uuid string) model.Model {
 	return nil
 }
 
+// Set writes the provided content to the cache
+// WARNING: Do not use Set outside of testing
+// as it may case cache corruption if, for example,
+// you write a model.Model that isn't part of the
+// model.DBModel
+func (r *RowCache) Set(uuid string, m model.Model) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	r.cache[uuid] = m
+}
+
 // Rows returns a list of row UUIDs as strings
 func (r *RowCache) Rows() []string {
 	r.mutex.RLock()
@@ -53,9 +64,14 @@ func (r *RowCache) Len() int {
 	return len(r.cache)
 }
 
-func newRowCache() *RowCache {
+// NewRowCache creates a new row cache with the provided data
+// if the data is nil, and empty RowCache will be created
+func NewRowCache(data map[string]model.Model) *RowCache {
+	if data == nil {
+		data = make(map[string]model.Model)
+	}
 	return &RowCache{
-		cache: make(map[string]model.Model),
+		cache: data,
 		mutex: sync.RWMutex{},
 	}
 }
@@ -106,7 +122,8 @@ type TableCache struct {
 	dbModel        *model.DBModel
 }
 
-func newTableCache(schema *ovsdb.DatabaseSchema, dbModel *model.DBModel) (*TableCache, error) {
+// NewTableCache creates a new TableCache
+func NewTableCache(schema *ovsdb.DatabaseSchema, dbModel *model.DBModel) (*TableCache, error) {
 	if schema == nil || dbModel == nil {
 		return nil, fmt.Errorf("tablecache without databasemodel cannot be populated")
 	}
@@ -119,6 +136,16 @@ func newTableCache(schema *ovsdb.DatabaseSchema, dbModel *model.DBModel) (*Table
 	}, nil
 }
 
+// Mapper returns the mapper
+func (t *TableCache) Mapper() *mapper.Mapper {
+	return t.mapper
+}
+
+// DBModel returns the DBModel
+func (t *TableCache) DBModel() *model.DBModel {
+	return t.dbModel
+}
+
 // Table returns the a Table from the cache with a given name
 func (t *TableCache) Table(name string) *RowCache {
 	t.cacheMutex.RLock()
@@ -127,6 +154,18 @@ func (t *TableCache) Table(name string) *RowCache {
 		return table
 	}
 	return nil
+}
+
+// Set write the provided RowCache to the provided table name in the cache
+// if the provided cache is nil, we'll initialize a new one
+// WARNING: Do not use Set outside of testing
+func (t *TableCache) Set(name string, rc *RowCache) {
+	if rc == nil {
+		rc = NewRowCache(nil)
+	}
+	t.cacheMutex.Lock()
+	defer t.cacheMutex.Unlock()
+	t.cache[name] = rc
 }
 
 // Tables returns a list of table names that are in the cache
@@ -146,7 +185,7 @@ func (t *TableCache) Update(context interface{}, tableUpdates ovsdb.TableUpdates
 	if len(tableUpdates) == 0 {
 		return
 	}
-	t.populate(tableUpdates)
+	t.Populate(tableUpdates)
 }
 
 // Locked implements the locked method of the NotificationHandler interface
@@ -165,8 +204,8 @@ func (t *TableCache) Echo([]interface{}) {
 func (t *TableCache) Disconnected() {
 }
 
-// populate adds data to the cache and places an event on the channel
-func (t *TableCache) populate(tableUpdates ovsdb.TableUpdates) {
+// Populate adds data to the cache and places an event on the channel
+func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 	t.cacheMutex.Lock()
 	defer t.cacheMutex.Unlock()
 	for table := range t.dbModel.Types() {
@@ -176,7 +215,7 @@ func (t *TableCache) populate(tableUpdates ovsdb.TableUpdates) {
 		}
 		var tCache *RowCache
 		if tCache, ok = t.cache[table]; !ok {
-			t.cache[table] = newRowCache()
+			t.cache[table] = NewRowCache(nil)
 			tCache = t.cache[table]
 		}
 		tCache.mutex.Lock()

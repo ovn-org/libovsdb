@@ -1,4 +1,4 @@
-package client
+package cache
 
 import (
 	"testing"
@@ -228,7 +228,7 @@ func TestTableCache_Table(t *testing.T) {
 		{
 			"returns nil for an empty table",
 			fields{
-				cache: map[string]*RowCache{"bar": newRowCache()},
+				cache: map[string]*RowCache{"bar": NewRowCache(nil)},
 			},
 			args{
 				"foo",
@@ -238,12 +238,12 @@ func TestTableCache_Table(t *testing.T) {
 		{
 			"returns nil for an empty table",
 			fields{
-				cache: map[string]*RowCache{"bar": newRowCache()},
+				cache: map[string]*RowCache{"bar": NewRowCache(nil)},
 			},
 			args{
 				"bar",
 			},
-			newRowCache(),
+			NewRowCache(nil),
 		},
 	}
 	for _, tt := range tests {
@@ -268,7 +268,7 @@ func TestTableCache_Tables(t *testing.T) {
 	}{
 		{
 			"returns a table that exists",
-			fields{cache: map[string]*RowCache{"test1": newRowCache(), "test2": newRowCache(), "test3": newRowCache()}},
+			fields{cache: map[string]*RowCache{"test1": NewRowCache(nil), "test2": NewRowCache(nil), "test3": NewRowCache(nil)}},
 			[]string{"test1", "test2", "test3"},
 		},
 		{
@@ -307,7 +307,7 @@ func TestTableCache_populate(t *testing.T) {
 	     }
 	`), &schema)
 	assert.Nil(t, err)
-	tc, err := newTableCache(&schema, db)
+	tc, err := NewTableCache(&schema, db)
 	assert.Nil(t, err)
 
 	testRow := ovsdb.Row(map[string]interface{}{"_uuid": "test", "foo": "bar"})
@@ -320,9 +320,9 @@ func TestTableCache_populate(t *testing.T) {
 			},
 		},
 	}
-	tc.populate(updates)
+	tc.Populate(updates)
 
-	got := tc.cache["Open_vSwitch"].cache["test"]
+	got := tc.Table("Open_vSwitch").Row("test")
 	assert.Equal(t, testRowModel, got)
 
 	t.Log("Update")
@@ -332,7 +332,7 @@ func TestTableCache_populate(t *testing.T) {
 		Old: &testRow,
 		New: &updatedRow,
 	}
-	tc.populate(updates)
+	tc.Populate(updates)
 
 	got = tc.cache["Open_vSwitch"].cache["test"]
 	assert.Equal(t, updatedRowModel, got)
@@ -343,7 +343,7 @@ func TestTableCache_populate(t *testing.T) {
 		New: nil,
 	}
 
-	tc.populate(updates)
+	tc.Populate(updates)
 
 	_, ok := tc.cache["Open_vSwitch"].cache["test"]
 	assert.False(t, ok)
