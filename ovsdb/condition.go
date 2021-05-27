@@ -26,6 +26,10 @@ type Condition struct {
 	Value    interface{}
 }
 
+func (c Condition) String() string {
+	return fmt.Sprintf("where column %s %s %v", c.Column, c.Function, c.Value)
+}
+
 // NewCondition returns a new condition
 func NewCondition(column string, function ConditionFunction, value interface{}) Condition {
 	return Condition{
