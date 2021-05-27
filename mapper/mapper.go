@@ -119,8 +119,13 @@ func (m Mapper) NewRow(tableName string, data interface{}, fields ...interface{}
 		return nil, err
 	}
 
-	ovsRow := make(map[string]interface{}, len(table.Columns))
-	for name, column := range table.Columns {
+	columns := make(map[string]*ovsdb.ColumnSchema)
+	for k, v := range table.Columns {
+		columns[k] = v
+	}
+	columns["_uuid"] = &ovsdb.UUIDColumn
+	ovsRow := make(map[string]interface{}, len(columns))
+	for name, column := range columns {
 		nativeElem, err := mapperInfo.FieldByColumn(name)
 		if err != nil {
 			// If provided struct does not have a field to hold this value, skip it
@@ -144,7 +149,6 @@ func (m Mapper) NewRow(tableName string, data interface{}, fields ...interface{}
 				continue
 			}
 		}
-
 		if len(fields) == 0 && ovsdb.IsDefaultValue(column, nativeElem) {
 			continue
 		}

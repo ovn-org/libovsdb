@@ -333,7 +333,7 @@ func isDefaultBaseValue(elem interface{}, etype ExtendedType) bool {
 
 	switch etype {
 	case TypeUUID:
-		return elem.(string) == "00000000-0000-0000-0000-000000000000" || elem.(string) == ""
+		return elem.(string) == "00000000-0000-0000-0000-000000000000" || elem.(string) == "" || isNamed(elem.(string))
 	case TypeMap, TypeSet:
 		return value.IsNil() || value.Len() == 0
 	case TypeString:
