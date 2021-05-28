@@ -4,11 +4,15 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"sync"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/client"
 	"github.com/ovn-org/libovsdb/model"
@@ -34,36 +38,91 @@ type ovsType struct {
 var (
 	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to this file")
 	memprofile = flag.String("memoryprofile", "", "write memory profile to this file")
-	nins       = flag.Int("ninserts", 100, "insert this number of elements in the database")
+	nins       = flag.Int("inserts", 100, "the number of insertions to make to the database (per client)")
+	nclients   = flag.Int("clients", 1, "the number of clients to use")
+	parallel   = flag.Bool("parallel", false, "run clients in parallel")
 	verbose    = flag.Bool("verbose", false, "Be verbose")
 	connection = flag.String("ovsdb", "unix:/var/run/openvswitch/db.sock", "OVSDB connection string")
 	dbModel    *model.DBModel
-
-	ready      bool
-	rootUUID   string
-	insertions int
-	deletions  int
 )
 
-func run() {
+type result struct {
+	insertions   int
+	deletions    int
+	transactTime []time.Duration
+	cacheTime    []time.Duration
+}
+
+func cleanup(ctx context.Context) {
 	ovs, err := client.Connect(context.Background(), *connection, dbModel, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer ovs.Disconnect()
+
+	if err := ovs.MonitorAll(""); err != nil {
+		log.Fatal(err)
+	}
+
+	var rootUUID string
+	// Get root UUID
+	for _, uuid := range ovs.Cache.Table("Open_vSwitch").Rows() {
+		rootUUID = uuid
+		log.Printf("rootUUID is %v", rootUUID)
+	}
+
+	// Remove all existing bridges
+	var bridges []bridgeType
+	if err := ovs.List(&bridges); err == nil {
+		log.Printf("%d existing bridges found", len(bridges))
+		for _, bridge := range bridges {
+			deleteBridge(ctx, ovs, rootUUID, &bridge)
+		}
+	} else {
+		if err != client.ErrNotFound {
+			log.Fatal(err)
+		}
+	}
+}
+
+func run(ctx context.Context, resultsChan chan result, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	result := result{}
+	ready := false
+	var rootUUID string
+
+	ovs, err := client.Connect(context.Background(), *connection, dbModel, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer ovs.Disconnect()
+
+	var bridges []bridgeType
+	bridgeCh := make(map[string]chan bool)
+	for i := 0; i < *nins; i++ {
+		br := newBridge()
+		bridges = append(bridges, br)
+		bridgeCh[br.Name] = make(chan bool)
+	}
+
 	ovs.Cache.AddEventHandler(
 		&cache.EventHandlerFuncs{
 			AddFunc: func(table string, model model.Model) {
 				if ready && table == "Bridge" {
-					insertions++
-					if *verbose {
-						fmt.Printf(".")
+					br := model.(*bridgeType)
+					var ch chan bool
+					var ok bool
+					if ch, ok = bridgeCh[br.Name]; !ok {
+						return
 					}
+					close(ch)
+					result.insertions++
 				}
 			},
 			DeleteFunc: func(table string, model model.Model) {
 				if table == "Bridge" {
-					deletions++
+					result.deletions++
 				}
 			},
 		},
@@ -81,39 +140,36 @@ func run() {
 		}
 	}
 
-	// Remove all existing bridges
-	var bridges []bridgeType
-	if err := ovs.List(&bridges); err == nil {
-		for _, bridge := range bridges {
-			deleteBridge(ovs, &bridge)
-		}
-	} else {
-		if err != client.ErrNotFound {
-			log.Fatal(err)
-		}
-	}
-
 	ready = true
+	cacheWg := sync.WaitGroup{}
 	for i := 0; i < *nins; i++ {
-		createBridge(ovs, i)
+		br := bridges[i]
+		ch := bridgeCh[br.Name]
+		log.Printf("create bridge: %s", br.Name)
+		cacheWg.Add(1)
+		go func(ctx context.Context, ch chan bool) {
+			defer cacheWg.Done()
+			<-ch
+		}(ctx, ch)
+		createBridge(ctx, ovs, rootUUID, br)
 	}
+	cacheWg.Wait()
+	resultsChan <- result
 }
 
-func transact(ovs *client.OvsdbClient, operations []ovsdb.Operation) (ok bool, uuid string) {
+func transact(ctx context.Context, ovs *client.OvsdbClient, operations []ovsdb.Operation) (bool, string) {
 	reply, err := ovs.Transact(operations...)
 	if err != nil {
-		ok = false
-		return
+		return false, ""
 	}
 	if _, err := ovsdb.CheckOperationResults(reply, operations); err != nil {
-		ok = false
-		return
+		return false, ""
 	}
-	uuid = reply[0].UUID.GoUUID
-	return
+	return true, reply[0].UUID.GoUUID
 }
 
-func deleteBridge(ovs *client.OvsdbClient, bridge *bridgeType) {
+func deleteBridge(ctx context.Context, ovs *client.OvsdbClient, rootUUID string, bridge *bridgeType) {
+	log.Printf("deleting bridge %s", bridge.Name)
 	deleteOp, err := ovs.Where(bridge).Delete()
 	if err != nil {
 		log.Fatal(err)
@@ -121,7 +177,6 @@ func deleteBridge(ovs *client.OvsdbClient, bridge *bridgeType) {
 	ovsRow := ovsType{
 		UUID: rootUUID,
 	}
-
 	mutateOp, err := ovs.Where(&ovsRow).Mutate(&ovsRow, model.Mutation{
 		Field:   &ovsRow.Bridges,
 		Mutator: ovsdb.MutateOperationDelete,
@@ -130,20 +185,14 @@ func deleteBridge(ovs *client.OvsdbClient, bridge *bridgeType) {
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	operations := append(deleteOp, mutateOp...)
-	ok, _ := transact(ovs, operations)
-	if ok {
-		if *verbose {
-			fmt.Println("Bridge Deletion Successful : ", bridge.UUID)
-		}
-	}
+	_, _ = transact(ctx, ovs, operations)
 }
 
-func createBridge(ovs *client.OvsdbClient, iter int) {
-	bridge := bridgeType{
+func newBridge() bridgeType {
+	return bridgeType{
 		UUID: "gopher",
-		Name: fmt.Sprintf("bridge-%d", iter),
+		Name: fmt.Sprintf("br-%s", uuid.NewString()),
 		OtherConfig: map[string]string{
 			"foo":  "bar",
 			"fake": "config",
@@ -153,6 +202,9 @@ func createBridge(ovs *client.OvsdbClient, iter int) {
 			"key2": "val2",
 		},
 	}
+}
+
+func createBridge(ctx context.Context, ovs *client.OvsdbClient, rootUUID string, bridge bridgeType) {
 	insertOp, err := ovs.Create(&bridge)
 	if err != nil {
 		log.Fatal(err)
@@ -168,16 +220,12 @@ func createBridge(ovs *client.OvsdbClient, iter int) {
 	}
 
 	operations := append(insertOp, mutateOp...)
-	ok, uuid := transact(ovs, operations)
-	if ok {
-		if *verbose {
-			fmt.Println("Bridge Addition Successful : ", uuid)
-		}
-	}
+	_, _ = transact(ctx, ovs, operations)
 }
 func main() {
 	flag.Parse()
-	var err error
+	ctx := context.Background()
+
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
@@ -188,18 +236,52 @@ func main() {
 		}
 		defer pprof.StopCPUProfile()
 	}
+	if !*verbose {
+		log.SetOutput(io.Discard)
+	}
 
+	var err error
 	dbModel, err = model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &ovsType{}, "Bridge": &bridgeType{}})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	run()
+	cleanup(ctx)
+
+	var wg sync.WaitGroup
+	resultChan := make(chan result)
+	results := make([]result, *nclients)
+	go func() {
+		for result := range resultChan {
+			results = append(results, result)
+		}
+	}()
+
+	for i := 0; i < *nclients; i++ {
+		wg.Add(1)
+		go run(ctx, resultChan, &wg)
+		if !*parallel {
+			wg.Wait()
+		}
+	}
+	log.Print("waiting for clients to complete")
+	// wait for all clients
+	wg.Wait()
+	// close the result channel to avoid leaking a goroutine
+	close(resultChan)
+
+	result := result{}
+	for _, r := range results {
+		result.insertions += r.insertions
+		result.deletions += r.deletions
+		result.transactTime = append(result.transactTime, r.transactTime...)
+		result.cacheTime = append(result.transactTime, r.cacheTime...)
+	}
 
 	fmt.Printf("\n\n\n")
 	fmt.Printf("Summary:\n")
-	fmt.Printf("\tInsertions: %d\n", insertions)
-	fmt.Printf("\tDeletions: %d\n", deletions)
+	fmt.Printf("\tTotal Insertions: %d\n", result.insertions)
+	fmt.Printf("\tTotal Deletions: %d\n", result.deletions)
 
 	if *memprofile != "" {
 		f, err := os.Create(*memprofile)
