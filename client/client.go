@@ -135,7 +135,7 @@ func newRPC2Client(conn net.Conn, database *model.DBModel) (*OvsdbClient, error)
 
 	if err == nil {
 		ovs.Schema = *schema
-		if cache, err := cache.NewTableCache(schema, database); err == nil {
+		if cache, err := cache.NewTableCache(schema, database, nil); err == nil {
 			ovs.Cache = cache
 			ovs.Register(ovs.Cache)
 			ovs.api = newAPI(ovs.Cache)

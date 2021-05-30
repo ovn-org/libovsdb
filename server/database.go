@@ -56,7 +56,7 @@ func (db *inMemoryDatabase) CreateDatabase(name string, schema *ovsdb.DatabaseSc
 	if mo, ok = db.models[schema.Name]; !ok {
 		return fmt.Errorf("no db model provided for schema with name %s", name)
 	}
-	database, err := cache.NewTableCache(schema, mo)
+	database, err := cache.NewTableCache(schema, mo, nil)
 	if err != nil {
 		return nil
 	}
@@ -147,10 +147,6 @@ func (db *inMemoryDatabase) Insert(database string, table string, rowUUID string
 		}, nil
 	}
 
-	if t := targetDb.Table(table); t == nil {
-		targetDb.Set(table, cache.NewRowCache(nil))
-	}
-
 	// check duplicates
 	for _, existingUUID := range targetDb.Table(table).Rows() {
 		existingRow := targetDb.Table(table).Row(existingUUID)
@@ -162,7 +158,9 @@ func (db *inMemoryDatabase) Insert(database string, table string, rowUUID string
 	}
 
 	// insert in to db
-	targetDb.Table(table).Create(rowUUID, model)
+	if err := targetDb.Table(table).Create(rowUUID, model); err != nil {
+		panic(err)
+	}
 
 	resultRow, err := targetDb.Mapper().NewRow(table, model)
 	if err != nil {
@@ -193,10 +191,6 @@ func (db *inMemoryDatabase) Select(database string, table string, where []ovsdb.
 		return ovsdb.OperationResult{
 			Error: "database does not exist",
 		}
-	}
-
-	if t := targetDb.Table(table); t == nil {
-		targetDb.Set(table, cache.NewRowCache(nil))
 	}
 
 	schema := targetDb.Mapper().Schema.Table(table)
@@ -251,10 +245,6 @@ func (db *inMemoryDatabase) Update(database, table string, where []ovsdb.Conditi
 		}, nil
 	}
 
-	if t := targetDb.Table(table); t == nil {
-		targetDb.Set(table, cache.NewRowCache(nil))
-	}
-
 	schema := targetDb.Mapper().Schema.Table(table)
 	tableUpdate := make(ovsdb.TableUpdate)
 	count := 0
@@ -292,7 +282,9 @@ func (db *inMemoryDatabase) Update(database, table string, where []ovsdb.Conditi
 			if err != nil {
 				panic(err)
 			}
-			targetDb.Table(table).Update(uuid, row)
+			if err := targetDb.Table(table).Update(uuid, row); err != nil {
+				panic(err)
+			}
 			tableUpdate.AddRowUpdate(uuid, &ovsdb.RowUpdate{
 				Old: &oldRow,
 				New: &newRow,
@@ -317,10 +309,6 @@ func (db *inMemoryDatabase) Mutate(database, table string, where []ovsdb.Conditi
 		return ovsdb.OperationResult{
 			Error: "database does not exist",
 		}, nil
-	}
-
-	if t := targetDb.Table(table); t == nil {
-		targetDb.Set(table, cache.NewRowCache(nil))
 	}
 
 	schema := targetDb.Mapper().Schema.Table(table)
@@ -397,10 +385,6 @@ func (db *inMemoryDatabase) Delete(database, table string, where []ovsdb.Conditi
 		return ovsdb.OperationResult{
 			Error: "database does not exist",
 		}, nil
-	}
-
-	if t := targetDb.Table(table); t == nil {
-		targetDb.Set(table, cache.NewRowCache(nil))
 	}
 
 	schema := targetDb.Mapper().Schema.Table(table)

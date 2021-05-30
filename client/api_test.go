@@ -12,7 +12,7 @@ import (
 )
 
 func TestAPIListSimple(t *testing.T) {
-	tcache := apiTestCache(t)
+
 	lscacheList := []model.Model{
 		&testLogicalSwitch{
 			UUID:        aUUID0,
@@ -40,9 +40,10 @@ func TestAPIListSimple(t *testing.T) {
 	for i := range lscacheList {
 		lscache[lscacheList[i].(*testLogicalSwitch).UUID] = lscacheList[i]
 	}
-	tcache.Set("Logical_Switch", cache.NewRowCache(lscache))
-	tcache.Set("Logical_Switch_Port", nil) // empty
-
+	testData := cache.CacheData{
+		"Logical_Switch": lscache,
+	}
+	tcache := apiTestCache(t, testData)
 	test := []struct {
 		name       string
 		initialCap int
@@ -121,7 +122,6 @@ func TestAPIListSimple(t *testing.T) {
 }
 
 func TestAPIListPredicate(t *testing.T) {
-	tcache := apiTestCache(t)
 	lscacheList := []model.Model{
 		&testLogicalSwitch{
 			UUID:        aUUID0,
@@ -149,7 +149,10 @@ func TestAPIListPredicate(t *testing.T) {
 	for i := range lscacheList {
 		lscache[lscacheList[i].(*testLogicalSwitch).UUID] = lscacheList[i]
 	}
-	tcache.Set("Logical_Switch", cache.NewRowCache(lscache))
+	testData := cache.CacheData{
+		"Logical_Switch": lscache,
+	}
+	tcache := apiTestCache(t, testData)
 
 	test := []struct {
 		name      string
@@ -214,7 +217,6 @@ func TestAPIListPredicate(t *testing.T) {
 }
 
 func TestAPIListFields(t *testing.T) {
-	tcache := apiTestCache(t)
 	lspcacheList := []model.Model{
 		&testLogicalSwitchPort{
 			UUID:        aUUID0,
@@ -245,7 +247,10 @@ func TestAPIListFields(t *testing.T) {
 	for i := range lspcacheList {
 		lspcache[lspcacheList[i].(*testLogicalSwitchPort).UUID] = lspcacheList[i]
 	}
-	tcache.Set("Logical_Switch_Port", cache.NewRowCache(lspcache))
+	testData := cache.CacheData{
+		"Logical_Switch_Port": lspcache,
+	}
+	tcache := apiTestCache(t, testData)
 
 	testObj := testLogicalSwitchPort{}
 
@@ -339,7 +344,7 @@ func TestConditionFromFunc(t *testing.T) {
 
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("conditionFromFunc: %s", tt.name), func(t *testing.T) {
-			cache := apiTestCache(t)
+			cache := apiTestCache(t, nil)
 			apiIface := newAPI(cache)
 			condition := apiIface.(api).conditionFromFunc(tt.arg)
 			if tt.err {
@@ -398,7 +403,7 @@ func TestConditionFromModel(t *testing.T) {
 
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("conditionFromModel: %s", tt.name), func(t *testing.T) {
-			cache := apiTestCache(t)
+			cache := apiTestCache(t, nil)
 			apiIface := newAPI(cache)
 			condition := apiIface.(api).conditionFromModel(false, tt.model, tt.conds...)
 			if tt.err {
@@ -416,7 +421,6 @@ func TestConditionFromModel(t *testing.T) {
 }
 
 func TestAPIGet(t *testing.T) {
-	tcache := apiTestCache(t)
 	lsCacheList := []model.Model{}
 	lspCacheList := []model.Model{
 		&testLogicalSwitchPort{
@@ -440,8 +444,11 @@ func TestAPIGet(t *testing.T) {
 	for i := range lspCacheList {
 		lspCache[lspCacheList[i].(*testLogicalSwitchPort).UUID] = lspCacheList[i]
 	}
-	tcache.Set("Logical_Switch", cache.NewRowCache(lsCache))
-	tcache.Set("Logical_Switch_Port", cache.NewRowCache(lspCache))
+	testData := cache.CacheData{
+		"Logical_Switch":      lsCache,
+		"Logical_Switch_Port": lspCache,
+	}
+	tcache := apiTestCache(t, testData)
 
 	test := []struct {
 		name    string
@@ -496,7 +503,6 @@ func TestAPIGet(t *testing.T) {
 }
 
 func TestAPICreate(t *testing.T) {
-	tcache := apiTestCache(t)
 	lsCacheList := []model.Model{}
 	lspCacheList := []model.Model{
 		&testLogicalSwitchPort{
@@ -520,8 +526,11 @@ func TestAPICreate(t *testing.T) {
 	for i := range lspCacheList {
 		lspCache[lspCacheList[i].(*testLogicalSwitchPort).UUID] = lspCacheList[i]
 	}
-	tcache.Set("Logical_Switch", cache.NewRowCache(lsCache))
-	tcache.Set("Logical_Switch_Port", cache.NewRowCache(lspCache))
+	testData := cache.CacheData{
+		"Logical_Switch":      lsCache,
+		"Logical_Switch_Port": lspCache,
+	}
+	tcache := apiTestCache(t, testData)
 
 	rowFoo := ovsdb.Row(map[string]interface{}{"name": "foo"})
 	rowBar := ovsdb.Row(map[string]interface{}{"name": "bar"})
@@ -609,7 +618,6 @@ func TestAPICreate(t *testing.T) {
 }
 
 func TestAPIMutate(t *testing.T) {
-	tcache := apiTestCache(t)
 	lspCache := map[string]model.Model{
 		aUUID0: &testLogicalSwitchPort{
 			UUID:        aUUID0,
@@ -634,7 +642,10 @@ func TestAPIMutate(t *testing.T) {
 			Tag:         []int{1},
 		},
 	}
-	tcache.Set("Logical_Switch_Port", cache.NewRowCache(lspCache))
+	testData := cache.CacheData{
+		"Logical_Switch_Port": lspCache,
+	}
+	tcache := apiTestCache(t, testData)
 
 	testObj := testLogicalSwitchPort{}
 
@@ -776,7 +787,6 @@ func TestAPIMutate(t *testing.T) {
 }
 
 func TestAPIUpdate(t *testing.T) {
-	tcache := apiTestCache(t)
 	lspCache := map[string]model.Model{
 		aUUID0: &testLogicalSwitchPort{
 			UUID:        aUUID0,
@@ -802,7 +812,10 @@ func TestAPIUpdate(t *testing.T) {
 			Tag:         []int{1},
 		},
 	}
-	tcache.Set("Logical_Switch_Port", cache.NewRowCache(lspCache))
+	testData := cache.CacheData{
+		"Logical_Switch_Port": lspCache,
+	}
+	tcache := apiTestCache(t, testData)
 
 	testObj := testLogicalSwitchPort{}
 	testRow := ovsdb.Row(map[string]interface{}{"type": "somethingElse", "tag": testOvsSet(t, []int{6})})
@@ -1022,7 +1035,6 @@ func TestAPIUpdate(t *testing.T) {
 }
 
 func TestAPIDelete(t *testing.T) {
-	tcache := apiTestCache(t)
 	lspCache := map[string]model.Model{
 		aUUID0: &testLogicalSwitchPort{
 			UUID:        aUUID0,
@@ -1048,7 +1060,10 @@ func TestAPIDelete(t *testing.T) {
 			Tag:         []int{1},
 		},
 	}
-	tcache.Set("Logical_Switch_Port", cache.NewRowCache(lspCache))
+	testData := cache.CacheData{
+		"Logical_Switch_Port": lspCache,
+	}
+	tcache := apiTestCache(t, testData)
 
 	test := []struct {
 		name      string

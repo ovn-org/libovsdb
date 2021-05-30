@@ -5,14 +5,17 @@ import (
 
 	"encoding/json"
 
+	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type testModel struct {
 	UUID string `ovs:"_uuid"`
 	Foo  string `ovs:"foo"`
+	Bar  string `ovs:"bar"`
 }
 
 func TestRowCache_Row(t *testing.T) {
@@ -75,6 +78,311 @@ func TestRowCache_Rows(t *testing.T) {
 			}
 			got := r.Rows()
 			assert.ElementsMatch(t, tt.want, got)
+		})
+	}
+}
+
+func TestRowCacheCreate(t *testing.T) {
+	var schema ovsdb.DatabaseSchema
+	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	require.Nil(t, err)
+	err = json.Unmarshal([]byte(`
+		 {"name": "TestDB",
+		  "tables": {
+		    "Open_vSwitch": {
+			  "indexes": [["foo"]],
+		      "columns": {
+		        "foo": {
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
+		      }
+		    }
+		 }
+	     }
+	`), &schema)
+	require.Nil(t, err)
+	testData := CacheData{
+		"Open_vSwitch": map[string]model.Model{"bar": &testModel{Foo: "bar"}},
+	}
+	tc, err := NewTableCache(&schema, db, testData)
+	require.Nil(t, err)
+
+	tests := []struct {
+		name    string
+		uuid    string
+		model   *testModel
+		wantErr bool
+	}{
+		{
+			"inserts a new row",
+			"foo",
+			&testModel{Foo: "foo"},
+			false,
+		},
+		{
+			"error duplicate uuid",
+			"bar",
+			&testModel{Foo: "foo"},
+			true,
+		},
+		{
+			"error duplicate index",
+			"baz",
+			&testModel{Foo: "bar"},
+			true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rc := tc.Table("Open_vSwitch")
+			require.NotNil(t, rc)
+			err := rc.Create(tt.uuid, tt.model)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.Nil(t, err)
+				assert.Equal(t, tt.uuid, rc.indexes["foo"][tt.model.Foo])
+			}
+		})
+	}
+}
+
+func TestRowCacheCreateMultiIndex(t *testing.T) {
+	var schema ovsdb.DatabaseSchema
+	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	require.Nil(t, err)
+	err = json.Unmarshal([]byte(`
+		 {"name": "TestDB",
+		  "tables": {
+		    "Open_vSwitch": {
+			  "indexes": [["foo", "bar"]],
+		      "columns": {
+		        "foo": {
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
+		      }
+		    }
+		 }
+	     }
+	`), &schema)
+	require.Nil(t, err)
+	tSchema := schema.Table("Open_vSwitch")
+	testData := CacheData{
+		"Open_vSwitch": map[string]model.Model{"bar": &testModel{Foo: "bar", Bar: "bar"}},
+	}
+	tc, err := NewTableCache(&schema, db, testData)
+	require.Nil(t, err)
+	tests := []struct {
+		name    string
+		uuid    string
+		model   *testModel
+		wantErr bool
+	}{
+		{
+			"inserts a new row",
+			"foo",
+			&testModel{Foo: "foo", Bar: "foo"},
+			false,
+		},
+		{
+			"error duplicate uuid",
+			"bar",
+			&testModel{Foo: "bar", Bar: "bar"},
+			true,
+		},
+		{
+			"error duplicate index",
+			"baz",
+			&testModel{Foo: "foo", Bar: "foo"},
+			true,
+		},
+		{
+			"new row with one duplicate value",
+			"baz",
+			&testModel{Foo: "foo", Bar: "bar"},
+			false,
+		},
+		{
+			"new row with other duplicate value",
+			"quux",
+			&testModel{Foo: "bar", Bar: "baz"},
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rc := tc.Table("Open_vSwitch")
+			require.NotNil(t, rc)
+			err := rc.Create(tt.uuid, tt.model)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.Nil(t, err)
+				mapperInfo, err := mapper.NewMapperInfo(tSchema, tt.model)
+				require.Nil(t, err)
+				h, err := hashColumnValues(mapperInfo, []string{"foo", "bar"})
+				require.Nil(t, err)
+				assert.Equal(t, tt.uuid, rc.indexes["foo,bar"][h])
+			}
+		})
+	}
+}
+
+func TestRowCacheUpdate(t *testing.T) {
+	var schema ovsdb.DatabaseSchema
+	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	require.Nil(t, err)
+	err = json.Unmarshal([]byte(`
+		 {"name": "TestDB",
+		  "tables": {
+		    "Open_vSwitch": {
+			  "indexes": [["foo"]],
+		      "columns": {
+		        "foo": {
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
+		      }
+		    }
+		 }
+	     }
+	`), &schema)
+	require.Nil(t, err)
+	testData := CacheData{
+		"Open_vSwitch": map[string]model.Model{
+			"bar":    &testModel{Foo: "bar"},
+			"foobar": &testModel{Foo: "foobar"},
+		},
+	}
+	tc, err := NewTableCache(&schema, db, testData)
+	require.Nil(t, err)
+
+	tests := []struct {
+		name    string
+		uuid    string
+		model   *testModel
+		wantErr bool
+	}{
+		{
+			"error if row does not exist",
+			"foo",
+			&testModel{Foo: "foo"},
+			true,
+		},
+		{
+			"update",
+			"bar",
+			&testModel{Foo: "baz"},
+			false,
+		},
+		{
+			"error new index would cause duplicate",
+			"baz",
+			&testModel{Foo: "foobar"},
+			true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rc := tc.Table("Open_vSwitch")
+			require.NotNil(t, rc)
+			err := rc.Update(tt.uuid, tt.model)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.Nil(t, err)
+				assert.Equal(t, tt.uuid, rc.indexes["foo"][tt.model.Foo])
+			}
+		})
+	}
+}
+
+func TestRowCacheUpdateMultiIndex(t *testing.T) {
+	var schema ovsdb.DatabaseSchema
+	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	require.Nil(t, err)
+	err = json.Unmarshal([]byte(`
+		 {"name": "TestDB",
+		  "tables": {
+		    "Open_vSwitch": {
+			  "indexes": [["foo", "bar"]],
+		      "columns": {
+		        "foo": {
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
+		      }
+		    }
+		 }
+	     }
+	`), &schema)
+	tSchema := schema.Table("Open_vSwitch")
+	require.Nil(t, err)
+	testData := CacheData{
+		"Open_vSwitch": map[string]model.Model{
+			"bar":    &testModel{Foo: "bar", Bar: "bar"},
+			"foobar": &testModel{Foo: "foobar", Bar: "foobar"},
+		},
+	}
+	tc, err := NewTableCache(&schema, db, testData)
+	require.Nil(t, err)
+
+	tests := []struct {
+		name    string
+		uuid    string
+		model   *testModel
+		wantErr bool
+	}{
+		{
+			"error if row does not exist",
+			"foo",
+			&testModel{Foo: "foo", Bar: "foo"},
+			true,
+		},
+		{
+			"update both index cols",
+			"bar",
+			&testModel{Foo: "baz", Bar: "baz"},
+			false,
+		},
+		{
+			"update single index col",
+			"bar",
+			&testModel{Foo: "baz", Bar: "quux"},
+			false,
+		},
+		{
+			"error new index would cause duplicate",
+			"baz",
+			&testModel{Foo: "foobar", Bar: "foobar"},
+			true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rc := tc.Table("Open_vSwitch")
+			require.NotNil(t, rc)
+			err := rc.Update(tt.uuid, tt.model)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.Nil(t, err)
+				mapperInfo, err := mapper.NewMapperInfo(tSchema, tt.model)
+				require.Nil(t, err)
+				h, err := hashColumnValues(mapperInfo, []string{"foo", "bar"})
+				require.Nil(t, err)
+				assert.Equal(t, tt.uuid, rc.indexes["foo,bar"][h])
+			}
 		})
 	}
 }
@@ -212,75 +520,62 @@ func TestEventHandlerFuncs_OnDelete(t *testing.T) {
 	}
 }
 
-func TestTableCache_Table(t *testing.T) {
-	type fields struct {
-		cache map[string]*RowCache
-	}
-	type args struct {
-		name string
-	}
+func TestTableCacheTable(t *testing.T) {
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   *RowCache
+		name  string
+		cache map[string]*RowCache
+		table string
+		want  *RowCache
 	}{
 		{
 			"returns nil for an empty table",
-			fields{
-				cache: map[string]*RowCache{"bar": NewRowCache(nil)},
-			},
-			args{
-				"foo",
-			},
+			map[string]*RowCache{"bar": newRowCache("bar", ovsdb.TableSchema{}, nil)},
+			"foo",
 			nil,
 		},
 		{
 			"returns nil for an empty table",
-			fields{
-				cache: map[string]*RowCache{"bar": NewRowCache(nil)},
-			},
-			args{
-				"bar",
-			},
-			NewRowCache(nil),
+			map[string]*RowCache{"bar": newRowCache("bar", ovsdb.TableSchema{}, nil)},
+			"bar",
+			newRowCache("bar", ovsdb.TableSchema{}, nil),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tr := &TableCache{
-				cache: tt.fields.cache,
+				cache: tt.cache,
 			}
-			got := tr.Table(tt.args.name)
+			got := tr.Table(tt.table)
 			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
-func TestTableCache_Tables(t *testing.T) {
-	type fields struct {
-		cache map[string]*RowCache
-	}
+func TestTableCacheTables(t *testing.T) {
 	tests := []struct {
-		name   string
-		fields fields
-		want   []string
+		name  string
+		cache map[string]*RowCache
+		want  []string
 	}{
 		{
 			"returns a table that exists",
-			fields{cache: map[string]*RowCache{"test1": NewRowCache(nil), "test2": NewRowCache(nil), "test3": NewRowCache(nil)}},
+			map[string]*RowCache{
+				"test1": newRowCache("test1", ovsdb.TableSchema{}, nil),
+				"test2": newRowCache("test2", ovsdb.TableSchema{}, nil),
+				"test3": newRowCache("test3", ovsdb.TableSchema{}, nil),
+			},
 			[]string{"test1", "test2", "test3"},
 		},
 		{
 			"returns an empty slice if no tables exist",
-			fields{cache: map[string]*RowCache{}},
+			map[string]*RowCache{},
 			[]string{},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tr := &TableCache{
-				cache: tt.fields.cache,
+				cache: tt.cache,
 			}
 			got := tr.Tables()
 			assert.ElementsMatch(t, tt.want, got)
@@ -297,17 +592,21 @@ func TestTableCache_populate(t *testing.T) {
 		 {"name": "TestDB",
 		  "tables": {
 		    "Open_vSwitch": {
+			  "indexes": [["foo"]],
 		      "columns": {
 		        "foo": {
 			  "type": "string"
-			}
+			},
+			"bar": {
+				"type": "string"
+			  }
 		      }
 		    }
 		 }
 	     }
 	`), &schema)
 	assert.Nil(t, err)
-	tc, err := NewTableCache(&schema, db)
+	tc, err := NewTableCache(&schema, db, nil)
 	assert.Nil(t, err)
 
 	testRow := ovsdb.Row(map[string]interface{}{"_uuid": "test", "foo": "bar"})

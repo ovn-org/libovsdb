@@ -1,8 +1,13 @@
 package cache
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/gob"
+	"encoding/hex"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 
 	"log"
@@ -13,16 +18,51 @@ import (
 )
 
 const (
-	updateEvent = "update"
-	addEvent    = "add"
-	deleteEvent = "delete"
-	bufferSize  = 65536
+	updateEvent     = "update"
+	addEvent        = "add"
+	deleteEvent     = "delete"
+	bufferSize      = 65536
+	columnDelimiter = ","
 )
+
+type IndexExistsError struct {
+	table    string
+	value    interface{}
+	column   string
+	new      string
+	existing string
+}
+
+func (i *IndexExistsError) Error() string {
+	return fmt.Sprintf("operation would cause rows in the \"%s\" table to have identical values (%v) for index on column \"%s\". First row, with UUID %s, was inserted by this transaction. Second row, with UUID %s, existed in the database before this operation and was not modified",
+		i.table,
+		i.value,
+		i.column,
+		i.new,
+		i.existing,
+	)
+}
+
+func NewIndexExistsError(table string, value interface{}, column, new, existing string) *IndexExistsError {
+	return &IndexExistsError{
+		table, value, column, new, existing,
+	}
+}
+
+// map of unique values to uuids
+type valueToUUID map[interface{}]string
+
+// map of column name(s) to a unique values, to UUIDs
+type columnToValue map[string]valueToUUID
 
 // RowCache is a collections of Models hashed by UUID
 type RowCache struct {
-	cache map[string]model.Model
-	mutex sync.RWMutex
+	name     string
+	schema   ovsdb.TableSchema
+	dataType reflect.Type
+	cache    map[string]model.Model
+	indexes  columnToValue
+	mutex    sync.RWMutex
 }
 
 // Row returns one model from the cache by UUID
@@ -36,17 +76,136 @@ func (r *RowCache) Row(uuid string) model.Model {
 }
 
 // Create writes the provided content to the cache
-func (r *RowCache) Create(uuid string, m model.Model) {
+func (r *RowCache) Create(uuid string, m model.Model) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
+	if _, ok := r.cache[uuid]; ok {
+		return fmt.Errorf("row %s already exists", uuid)
+	}
+	if reflect.TypeOf(m) != r.dataType {
+		return fmt.Errorf("expected data of type %s, but got %s", r.dataType.String(), reflect.TypeOf(m).String())
+	}
+	info, err := mapper.NewMapperInfo(&r.schema, m)
+	if err != nil {
+		return err
+	}
+	newIndexes := newColumnToValue(r.schema.Indexes)
+	var errs []error
+	for columnStr := range r.indexes {
+		columns := strings.Split(columnStr, columnDelimiter)
+		var val interface{}
+		var err error
+		if len(columns) > 1 {
+			val, err = hashColumnValues(info, columns)
+			if err != nil {
+				return err
+			}
+		} else {
+			column := columns[0]
+			val, err = info.FieldByColumn(column)
+			if err != nil {
+				return err
+			}
+		}
+		if existing, ok := r.indexes[columnStr][val]; ok {
+			errs = append(errs,
+				NewIndexExistsError(r.name, val, columnStr, uuid, existing))
+		}
+		newIndexes[columnStr][val] = uuid
+	}
+	if len(errs) != 0 {
+		return fmt.Errorf("%v", errs)
+	}
+	// write indexes
+	for k1, v1 := range newIndexes {
+		for k2, v2 := range v1 {
+			r.indexes[k1][k2] = v2
+		}
+	}
 	r.cache[uuid] = m
+	return nil
 }
 
-// Update replaces the content to the cache
-func (r *RowCache) Update(uuid string, m model.Model) {
+// Update updates the content in the cache
+func (r *RowCache) Update(uuid string, m model.Model) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
+	if _, ok := r.cache[uuid]; !ok {
+		return fmt.Errorf("row %s does not exist", uuid)
+	}
+	oldRow := r.cache[uuid]
+	oldInfo, err := mapper.NewMapperInfo(&r.schema, oldRow)
+	if err != nil {
+		return err
+	}
+	newInfo, err := mapper.NewMapperInfo(&r.schema, m)
+	if err != nil {
+		return err
+	}
+	newIndexes := newColumnToValue(r.schema.Indexes)
+	oldIndexes := newColumnToValue(r.schema.Indexes)
+	var errs []error
+	for columnStr := range r.indexes {
+		columns := strings.Split(columnStr, columnDelimiter)
+		var oldVal interface{}
+		var newVal interface{}
+		var err error
+		if len(columns) > 1 {
+			oldVal, err = hashColumnValues(oldInfo, columns)
+			if err != nil {
+				return err
+			}
+			newVal, err = hashColumnValues(newInfo, columns)
+			if err != nil {
+				return err
+			}
+		} else {
+			column := columns[0]
+			oldVal, err = oldInfo.FieldByColumn(column)
+			if err != nil {
+				return err
+			}
+			newVal, err = newInfo.FieldByColumn(column)
+			if err != nil {
+				return err
+			}
+		}
+		// if old and new values are the same, don't worry
+		if oldVal == newVal {
+			continue
+		}
+		// old and new values are NOT the same
+
+		// check that there are no conflicts
+		if conflict, ok := r.indexes[columnStr][newVal]; ok && conflict != uuid {
+			errs = append(errs, NewIndexExistsError(
+				r.name,
+				newVal,
+				columnStr,
+				uuid,
+				conflict,
+			))
+		}
+		newIndexes[columnStr][newVal] = uuid
+		oldIndexes[columnStr][oldVal] = ""
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("%+v", errs)
+	}
+	// write indexes
+	for k1, v1 := range newIndexes {
+		for k2, v2 := range v1 {
+			r.indexes[k1][k2] = v2
+		}
+	}
+	// delete old indexes
+	for k1, v1 := range oldIndexes {
+		for k2 := range v1 {
+			delete(r.indexes[k1], k2)
+		}
+	}
 	r.cache[uuid] = m
+	return nil
 }
 
 func (r *RowCache) Delete(uuid string) {
@@ -71,18 +230,6 @@ func (r *RowCache) Len() int {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	return len(r.cache)
-}
-
-// NewRowCache creates a new row cache with the provided data
-// if the data is nil, and empty RowCache will be created
-func NewRowCache(data map[string]model.Model) *RowCache {
-	if data == nil {
-		data = make(map[string]model.Model)
-	}
-	return &RowCache{
-		cache: data,
-		mutex: sync.RWMutex{},
-	}
 }
 
 // EventHandler can handle events when the contents of the cache changes
@@ -131,14 +278,32 @@ type TableCache struct {
 	dbModel        *model.DBModel
 }
 
+// CacheData is the type for data that can be prepoulated in the cache
+type CacheData map[string]map[string]model.Model
+
 // NewTableCache creates a new TableCache
-func NewTableCache(schema *ovsdb.DatabaseSchema, dbModel *model.DBModel) (*TableCache, error) {
+func NewTableCache(schema *ovsdb.DatabaseSchema, dbModel *model.DBModel, data CacheData) (*TableCache, error) {
 	if schema == nil || dbModel == nil {
 		return nil, fmt.Errorf("tablecache without databasemodel cannot be populated")
 	}
 	eventProcessor := newEventProcessor(bufferSize)
+	cache := make(map[string]*RowCache)
+	tableTypes := dbModel.Types()
+	for name, tableSchema := range schema.Tables {
+		cache[name] = newRowCache(name, tableSchema, tableTypes[name])
+	}
+	for table, rowData := range data {
+		if _, ok := schema.Tables[table]; !ok {
+			return nil, fmt.Errorf("table %s is not in schema", table)
+		}
+		for uuid, row := range rowData {
+			if err := cache[table].Create(uuid, row); err != nil {
+				return nil, err
+			}
+		}
+	}
 	return &TableCache{
-		cache:          make(map[string]*RowCache),
+		cache:          cache,
 		eventProcessor: eventProcessor,
 		mapper:         mapper.NewMapper(schema),
 		dbModel:        dbModel,
@@ -163,18 +328,6 @@ func (t *TableCache) Table(name string) *RowCache {
 		return table
 	}
 	return nil
-}
-
-// Set write the provided RowCache to the provided table name in the cache
-// if the provided cache is nil, we'll initialize a new one
-// WARNING: Do not use Set outside of testing
-func (t *TableCache) Set(name string, rc *RowCache) {
-	if rc == nil {
-		rc = NewRowCache(nil)
-	}
-	t.cacheMutex.Lock()
-	defer t.cacheMutex.Unlock()
-	t.cache[name] = rc
 }
 
 // Tables returns a list of table names that are in the cache
@@ -220,11 +373,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 		if !ok {
 			continue
 		}
-		var tCache *RowCache
-		if tCache = t.Table(table); tCache == nil {
-			t.Set(table, nil)
-		}
-		tCache = t.Table(table)
+		tCache := t.Table(table)
 		for uuid, row := range updates {
 			if row.New != nil {
 				newModel, err := t.CreateModel(table, row.New, uuid)
@@ -233,7 +382,9 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 				}
 				if existing := tCache.Row(uuid); existing != nil {
 					if !reflect.DeepEqual(newModel, existing) {
-						tCache.Update(uuid, newModel)
+						if err := tCache.Update(uuid, newModel); err != nil {
+							panic(err)
+						}
 						oldModel, err := t.CreateModel(table, row.Old, uuid)
 						if err != nil {
 							panic(err)
@@ -243,7 +394,9 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 					// no diff
 					continue
 				}
-				tCache.Create(uuid, newModel)
+				if err := tCache.Create(uuid, newModel); err != nil {
+					panic(err)
+				}
 				t.eventProcessor.AddEvent(addEvent, table, nil, newModel)
 				continue
 			} else {
@@ -269,7 +422,37 @@ func (t *TableCache) Run(stopCh <-chan struct{}) {
 	t.eventProcessor.Run(stopCh)
 }
 
-// event encapsualtes a cache event
+// newRowCache creates a new row cache with the provided data
+// if the data is nil, and empty RowCache will be created
+func newRowCache(name string, schema ovsdb.TableSchema, dataType reflect.Type) *RowCache {
+	r := &RowCache{
+		name:     name,
+		schema:   schema,
+		indexes:  newColumnToValue(schema.Indexes),
+		dataType: dataType,
+		cache:    make(map[string]model.Model),
+		mutex:    sync.RWMutex{},
+	}
+	return r
+}
+
+func newColumnToValue(schemaIndexes [][]string) columnToValue {
+	// RFC 7047 says that Indexes is a [<column-set>] and "Each <column-set> is a set of
+	// columns whose values, taken together within any given row, must be
+	// unique within the table". We'll store the column names, separated by comma
+	// as we'll assuume (RFC is not clear), that comma isn't valid in a <id>
+	var indexes []string
+	for i := range schemaIndexes {
+		indexes = append(indexes, strings.Join(schemaIndexes[i], columnDelimiter))
+	}
+	c := make(columnToValue)
+	for _, index := range indexes {
+		c[index] = make(valueToUUID)
+	}
+	return c
+}
+
+// event encapsulates a cache event
 type event struct {
 	eventType string
 	table     string
@@ -376,4 +559,22 @@ func (t *TableCache) CreateModel(tableName string, row *ovsdb.Row, uuid string) 
 	}
 
 	return model, nil
+}
+
+func hashColumnValues(info *mapper.MapperInfo, columns []string) (string, error) {
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	for _, column := range columns {
+		val, err := info.FieldByColumn(column)
+		if err != nil {
+			return "", err
+		}
+		err = enc.Encode(val)
+		if err != nil {
+			return "", err
+		}
+	}
+	h := sha256.New()
+	val := hex.EncodeToString(h.Sum(buf.Bytes()))
+	return val, nil
 }
