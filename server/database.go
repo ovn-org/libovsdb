@@ -147,16 +147,6 @@ func (db *inMemoryDatabase) Insert(database string, table string, rowUUID string
 		}, nil
 	}
 
-	// check duplicates
-	for _, existingUUID := range targetDb.Table(table).Rows() {
-		existingRow := targetDb.Table(table).Row(existingUUID)
-		if ok, err := targetDb.Mapper().EqualFields(table, model, existingRow); ok {
-			return ovsdb.OperationResult{
-				Error: fmt.Sprintf("constraint violation: %s", err),
-			}, nil
-		}
-	}
-
 	// insert in to db
 	if err := targetDb.Table(table).Create(rowUUID, model); err != nil {
 		panic(err)
@@ -419,7 +409,9 @@ func (db *inMemoryDatabase) Delete(database, table string, where []ovsdb.Conditi
 			if err != nil {
 				panic(err)
 			}
-			targetDb.Table(table).Delete(uuid)
+			if err := targetDb.Table(table).Delete(uuid); err != nil {
+				panic(err)
+			}
 			tableUpdate.AddRowUpdate(uuid, &ovsdb.RowUpdate{
 				Old: &oldRow,
 				New: nil,

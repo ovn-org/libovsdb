@@ -208,10 +208,26 @@ func (r *RowCache) Update(uuid string, m model.Model) error {
 	return nil
 }
 
-func (r *RowCache) Delete(uuid string) {
+func (r *RowCache) Delete(uuid string) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
+	if _, ok := r.cache[uuid]; !ok {
+		return fmt.Errorf("row %s does not exist", uuid)
+	}
+	oldRow := r.cache[uuid]
+	oldInfo, err := mapper.NewMapperInfo(&r.schema, oldRow)
+	if err != nil {
+		return err
+	}
+	for column := range r.indexes {
+		oldVal, err := oldInfo.FieldByColumn(column)
+		if err != nil {
+			return err
+		}
+		delete(r.indexes[column], oldVal)
+	}
 	delete(r.cache, uuid)
+	return nil
 }
 
 // Rows returns a list of row UUIDs as strings
@@ -404,7 +420,9 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 				if err != nil {
 					panic(err)
 				}
-				tCache.Delete(uuid)
+				if err := tCache.Delete(uuid); err != nil {
+					panic(err)
+				}
 				t.eventProcessor.AddEvent(deleteEvent, table, oldModel, nil)
 				continue
 			}

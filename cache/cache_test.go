@@ -387,6 +387,70 @@ func TestRowCacheUpdateMultiIndex(t *testing.T) {
 	}
 }
 
+func TestRowCacheDelete(t *testing.T) {
+	var schema ovsdb.DatabaseSchema
+	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	require.Nil(t, err)
+	err = json.Unmarshal([]byte(`
+		 {"name": "TestDB",
+		  "tables": {
+		    "Open_vSwitch": {
+			  "indexes": [["foo"]],
+		      "columns": {
+		        "foo": {
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
+		      }
+		    }
+		 }
+	     }
+	`), &schema)
+	require.Nil(t, err)
+	testData := CacheData{
+		"Open_vSwitch": map[string]model.Model{
+			"bar": &testModel{Foo: "bar"},
+		},
+	}
+	tc, err := NewTableCache(&schema, db, testData)
+	require.Nil(t, err)
+
+	tests := []struct {
+		name    string
+		uuid    string
+		model   *testModel
+		wantErr bool
+	}{
+		{
+			"deletes a row",
+			"bar",
+			&testModel{Foo: "bar"},
+			false,
+		},
+		{
+			"error if row does not exist",
+			"foobar",
+			&testModel{Foo: "bar"},
+			true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rc := tc.Table("Open_vSwitch")
+			require.NotNil(t, rc)
+			err := rc.Delete(tt.uuid)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				require.Nil(t, err)
+				assert.Equal(t, "", rc.indexes["foo"][tt.model.Foo])
+			}
+		})
+	}
+}
+
 func TestEventHandlerFuncs_OnAdd(t *testing.T) {
 	calls := 0
 	type fields struct {
