@@ -248,6 +248,16 @@ func (r *RowCache) Len() int {
 	return len(r.cache)
 }
 
+func (r *RowCache) Index(column string) (map[interface{}]string, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+	index, ok := r.indexes[column]
+	if !ok {
+		return nil, fmt.Errorf("%s is not an index", column)
+	}
+	return index, nil
+}
+
 // EventHandler can handle events when the contents of the cache changes
 type EventHandler interface {
 	OnAdd(table string, model model.Model)

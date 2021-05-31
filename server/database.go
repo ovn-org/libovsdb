@@ -183,40 +183,17 @@ func (db *inMemoryDatabase) Select(database string, table string, where []ovsdb.
 		}
 	}
 
-	schema := targetDb.Mapper().Schema.Table(table)
 	var results []ovsdb.Row
-	count := 0
-	for _, uuid := range targetDb.Table(table).Rows() {
-		row := targetDb.Table(table).Row(uuid)
-		info, _ := mapper.NewMapperInfo(schema, row)
-		match := false
-		if len(where) == 0 {
-			match = true
-		} else {
-			for _, condition := range where {
-				field, _ := info.FieldByColumn(condition.Column)
-				column := schema.Column(condition.Column)
-				nativeValue, err := ovsdb.OvsToNative(column, condition.Value)
-				if err != nil {
-					panic(err)
-				}
-				ok, err := condition.Function.Evaluate(field, nativeValue)
-				if err != nil {
-					panic(err)
-				}
-				if ok {
-					match = true
-					count++
-				}
-			}
+	rows, err := matchCondition(targetDb, table, where)
+	if err != nil {
+		panic(err)
+	}
+	for _, row := range rows {
+		resultRow, err := targetDb.Mapper().NewRow(table, row)
+		if err != nil {
+			panic(err)
 		}
-		if match {
-			resultRow, err := targetDb.Mapper().NewRow(table, row)
-			if err != nil {
-				panic(err)
-			}
-			results = append(results, resultRow)
-		}
+		results = append(results, resultRow)
 	}
 	return ovsdb.OperationResult{
 		Rows: results,
@@ -237,53 +214,34 @@ func (db *inMemoryDatabase) Update(database, table string, where []ovsdb.Conditi
 
 	schema := targetDb.Mapper().Schema.Table(table)
 	tableUpdate := make(ovsdb.TableUpdate)
-	count := 0
-	for _, uuid := range targetDb.Table(table).Rows() {
-		oldRow := targetDb.Table(table).Row(uuid)
-		info, _ := mapper.NewMapperInfo(schema, oldRow)
-		match := false
-		if len(where) == 0 {
-			match = true
-		} else {
-			for _, condition := range where {
-				field, _ := info.FieldByColumn(condition.Column)
-				column := schema.Column(condition.Column)
-				nativeValue, err := ovsdb.OvsToNative(column, condition.Value)
-				if err != nil {
-					panic(err)
-				}
-				ok, err := condition.Function.Evaluate(field, nativeValue)
-				if err != nil {
-					panic(err)
-				}
-				if ok {
-					match = true
-					count++
-				}
-			}
+	rows, err := matchCondition(targetDb, table, where)
+	if err != nil {
+		return ovsdb.OperationResult{
+			Error: err.Error(),
+		}, nil
+	}
+	for _, old := range rows {
+		info, _ := mapper.NewMapperInfo(schema, old)
+		uuid, _ := info.FieldByColumn("_uuid")
+		oldRow, err := targetDb.Mapper().NewRow(table, old)
+		if err != nil {
+			panic(err)
 		}
-		if match {
-			old := targetDb.Table(table).Row(uuid)
-			oldRow, err := targetDb.Mapper().NewRow(table, old)
-			if err != nil {
-				panic(err)
-			}
-			newRow, err := targetDb.Mapper().NewRow(table, row)
-			if err != nil {
-				panic(err)
-			}
-			if err := targetDb.Table(table).Update(uuid, row); err != nil {
-				panic(err)
-			}
-			tableUpdate.AddRowUpdate(uuid, &ovsdb.RowUpdate{
-				Old: &oldRow,
-				New: &newRow,
-			})
+		newRow, err := targetDb.Mapper().NewRow(table, row)
+		if err != nil {
+			panic(err)
 		}
+		if err = targetDb.Table(table).Update(uuid.(string), row); err != nil {
+			panic(err)
+		}
+		tableUpdate.AddRowUpdate(uuid.(string), &ovsdb.RowUpdate{
+			Old: &oldRow,
+			New: &newRow,
+		})
 	}
 	// FIXME: We need to filter the returned columns
 	return ovsdb.OperationResult{
-			Count: count,
+			Count: len(rows),
 		}, ovsdb.TableUpdates{
 			table: tableUpdate,
 		}
@@ -303,63 +261,56 @@ func (db *inMemoryDatabase) Mutate(database, table string, where []ovsdb.Conditi
 
 	schema := targetDb.Mapper().Schema.Table(table)
 	tableUpdate := make(ovsdb.TableUpdate)
-	count := 0
-	for _, uuid := range targetDb.Table(table).Rows() {
-		row := targetDb.Table(table).Row(uuid)
-		info, _ := mapper.NewMapperInfo(schema, row)
-		match := false
-		if len(where) == 0 {
-			match = true
-		} else {
-			for _, condition := range where {
-				field, _ := info.FieldByColumn(condition.Column)
-				column := schema.Column(condition.Column)
-				nativeValue, err := ovsdb.OvsToNative(column, condition.Value)
-				if err != nil {
-					panic(err)
-				}
-				ok, err := condition.Function.Evaluate(field, nativeValue)
-				if err != nil {
-					panic(err)
-				}
-				if ok {
-					match = true
-					count++
-				}
-			}
+
+	rows, err := matchCondition(targetDb, table, where)
+	if err != nil {
+		panic(err)
+	}
+
+	for _, old := range rows {
+		info, err := mapper.NewMapperInfo(schema, old)
+		if err != nil {
+			panic(err)
 		}
-		if match {
-			for _, m := range mutations {
-				column := schema.Column(m.Column)
-				nativeValue, err := ovsdb.OvsToNative(column, m.Value)
-				if err != nil {
-					panic(err)
-				}
-				if err := ovsdb.ValidateMutation(column, m.Mutator, nativeValue); err != nil {
-					panic(err)
-				}
-				oldRow, err := targetDb.Mapper().NewRow(table, row)
-				if err != nil {
-					panic(err)
-				}
-				current, _ := info.FieldByColumn(m.Column)
-				new := mutate(current, m.Mutator, nativeValue)
-				if err := info.SetField(m.Column, new); err != nil {
-					panic(err)
-				}
-				newRow, err := targetDb.Mapper().NewRow(table, row)
-				if err != nil {
-					panic(err)
-				}
-				tableUpdate.AddRowUpdate(uuid, &ovsdb.RowUpdate{
-					Old: &oldRow,
-					New: &newRow,
-				})
+		uuid, _ := info.FieldByColumn("_uuid")
+		oldRow, err := targetDb.Mapper().NewRow(table, old)
+		if err != nil {
+			panic(err)
+		}
+		for _, m := range mutations {
+			column := schema.Column(m.Column)
+			nativeValue, err := ovsdb.OvsToNative(column, m.Value)
+			if err != nil {
+				panic(err)
 			}
+			if err := ovsdb.ValidateMutation(column, m.Mutator, nativeValue); err != nil {
+				panic(err)
+			}
+			info, err := mapper.NewMapperInfo(schema, old)
+			if err != nil {
+				panic(err)
+			}
+			current, err := info.FieldByColumn(m.Column)
+			if err != nil {
+				panic(err)
+			}
+			new := mutate(current, m.Mutator, nativeValue)
+
+			if err := info.SetField(m.Column, new); err != nil {
+				panic(err)
+			}
+			newRow, err := targetDb.Mapper().NewRow(table, old)
+			if err != nil {
+				panic(err)
+			}
+			tableUpdate.AddRowUpdate(uuid.(string), &ovsdb.RowUpdate{
+				Old: &oldRow,
+				New: &newRow,
+			})
 		}
 	}
 	return ovsdb.OperationResult{
-			Count: count,
+			Count: len(rows),
 		}, ovsdb.TableUpdates{
 			table: tableUpdate,
 		}
@@ -379,47 +330,27 @@ func (db *inMemoryDatabase) Delete(database, table string, where []ovsdb.Conditi
 
 	schema := targetDb.Mapper().Schema.Table(table)
 	tableUpdate := make(ovsdb.TableUpdate)
-	count := 0
-	for _, uuid := range targetDb.Table(table).Rows() {
-		row := targetDb.Table(table).Row(uuid)
+	rows, err := matchCondition(targetDb, table, where)
+	if err != nil {
+		panic(err)
+	}
+	for _, row := range rows {
 		info, _ := mapper.NewMapperInfo(schema, row)
-		match := false
-		if len(where) == 0 {
-			match = true
-		} else {
-			for _, condition := range where {
-				field, _ := info.FieldByColumn(condition.Column)
-				column := schema.Column(condition.Column)
-				nativeValue, err := ovsdb.OvsToNative(column, condition.Value)
-				if err != nil {
-					panic(err)
-				}
-				ok, err := condition.Function.Evaluate(field, nativeValue)
-				if err != nil {
-					panic(err)
-				}
-				if ok {
-					match = true
-					count++
-				}
-			}
+		uuid, _ := info.FieldByColumn("_uuid")
+		oldRow, err := targetDb.Mapper().NewRow(table, row)
+		if err != nil {
+			panic(err)
 		}
-		if match {
-			oldRow, err := targetDb.Mapper().NewRow(table, row)
-			if err != nil {
-				panic(err)
-			}
-			if err := targetDb.Table(table).Delete(uuid); err != nil {
-				panic(err)
-			}
-			tableUpdate.AddRowUpdate(uuid, &ovsdb.RowUpdate{
-				Old: &oldRow,
-				New: nil,
-			})
+		if err := targetDb.Table(table).Delete(uuid.(string)); err != nil {
+			panic(err)
 		}
+		tableUpdate.AddRowUpdate(uuid.(string), &ovsdb.RowUpdate{
+			Old: &oldRow,
+			New: nil,
+		})
 	}
 	return ovsdb.OperationResult{
-			Count: count,
+			Count: len(rows),
 		}, ovsdb.TableUpdates{
 			table: tableUpdate,
 		}
@@ -600,4 +531,57 @@ func removeFromSlice(a, b reflect.Value) reflect.Value {
 		}
 	}
 	return a
+}
+
+func matchCondition(targetDb *cache.TableCache, table string, conditions []ovsdb.Condition) ([]model.Model, error) {
+	var results []model.Model
+	if len(conditions) == 0 {
+		uuids := targetDb.Table(table).Rows()
+		for _, uuid := range uuids {
+			row := targetDb.Table(table).Row(uuid)
+			results = append(results, row)
+		}
+		return results, nil
+	}
+
+	for _, condition := range conditions {
+		if condition.Column == "_uuid" {
+			ovsdbUUID, ok := condition.Value.(ovsdb.UUID)
+			if !ok {
+				panic(fmt.Sprintf("%+v is not an ovsdb uuid", ovsdbUUID))
+			}
+			uuid := ovsdbUUID.GoUUID
+			for _, k := range targetDb.Table(table).Rows() {
+				ok, err := condition.Function.Evaluate(k, uuid)
+				if err != nil {
+					return nil, err
+				}
+				if ok {
+					row := targetDb.Table(table).Row(k)
+					results = append(results, row)
+				}
+			}
+		} else {
+			index, err := targetDb.Table(table).Index(condition.Column)
+			if err != nil {
+				return nil, fmt.Errorf("conditions on non-index fields not supported")
+			}
+			for k, v := range index {
+				tSchema := targetDb.Mapper().Schema.Tables[table].Columns[condition.Column]
+				nativeValue, err := ovsdb.OvsToNative(tSchema, condition.Value)
+				if err != nil {
+					return nil, err
+				}
+				ok, err := condition.Function.Evaluate(k, nativeValue)
+				if err != nil {
+					return nil, err
+				}
+				if ok {
+					row := targetDb.Table(table).Row(v)
+					results = append(results, row)
+				}
+			}
+		}
+	}
+	return results, nil
 }
