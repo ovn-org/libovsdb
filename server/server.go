@@ -41,7 +41,7 @@ func NewOvsdbServer(db Database, models ...DatabaseModel) (*OvsdbServer, error) 
 		modelsMutex:  sync.RWMutex{},
 		monitors:     make(map[*rpc2.Client]*connectionMonitors),
 		monitorMutex: sync.RWMutex{},
-		dbUpdates:    make(chan ovsdb.TableUpdates, 10240),
+		dbUpdates:    make(chan ovsdb.TableUpdates),
 	}
 	o.modelsMutex.Lock()
 	for _, model := range models {

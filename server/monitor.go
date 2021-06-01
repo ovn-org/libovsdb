@@ -37,7 +37,7 @@ func newMonitor(id string, request map[string]*ovsdb.MonitorRequest, client *rpc
 		id:      id,
 		request: request,
 		client:  client,
-		updates: make(chan ovsdb.TableUpdates, 10240),
+		updates: make(chan ovsdb.TableUpdates),
 		stopCh:  make(chan struct{}, 1),
 	}
 	go m.sendUpdates()
