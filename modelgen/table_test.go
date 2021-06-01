@@ -1,4 +1,4 @@
-package main
+package modelgen
 
 import (
 	"encoding/json"
@@ -257,4 +257,39 @@ func TestCamelCase(t *testing.T) {
 			t.Fatalf("got %s, wanted %s", s, tt.expected)
 		}
 	}
+}
+
+func ExampleNewTableTemplate() {
+	schemaString := []byte(`
+	{
+		"name": "MyDB",
+		"version": "0.0.0",
+		"tables": {
+			"table1": {
+				"columns": {
+					"string_column": {
+						"type": "string"
+					},
+					"some_integer": {
+						"type": "integer"
+					},
+				}
+			}
+		}
+	}`)
+	var schema ovsdb.DatabaseSchema
+	_ = json.Unmarshal(schemaString, &schema)
+
+	base, data := NewTableTemplate("mypackage", "table1", schema.Table("table1"))
+
+	// Add a function at after the struct definition
+	// It can access the default data values plus any extra field that is added to data
+	_, _ = base.Parse(`{{define "postStructDefinitions"}}
+func (t {{ index . "StructName" }} {{ index . FuncName}}() string {
+    return "bar"
+}{{end}}`)
+	data["FuncName"] = "TestFunc"
+
+	gen := NewGenerator(false)
+	_ = gen.Generate("generated.go", base, data)
 }

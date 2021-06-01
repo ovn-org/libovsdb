@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ovn-org/libovsdb/modelgen"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
@@ -64,14 +65,14 @@ func main() {
 		log.Fatal(err)
 	}
 
-	gen := NewGenerator(*dryRun)
+	gen := modelgen.NewGenerator(*dryRun)
 	for name, table := range dbSchema.Tables {
-		template, args := NewTableTemplate(pkgName, name, &table)
-		if err := gen.Generate(FileName(name), template, args); err != nil {
+		template, args := modelgen.NewTableTemplate(pkgName, name, &table)
+		if err := gen.Generate(modelgen.FileName(name), template, args); err != nil {
 			log.Fatal(err)
 		}
 	}
-	dbTemplate, dbArgs := NewDBTemplate(pkgName, &dbSchema)
+	dbTemplate, dbArgs := modelgen.NewDBTemplate(pkgName, &dbSchema)
 	if err := gen.Generate("model.go", dbTemplate, dbArgs); err != nil {
 		log.Fatal(err)
 	}
