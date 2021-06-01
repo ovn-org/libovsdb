@@ -25,17 +25,6 @@ var (
 	dryRun   = flag.Bool("d", false, "Dry run")
 )
 
-func writeFile(filename string, src []byte) error {
-	if *dryRun {
-		fmt.Printf("---- Content of file %s ----\n", filename)
-		fmt.Print(string(src))
-		fmt.Print("\n")
-		return nil
-	} else {
-		return ioutil.WriteFile(filename, src, 0644)
-	}
-}
-
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("modelgen: ")
@@ -75,20 +64,15 @@ func main() {
 		log.Fatal(err)
 	}
 
-	generators := []Generator{}
+	gen := NewGenerator(*dryRun)
 	for name, table := range dbSchema.Tables {
-		generators = append(generators, NewTableGenerator(pkgName, name, &table))
+		template, args := NewTableTemplate(pkgName, name, &table)
+		if err := gen.Generate(FileName(name), template, args); err != nil {
+			log.Fatal(err)
+		}
 	}
-	generators = append(generators, NewDBModelGenerator(pkgName, &dbSchema))
-
-	for _, gen := range generators {
-		code, err := gen.Format()
-		if err != nil {
-			log.Fatal(err)
-		}
-		outFile := filepath.Join(outDir, gen.FileName())
-		if err := writeFile(outFile, code); err != nil {
-			log.Fatal(err)
-		}
+	dbTemplate, dbArgs := NewDBTemplate(pkgName, &dbSchema)
+	if err := gen.Generate("model.go", dbTemplate, dbArgs); err != nil {
+		log.Fatal(err)
 	}
 }

@@ -2,38 +2,63 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"go/format"
+	"io/ioutil"
+	"log"
 	"text/template"
 )
 
+// Generator is an interface that allows to format code from a template and write it to a file
 type Generator interface {
-	FileName() string
-	Format() ([]byte, error)
+	Generate(string, *template.Template, interface{}) error
+	Format(*template.Template, interface{}) ([]byte, error)
 }
 
 type generator struct {
-	filename string
-	template *template.Template
-	data     interface{}
+	dryRun bool
 }
 
-func (g *generator) Format() ([]byte, error) {
+// Format returns a formatted byte slice by executing the template with the given args
+func (g *generator) Format(tmpl *template.Template, args interface{}) ([]byte, error) {
 	buffer := bytes.Buffer{}
-	err := g.template.Execute(&buffer, g.data)
+	err := tmpl.Execute(&buffer, args)
 	if err != nil {
 		return nil, err
 	}
-	return format.Source(buffer.Bytes())
+
+	src, err := format.Source(buffer.Bytes())
+	if err != nil {
+		return nil, err
+	}
+	return src, nil
 }
 
-func (g *generator) FileName() string {
-	return g.filename
+// Generate generates the code and writes it to specified file path
+func (g *generator) Generate(filename string, tmpl *template.Template, args interface{}) error {
+	src, err := g.Format(tmpl, args)
+	if err != nil {
+		return err
+	}
+
+	if g.dryRun {
+		log.Printf("---- Content of file %s ----\n", filename)
+		log.Print(string(src))
+		fmt.Print("\n")
+		return nil
+	} else {
+		content, err := ioutil.ReadFile(filename)
+		if err == nil && bytes.Equal(content, src) {
+			return nil
+		} else {
+			return ioutil.WriteFile(filename, src, 0644)
+		}
+	}
 }
 
-func newGenerator(filename string, template *template.Template, data interface{}) Generator {
+// NewGenerator returns a new Generator
+func NewGenerator(dryRun bool) Generator {
 	return &generator{
-		filename: filename,
-		template: template,
-		data:     data,
+		dryRun: dryRun,
 	}
 }
