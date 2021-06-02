@@ -80,6 +80,7 @@ This package is divided into several subpackages. Documentation for each subpack
 * **model**: model and database model used for mapping [![godoc for libovsdb/model][modelbadge]][modeldoc]
 * **ovsdb**: low level OVS types [![godoc for libovsdb/ovsdb][ovsdbbadge]][ovsdbdoc]
 * **cache**: model-based cache [![godoc for libovsdb/cache][cachebadge]][cachedoc]
+* **modelgen**: common code-generator functions  [![godoc for libovsdb/modelgen][genbadge]][gendoc]
 
 [doc]: https://pkg.go.dev/
 [clientbadge]: https://pkg.go.dev/badge/github.com/ovn-org/libovsdb/client
@@ -87,11 +88,13 @@ This package is divided into several subpackages. Documentation for each subpack
 [modelbadge]: https://pkg.go.dev/badge/github.com/ovn-org/libovsdb/model
 [ovsdbbadge]: https://pkg.go.dev/badge/github.com/ovn-org/libovsdb/ovsdb
 [cachebadge]: https://pkg.go.dev/badge/github.com/ovn-org/libovsdb/cache
+[genbadge]: https://pkg.go.dev/badge/github.com/ovn-org/libovsdb/modelgen
 [clientdoc]: https://pkg.go.dev/github.com/ovn-org/libovsdb/client
 [mapperdoc]: https://pkg.go.dev/github.com/ovn-org/libovsdb/mapper
 [modeldoc]: https://pkg.go.dev/github.com/ovn-org/libovsdb/model
 [ovsdbdoc]: https://pkg.go.dev/github.com/ovn-org/libovsdb/ovsdb
 [cachedoc]: https://pkg.go.dev/github.com/ovn-org/libovsdb/cache
+[gendoc]: https://pkg.go.dev/github.com/ovn-org/libovsdb/modelgen
 
 ## Quick API Examples
 
