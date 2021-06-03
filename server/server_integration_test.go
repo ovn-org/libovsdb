@@ -82,7 +82,7 @@ func TestClientServerEcho(t *testing.T) {
 		return server.Ready()
 	}, 1*time.Second, 10*time.Millisecond)
 
-	ovs, err := client.Connect(context.Background(), fmt.Sprintf("unix:%s", tmpfile), defDB, nil)
+	ovs, err := client.Connect(context.Background(), defDB, client.WithEndpoint(fmt.Sprintf("unix:%s", tmpfile)))
 	require.Nil(t, err)
 
 	err = ovs.Echo()
@@ -118,7 +118,7 @@ func TestClientServerInsert(t *testing.T) {
 		return server.Ready()
 	}, 1*time.Second, 10*time.Millisecond)
 
-	ovs, err := client.Connect(context.Background(), fmt.Sprintf("unix:%s", tmpfile), defDB, nil)
+	ovs, err := client.Connect(context.Background(), defDB, client.WithEndpoint(fmt.Sprintf("unix:%s", tmpfile)))
 	require.Nil(t, err)
 
 	bridgeRow := &bridgeType{
@@ -167,7 +167,7 @@ func TestClientServerMonitor(t *testing.T) {
 		return server.Ready()
 	}, 1*time.Second, 10*time.Millisecond)
 
-	ovs, err := client.Connect(context.Background(), fmt.Sprintf("unix:%s", tmpfile), defDB, nil)
+	ovs, err := client.Connect(context.Background(), defDB, client.WithEndpoint(fmt.Sprintf("unix:%s", tmpfile)))
 	require.Nil(t, err)
 
 	ovsRow := &ovsType{
@@ -289,7 +289,7 @@ func TestClientServerInsertAndDelete(t *testing.T) {
 		return server.Ready()
 	}, 1*time.Second, 10*time.Millisecond)
 
-	ovs, err := client.Connect(context.Background(), fmt.Sprintf("unix:%s", tmpfile), defDB, nil)
+	ovs, err := client.Connect(context.Background(), defDB, client.WithEndpoint(fmt.Sprintf("unix:%s", tmpfile)))
 	require.Nil(t, err)
 
 	bridgeRow := &bridgeType{

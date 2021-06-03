@@ -54,7 +54,7 @@ type result struct {
 }
 
 func cleanup(ctx context.Context) {
-	ovs, err := client.Connect(context.Background(), *connection, dbModel, nil)
+	ovs, err := client.Connect(context.Background(), dbModel, client.WithEndpoint(*connection))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func run(ctx context.Context, resultsChan chan result, wg *sync.WaitGroup) {
 	ready := false
 	var rootUUID string
 
-	ovs, err := client.Connect(context.Background(), *connection, dbModel, nil)
+	ovs, err := client.Connect(context.Background(), dbModel, client.WithEndpoint(*connection))
 	if err != nil {
 		log.Fatal(err)
 	}

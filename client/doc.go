@@ -25,7 +25,7 @@ Using it, the libovsdb.client package is able to properly encode and decode OVSD
 and store them in Model instances.
 A client instance is created by simply specifying the connection information and the database model:
 
-     ovs, _ := client.Connect("tcp:172.18.0.4:6641", dbModel, nil)
+     ovs, _ := client.Connect(contect.Background(), dbModel)
 
 Main API
 

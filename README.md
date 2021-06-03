@@ -31,7 +31,7 @@ A Open vSwitch Database is modeled using a DBModel which is a created by assigni
 
 Finally, a client object can be created:
 
-    ovs, _ := client.Connect("tcp:172.18.0.4:6641", dbModel, nil)
+    ovs, _ := client.Connect(context.Background(), dbModel, client.WithEndpoint("tcp:172.18.0.4:6641"))
     client.MonitorAll(nil) // Only needed if you want to use the built-in cache
 
 
@@ -238,7 +238,7 @@ In your application, load the DBModel, connect to the server and start interacti
     
     func main() {
         dbModel, _ := generated.FullDatabaseModel()
-        ovs, _ := client.Connect("tcp:localhost:6641", dbModel, nil)
+        ovs, _ := client.Connect(context.Background(), dbModel, client.WithEndpoint("tcp:localhost:6641"))
         ovs.MonitorAll()
 
         // Create a *LogicalRouter, as a pointer to a Model is required by the API
