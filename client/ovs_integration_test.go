@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"log"
 	"os"
 	"testing"
@@ -71,14 +72,14 @@ func TestConnectIntegration(t *testing.T) {
 	go func() {
 		// Use Convenience params. Ignore failure even if any
 
-		_, err := Connect(cfg.Addr, defDB, nil)
+		_, err := Connect(context.Background(), cfg.Addr, defDB, nil)
 		if err != nil {
 			log.Println("Couldnt establish OVSDB connection with Defult params. No big deal")
 		}
 	}()
 
 	go func() {
-		ovs, err := Connect(cfg.Addr, defDB, nil)
+		ovs, err := Connect(context.Background(), cfg.Addr, defDB, nil)
 		if err != nil {
 			connected <- false
 		} else {
@@ -106,7 +107,7 @@ func TestListDbsIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, defDB, nil)
+	ovs, err := Connect(context.Background(), cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -141,7 +142,7 @@ func TestGetSchemasIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, defDB, nil)
+	ovs, err := Connect(context.Background(), cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -169,7 +170,7 @@ func TestInsertTransactIntegration(t *testing.T) {
 	}
 	SetConfig()
 
-	ovs, err := Connect(cfg.Addr, defDB, nil)
+	ovs, err := Connect(context.Background(), cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -227,7 +228,7 @@ func TestDeleteTransactIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, defDB, nil)
+	ovs, err := Connect(context.Background(), cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -272,7 +273,7 @@ func TestMonitorIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, defDB, nil)
+	ovs, err := Connect(context.Background(), cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -290,7 +291,7 @@ func TestNotifyIntegration(t *testing.T) {
 	}
 	SetConfig()
 
-	ovs, err := Connect(cfg.Addr, defDB, nil)
+	ovs, err := Connect(context.Background(), cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -321,7 +322,7 @@ func TestRemoveNotifyIntegration(t *testing.T) {
 	}
 	SetConfig()
 
-	ovs, err := Connect(cfg.Addr, defDB, nil)
+	ovs, err := Connect(context.Background(), cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -364,7 +365,7 @@ func TestTableSchemaValidationIntegration(t *testing.T) {
 	}
 	SetConfig()
 
-	ovs, err := Connect(cfg.Addr, defDB, nil)
+	ovs, err := Connect(context.Background(), cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -389,7 +390,7 @@ func TestColumnSchemaInRowValidationIntegration(t *testing.T) {
 	}
 	SetConfig()
 
-	ovs, err := Connect(cfg.Addr, defDB, nil)
+	ovs, err := Connect(context.Background(), cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -415,7 +416,7 @@ func TestColumnSchemaInMultipleRowsValidationIntegration(t *testing.T) {
 	}
 	SetConfig()
 
-	ovs, err := Connect(cfg.Addr, defDB, nil)
+	ovs, err := Connect(context.Background(), cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -447,7 +448,7 @@ func TestColumnSchemaValidationIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(cfg.Addr, defDB, nil)
+	ovs, err := Connect(context.Background(), cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -472,7 +473,7 @@ func TestMonitorCancelIntegration(t *testing.T) {
 	}
 	SetConfig()
 
-	ovs, err := Connect(cfg.Addr, defDB, nil)
+	ovs, err := Connect(context.Background(), cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}
@@ -504,7 +505,7 @@ func TestInsertDuplicateTransactIntegration(t *testing.T) {
 	}
 	SetConfig()
 
-	ovs, err := Connect(cfg.Addr, defDB, nil)
+	ovs, err := Connect(context.Background(), cfg.Addr, defDB, nil)
 	if err != nil {
 		t.Fatalf("Failed to Connect. error: %s", err)
 	}

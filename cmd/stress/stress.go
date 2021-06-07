@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -45,7 +46,7 @@ var (
 )
 
 func run() {
-	ovs, err := client.Connect(*connection, dbModel, nil)
+	ovs, err := client.Connect(context.Background(), *connection, dbModel, nil)
 	if err != nil {
 		log.Fatal(err)
 	}

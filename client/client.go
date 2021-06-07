@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -48,8 +49,9 @@ const (
 
 // Connect to ovn, using endpoint in format ovsdb Connection Methods
 // If address is empty, use default address for specified protocol
-func Connect(endpoints string, database *model.DBModel, tlsConfig *tls.Config) (*OvsdbClient, error) {
+func Connect(ctx context.Context, endpoints string, database *model.DBModel, tlsConfig *tls.Config) (*OvsdbClient, error) {
 	var c net.Conn
+	var dialer net.Dialer
 	var err error
 	var u *url.URL
 
@@ -69,11 +71,14 @@ func Connect(endpoints string, database *model.DBModel, tlsConfig *tls.Config) (
 			if len(path) == 0 {
 				path = defaultUnixAddress
 			}
-			c, err = net.Dial(u.Scheme, path)
+			c, err = dialer.DialContext(ctx, u.Scheme, path)
 		case TCP:
-			c, err = net.Dial(u.Scheme, host)
+			c, err = dialer.DialContext(ctx, u.Scheme, host)
 		case SSL:
-			c, err = tls.Dial("tcp", host, tlsConfig)
+			dialer := tls.Dialer{
+				Config: tlsConfig,
+			}
+			c, err = dialer.DialContext(ctx, "tcp", host)
 		default:
 			err = fmt.Errorf("unknown network protocol %s", u.Scheme)
 		}
