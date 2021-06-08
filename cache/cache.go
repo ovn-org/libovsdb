@@ -69,6 +69,10 @@ type RowCache struct {
 func (r *RowCache) Row(uuid string) model.Model {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
+	return r.row(uuid)
+}
+
+func (r *RowCache) row(uuid string) model.Model {
 	if row, ok := r.cache[uuid]; ok {
 		return row.(model.Model)
 	}
@@ -79,6 +83,10 @@ func (r *RowCache) Row(uuid string) model.Model {
 func (r *RowCache) Create(uuid string, m model.Model) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
+	return r.create(uuid, m)
+}
+
+func (r *RowCache) create(uuid string, m model.Model) error {
 	if _, ok := r.cache[uuid]; ok {
 		return fmt.Errorf("row %s already exists", uuid)
 	}
@@ -130,6 +138,10 @@ func (r *RowCache) Create(uuid string, m model.Model) error {
 func (r *RowCache) Update(uuid string, m model.Model) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
+	return r.update(uuid, m)
+}
+
+func (r *RowCache) update(uuid string, m model.Model) error {
 	if _, ok := r.cache[uuid]; !ok {
 		return fmt.Errorf("row %s does not exist", uuid)
 	}
@@ -208,9 +220,14 @@ func (r *RowCache) Update(uuid string, m model.Model) error {
 	return nil
 }
 
+// Delete deletes a row from the cache
 func (r *RowCache) Delete(uuid string) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
+	return r.delete(uuid)
+}
+
+func (r *RowCache) delete(uuid string) error {
 	if _, ok := r.cache[uuid]; !ok {
 		return fmt.Errorf("row %s does not exist", uuid)
 	}
@@ -298,7 +315,6 @@ func (e *EventHandlerFuncs) OnDelete(table string, row model.Model) {
 // and an array of EventHandlers that respond to cache updates
 type TableCache struct {
 	cache          map[string]*RowCache
-	cacheMutex     sync.RWMutex
 	eventProcessor *eventProcessor
 	mapper         *mapper.Mapper
 	dbModel        *model.DBModel
@@ -348,8 +364,6 @@ func (t *TableCache) DBModel() *model.DBModel {
 
 // Table returns the a Table from the cache with a given name
 func (t *TableCache) Table(name string) *RowCache {
-	t.cacheMutex.RLock()
-	defer t.cacheMutex.RUnlock()
 	if table, ok := t.cache[name]; ok {
 		return table
 	}
@@ -358,8 +372,6 @@ func (t *TableCache) Table(name string) *RowCache {
 
 // Tables returns a list of table names that are in the cache
 func (t *TableCache) Tables() []string {
-	t.cacheMutex.RLock()
-	defer t.cacheMutex.RUnlock()
 	var result []string
 	for k := range t.cache {
 		result = append(result, k)
@@ -392,23 +404,39 @@ func (t *TableCache) Echo([]interface{}) {
 func (t *TableCache) Disconnected() {
 }
 
+// lock acquires a lock on all tables in the cache
+func (t *TableCache) lock() {
+	for _, r := range t.cache {
+		r.mutex.Lock()
+	}
+}
+
+// unlock releases a lock on all tables in the cache
+func (t *TableCache) unlock() {
+	for _, r := range t.cache {
+		r.mutex.Unlock()
+	}
+}
+
 // Populate adds data to the cache and places an event on the channel
 func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
+	t.lock()
+	defer t.unlock()
 	for table := range t.dbModel.Types() {
 		updates, ok := tableUpdates[table]
 		if !ok {
 			continue
 		}
-		tCache := t.Table(table)
+		tCache := t.cache[table]
 		for uuid, row := range updates {
 			if row.New != nil {
 				newModel, err := t.CreateModel(table, row.New, uuid)
 				if err != nil {
 					panic(err)
 				}
-				if existing := tCache.Row(uuid); existing != nil {
+				if existing := tCache.row(uuid); existing != nil {
 					if !reflect.DeepEqual(newModel, existing) {
-						if err := tCache.Update(uuid, newModel); err != nil {
+						if err := tCache.update(uuid, newModel); err != nil {
 							panic(err)
 						}
 						oldModel, err := t.CreateModel(table, row.Old, uuid)
@@ -420,7 +448,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 					// no diff
 					continue
 				}
-				if err := tCache.Create(uuid, newModel); err != nil {
+				if err := tCache.create(uuid, newModel); err != nil {
 					panic(err)
 				}
 				t.eventProcessor.AddEvent(addEvent, table, nil, newModel)
@@ -430,7 +458,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 				if err != nil {
 					panic(err)
 				}
-				if err := tCache.Delete(uuid); err != nil {
+				if err := tCache.delete(uuid); err != nil {
 					panic(err)
 				}
 				t.eventProcessor.AddEvent(deleteEvent, table, oldModel, nil)
