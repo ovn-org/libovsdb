@@ -72,6 +72,8 @@ func (db *inMemoryDatabase) Exists(name string) bool {
 }
 
 func (db *inMemoryDatabase) Transact(name string, operations []ovsdb.Operation) ([]ovsdb.OperationResult, ovsdb.TableUpdates) {
+	db.mutex.Lock()
+	defer db.mutex.Unlock()
 	results := []ovsdb.OperationResult{}
 	updates := make(ovsdb.TableUpdates)
 	for _, op := range operations {
@@ -127,9 +129,6 @@ func (db *inMemoryDatabase) Transact(name string, operations []ovsdb.Operation) 
 }
 
 func (db *inMemoryDatabase) Insert(database string, table string, rowUUID string, row ovsdb.Row) (ovsdb.OperationResult, ovsdb.TableUpdates) {
-	db.mutex.Lock()
-	defer db.mutex.Unlock()
-
 	var targetDb *cache.TableCache
 	var ok bool
 	if targetDb, ok = db.databases[database]; !ok {
@@ -173,8 +172,6 @@ func (db *inMemoryDatabase) Insert(database string, table string, rowUUID string
 }
 
 func (db *inMemoryDatabase) Select(database string, table string, where []ovsdb.Condition, columns []string) ovsdb.OperationResult {
-	db.mutex.Lock()
-	defer db.mutex.Unlock()
 	var targetDb *cache.TableCache
 	var ok bool
 	if targetDb, ok = db.databases[database]; !ok {
@@ -201,9 +198,6 @@ func (db *inMemoryDatabase) Select(database string, table string, where []ovsdb.
 }
 
 func (db *inMemoryDatabase) Update(database, table string, where []ovsdb.Condition, row ovsdb.Row) (ovsdb.OperationResult, ovsdb.TableUpdates) {
-	db.mutex.Lock()
-	defer db.mutex.Unlock()
-
 	var targetDb *cache.TableCache
 	var ok bool
 	if targetDb, ok = db.databases[database]; !ok {
@@ -248,9 +242,6 @@ func (db *inMemoryDatabase) Update(database, table string, where []ovsdb.Conditi
 }
 
 func (db *inMemoryDatabase) Mutate(database, table string, where []ovsdb.Condition, mutations []ovsdb.Mutation) (ovsdb.OperationResult, ovsdb.TableUpdates) {
-	db.mutex.Lock()
-	defer db.mutex.Unlock()
-
 	var targetDb *cache.TableCache
 	var ok bool
 	if targetDb, ok = db.databases[database]; !ok {
@@ -317,9 +308,6 @@ func (db *inMemoryDatabase) Mutate(database, table string, where []ovsdb.Conditi
 }
 
 func (db *inMemoryDatabase) Delete(database, table string, where []ovsdb.Condition) (ovsdb.OperationResult, ovsdb.TableUpdates) {
-	db.mutex.Lock()
-	defer db.mutex.Unlock()
-
 	var targetDb *cache.TableCache
 	var ok bool
 	if targetDb, ok = db.databases[database]; !ok {
