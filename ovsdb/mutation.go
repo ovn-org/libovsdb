@@ -3,18 +3,19 @@ package ovsdb
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 )
 
 type Mutator string
 
 const (
-	MutateOperationDelete    Mutator = "delete"
-	MutateOperationInsert    Mutator = "insert"
-	MutateOperationAdd       Mutator = "+="
-	MutateOperationSubstract Mutator = "-="
-	MutateOperationMultiply  Mutator = "*="
-	MutateOperationDivide    Mutator = "/="
-	MutateOperationModulo    Mutator = "%="
+	MutateOperationDelete   Mutator = "delete"
+	MutateOperationInsert   Mutator = "insert"
+	MutateOperationAdd      Mutator = "+="
+	MutateOperationSubtract Mutator = "-="
+	MutateOperationMultiply Mutator = "*="
+	MutateOperationDivide   Mutator = "/="
+	MutateOperationModulo   Mutator = "%="
 )
 
 // Mutation is described in RFC 7047: 5.1
@@ -40,7 +41,7 @@ func (m Mutation) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON converts a 3 element JSON array to a Mutation
-func (m Mutation) UnmarshalJSON(b []byte) error {
+func (m *Mutation) UnmarshalJSON(b []byte) error {
 	var v []interface{}
 	err := json.Unmarshal(b, &v)
 	if err != nil {
@@ -60,17 +61,21 @@ func (m Mutation) UnmarshalJSON(b []byte) error {
 	}
 	mutator := Mutator(mutatorString)
 	switch mutator {
-	case MutateOperationDelete:
-	case MutateOperationInsert:
-	case MutateOperationAdd:
-	case MutateOperationSubstract:
-	case MutateOperationMultiply:
-	case MutateOperationDivide:
-	case MutateOperationModulo:
+	case MutateOperationDelete,
+		MutateOperationInsert,
+		MutateOperationAdd,
+		MutateOperationSubtract,
+		MutateOperationMultiply,
+		MutateOperationDivide,
+		MutateOperationModulo:
 		m.Mutator = mutator
 	default:
 		return fmt.Errorf("%s is not a valid mutator", mutator)
 	}
-	m.Value = v[2]
+	vv, err := interfaceToOVSDBNotationInterface(reflect.ValueOf(v[2]))
+	if err != nil {
+		return err
+	}
+	m.Value = vv
 	return nil
 }

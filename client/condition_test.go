@@ -11,7 +11,6 @@ import (
 )
 
 func TestEqualityConditional(t *testing.T) {
-	tcache := apiTestCache(t)
 	lspcacheList := []model.Model{
 		&testLogicalSwitchPort{
 			UUID:        aUUID0,
@@ -42,7 +41,10 @@ func TestEqualityConditional(t *testing.T) {
 	for i := range lspcacheList {
 		lspcache[lspcacheList[i].(*testLogicalSwitchPort).UUID] = lspcacheList[i]
 	}
-	tcache.Set("Logical_Switch_Port", cache.NewRowCache(lspcache))
+	testData := cache.CacheData{
+		"Logical_Switch_Port": lspcache,
+	}
+	tcache := apiTestCache(t, testData)
 
 	test := []struct {
 		name      string
@@ -149,7 +151,6 @@ func TestEqualityConditional(t *testing.T) {
 }
 
 func TestPredicateConditional(t *testing.T) {
-	tcache := apiTestCache(t)
 	lspcacheList := []model.Model{
 		&testLogicalSwitchPort{
 			UUID:        aUUID0,
@@ -180,7 +181,10 @@ func TestPredicateConditional(t *testing.T) {
 	for i := range lspcacheList {
 		lspcache[lspcacheList[i].(*testLogicalSwitchPort).UUID] = lspcacheList[i]
 	}
-	tcache.Set("Logical_Switch_Port", cache.NewRowCache(lspcache))
+	testData := cache.CacheData{
+		"Logical_Switch_Port": lspcache,
+	}
+	tcache := apiTestCache(t, testData)
 
 	test := []struct {
 		name      string
@@ -256,7 +260,6 @@ func TestPredicateConditional(t *testing.T) {
 }
 
 func TestExplicitConditional(t *testing.T) {
-	tcache := apiTestCache(t)
 	lspcacheList := []model.Model{
 		&testLogicalSwitchPort{
 			UUID:        aUUID0,
@@ -287,7 +290,10 @@ func TestExplicitConditional(t *testing.T) {
 	for i := range lspcacheList {
 		lspcache[lspcacheList[i].(*testLogicalSwitchPort).UUID] = lspcacheList[i]
 	}
-	tcache.Set("Logical_Switch_Port", cache.NewRowCache(lspcache))
+	testData := cache.CacheData{
+		"Logical_Switch_Port": lspcache,
+	}
+	tcache := apiTestCache(t, testData)
 
 	testObj := &testLogicalSwitchPort{}
 

@@ -1,0 +1,70 @@
+{
+    "name": "Open_vSwitch",
+    "version": "0.0.1",
+    "tables": {
+        "Open_vSwitch": {
+            "columns": {
+                "bridges": {
+                    "type": {
+                        "key": {
+                            "type": "uuid",
+                            "refTable": "Bridge"
+                        },
+                        "min": 0,
+                        "max": "unlimited"
+                    }
+                }
+            },
+            "isRoot": true,
+            "maxRows": 1
+        },
+        "Bridge": {
+            "columns": {
+                "name": {
+                    "type": "string",
+                    "mutable": false
+                },
+                "ports": {
+                    "type": {
+                        "key": {
+                            "type": "uuid",
+                            "refTable": "Port"
+                        },
+                        "min": 0,
+                        "max": "unlimited"
+                    }
+                },
+                "status": {
+                    "type": {
+                        "key": "string",
+                        "value": "string",
+                        "min": 0,
+                        "max": "unlimited"
+                    },
+                    "ephemeral": true
+                },
+                "other_config": {
+                    "type": {
+                        "key": "string",
+                        "value": "string",
+                        "min": 0,
+                        "max": "unlimited"
+                    }
+                },
+                "external_ids": {
+                    "type": {
+                        "key": "string",
+                        "value": "string",
+                        "min": 0,
+                        "max": "unlimited"
+                    }
+                }
+            },
+            "indexes": [
+                [
+                    "name"
+                ]
+            ]
+        }
+    }
+}

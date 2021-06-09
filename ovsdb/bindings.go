@@ -230,14 +230,14 @@ func validateMutationAtomic(atype string, mutator Mutator, value interface{}) er
 		return fmt.Errorf("atomictype %s does not support mutation", atype)
 	case TypeReal:
 		switch mutator {
-		case MutateOperationAdd, MutateOperationSubstract, MutateOperationMultiply, MutateOperationDivide:
+		case MutateOperationAdd, MutateOperationSubtract, MutateOperationMultiply, MutateOperationDivide:
 			return nil
 		default:
 			return fmt.Errorf("wrong mutator for real type %s", mutator)
 		}
 	case TypeInteger:
 		switch mutator {
-		case MutateOperationAdd, MutateOperationSubstract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo:
+		case MutateOperationAdd, MutateOperationSubtract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo:
 			return nil
 		default:
 			return fmt.Errorf("wrong mutator for integer type: %s", mutator)
@@ -257,6 +257,15 @@ func ValidateMutation(column *ColumnSchema, mutator Mutator, value interface{}) 
 	case TypeSet:
 		switch mutator {
 		case MutateOperationInsert, MutateOperationDelete:
+			// RFC7047 says a <set> may be an <atom> with a single
+			// element. Check if we can store this value in our column
+			if reflect.TypeOf(value).Kind() != reflect.Slice {
+				if NativeType(column) != reflect.SliceOf(reflect.TypeOf(value)) {
+					return NewErrWrongType(fmt.Sprintf("Mutation %s of single value in to column %s", mutator, column),
+						NativeType(column).String(), reflect.SliceOf(reflect.TypeOf(value)).String())
+				}
+				return nil
+			}
 			if NativeType(column) != reflect.TypeOf(value) {
 				return NewErrWrongType(fmt.Sprintf("Mutation %s of column %s", mutator, column),
 					NativeType(column).String(), value)
@@ -324,7 +333,7 @@ func isDefaultBaseValue(elem interface{}, etype ExtendedType) bool {
 
 	switch etype {
 	case TypeUUID:
-		return elem.(string) == "00000000-0000-0000-0000-000000000000" || elem.(string) == ""
+		return elem.(string) == "00000000-0000-0000-0000-000000000000" || elem.(string) == "" || isNamed(elem.(string))
 	case TypeMap, TypeSet:
 		return value.IsNil() || value.Len() == 0
 	case TypeString:

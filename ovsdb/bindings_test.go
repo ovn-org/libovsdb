@@ -747,35 +747,35 @@ func TestMutationValidation(t *testing.T) {
 		{
 			name:     "string",
 			column:   []byte(`{"type":"string"}`),
-			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubstract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo},
+			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubtract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo},
 			value:    "foo",
 			valid:    false,
 		},
 		{
 			name:     "string",
 			column:   []byte(`{"type":"uuid"}`),
-			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubstract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo},
+			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubtract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo},
 			value:    "foo",
 			valid:    false,
 		},
 		{
 			name:     "boolean",
 			column:   []byte(`{"type":"boolean"}`),
-			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubstract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo},
+			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubtract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo},
 			value:    true,
 			valid:    false,
 		},
 		{
 			name:     "integer",
 			column:   []byte(`{"type":"integer"}`),
-			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubstract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo},
+			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubtract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo},
 			value:    4,
 			valid:    true,
 		},
 		{
 			name:     "unmutable",
 			column:   []byte(`{"type":"integer", "mutable": false}`),
-			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubstract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo},
+			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubtract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo},
 			value:    4,
 			valid:    false,
 		},
@@ -789,14 +789,14 @@ func TestMutationValidation(t *testing.T) {
 		{
 			name:     "integer wrong type",
 			column:   []byte(`{"type":"integer"}`),
-			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubstract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo},
+			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubtract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo},
 			value:    "foo",
 			valid:    false,
 		},
 		{
 			name:     "real",
 			column:   []byte(`{"type":"real"}`),
-			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubstract, MutateOperationMultiply, MutateOperationDivide},
+			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubtract, MutateOperationMultiply, MutateOperationDivide},
 			value:    4.0,
 			valid:    true,
 		},
@@ -816,7 +816,7 @@ func TestMutationValidation(t *testing.T) {
 				     "min": 0
 				   }
 				 }`),
-			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubstract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo},
+			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubtract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo},
 			value:    4,
 			valid:    true,
 		},
@@ -829,7 +829,7 @@ func TestMutationValidation(t *testing.T) {
 				     "min": 0
 				   }
 				 }`),
-			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubstract, MutateOperationMultiply, MutateOperationDivide},
+			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubtract, MutateOperationMultiply, MutateOperationDivide},
 			value:    4.0,
 			valid:    true,
 		},
@@ -842,8 +842,34 @@ func TestMutationValidation(t *testing.T) {
 				     "min": 0
 				   }
 				 }`),
-			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubstract, MutateOperationMultiply},
+			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubtract, MutateOperationMultiply},
 			value:    "foo",
+			valid:    false,
+		},
+		{
+			name: "string set insert single string",
+			column: []byte(`{
+				   "type": {
+				     "key": "string",
+				     "max": "unlimited",
+				     "min": 0
+				   }
+				 }`),
+			mutators: []Mutator{MutateOperationInsert},
+			value:    "foo",
+			valid:    true,
+		},
+		{
+			name: "string set insert single int",
+			column: []byte(`{
+				   "type": {
+				     "key": "string",
+				     "max": "unlimited",
+				     "min": 0
+				   }
+				 }`),
+			mutators: []Mutator{MutateOperationInsert},
+			value:    42,
 			valid:    false,
 		},
 		{

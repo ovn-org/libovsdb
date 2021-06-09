@@ -3,7 +3,10 @@ package ovsdb
 import (
 	"encoding/json"
 	"log"
+	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestOpRowSerialization(t *testing.T) {
@@ -170,5 +173,88 @@ func TestNewMutation(t *testing.T) {
 	expected := `["column","+=",1]`
 	if string(mutationStr) != expected {
 		t.Error("mutation is not correctly formatted")
+	}
+}
+
+func TestOperationsMarshalUnmarshalJSON(t *testing.T) {
+	in := []byte(`{"op":"mutate","table":"Open_vSwitch","mutations":[["bridges","insert",["named-uuid","foo"]]],"where":[["_uuid","==",["named-uuid","ovs"]]]}`)
+	var op Operation
+	err := json.Unmarshal(in, &op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, OperationMutate, op.Op)
+	assert.Equal(t, "Open_vSwitch", op.Table)
+	assert.Equal(t, 1, len(op.Mutations))
+	assert.Equal(t, Mutation{
+		Column:  "bridges",
+		Mutator: OperationInsert,
+		Value:   UUID{GoUUID: "foo"},
+	}, op.Mutations[0])
+}
+
+func TestInterfaceToOVSDBNotationInterface(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   interface{}
+		want    interface{}
+		wantErr bool
+	}{
+		{
+			"scalar value",
+			"foo",
+			"foo",
+			false,
+		},
+		{
+			"set",
+			[]interface{}{"set", []interface{}{"foo", "bar", "baz"}},
+			OvsSet{GoSet: []interface{}{"foo", "bar", "baz"}},
+			false,
+		},
+		{
+			"uuid set",
+			[]interface{}{"set", []interface{}{[]interface{}{"named-uuid", "foo"}, []interface{}{"named-uuid", "bar"}}},
+			OvsSet{GoSet: []interface{}{UUID{GoUUID: "foo"}, UUID{GoUUID: "bar"}}},
+			false,
+		},
+		{
+			"map",
+			[]interface{}{"map", []interface{}{[]interface{}{"foo", "bar"}, []interface{}{"baz", "quux"}}},
+			OvsMap{GoMap: map[interface{}]interface{}{"foo": "bar", "baz": "quux"}},
+			false,
+		},
+		{
+			"map uuid values",
+			[]interface{}{"map", []interface{}{[]interface{}{"foo", []interface{}{"named-uuid", "bar"}}, []interface{}{"baz", []interface{}{"named-uuid", "quux"}}}},
+			OvsMap{GoMap: map[interface{}]interface{}{"foo": UUID{GoUUID: "bar"}, "baz": UUID{GoUUID: "quux"}}},
+			false,
+		},
+		{
+			"map uuid keys",
+			[]interface{}{"map", []interface{}{[]interface{}{[]interface{}{"named-uuid", "bar"}, "foo"}, []interface{}{[]interface{}{"named-uuid", "quux"}, "baz"}}},
+			OvsMap{GoMap: map[interface{}]interface{}{UUID{GoUUID: "bar"}: "foo", UUID{GoUUID: "quux"}: "baz"}},
+			false,
+		},
+		{
+			"map uuid keys and values",
+			[]interface{}{"map", []interface{}{[]interface{}{[]interface{}{"named-uuid", "bar"}, "foo"}, []interface{}{[]interface{}{"named-uuid", "quux"}, "baz"}}},
+			OvsMap{GoMap: map[interface{}]interface{}{UUID{GoUUID: "bar"}: "foo", UUID{GoUUID: "quux"}: "baz"}},
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := reflect.ValueOf(tt.value)
+			got, err := interfaceToOVSDBNotationInterface(v)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("interfaceToOVSDBNotationInterface() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			wantValue := reflect.ValueOf(tt.want)
+			gotValue := reflect.ValueOf(got)
+			assert.Equal(t, wantValue.Type(), gotValue.Type())
+			assert.Equal(t, wantValue.Interface(), gotValue.Interface())
+		})
 	}
 }
