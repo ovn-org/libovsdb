@@ -286,8 +286,12 @@ func (db *inMemoryDatabase) Mutate(database, table string, where []ovsdb.Conditi
 				panic(err)
 			}
 			new := mutate(current, m.Mutator, nativeValue)
-
 			if err := info.SetField(m.Column, new); err != nil {
+				panic(err)
+			}
+			// the field in old has been set, write back to db
+			err = targetDb.Table(table).Update(uuid.(string), old)
+			if err != nil {
 				panic(err)
 			}
 			newRow, err := targetDb.Mapper().NewRow(table, old)
