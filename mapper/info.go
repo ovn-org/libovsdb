@@ -38,12 +38,28 @@ func (i *Info) SetField(column string, value interface{}) error {
 		return fmt.Errorf("column %s not found in orm info", column)
 	}
 	fieldValue := reflect.ValueOf(i.obj).Elem().FieldByName(fieldName)
-
+	v := reflect.ValueOf(value)
 	if !fieldValue.Type().AssignableTo(reflect.TypeOf(value)) {
-		return fmt.Errorf("column %s: native value %v (%s) is not assignable to field %s (%s)",
-			column, value, reflect.TypeOf(value), fieldName, fieldValue.Type())
+		if v.Type().ConvertibleTo(fieldValue.Type()) {
+			// handle enum
+			v = v.Convert(fieldValue.Type())
+		} else if fieldValue.Kind() == reflect.Slice {
+			// handle set of enums
+			if !v.Type().Elem().ConvertibleTo(fieldValue.Type().Elem()) {
+				return fmt.Errorf("column %s: element %v (%s) is not convertible to field %s element (%s)",
+					column, value, reflect.TypeOf(value), fieldName, fieldValue.Type())
+			}
+			nv := reflect.Zero(fieldValue.Type())
+			for i := 0; i < v.Len(); i++ {
+				nv = reflect.Append(nv, v.Index(i).Convert(fieldValue.Type().Elem()))
+			}
+			v = nv
+		} else {
+			return fmt.Errorf("column %s: native value %v (%s) is not assignable or convertible to field %s (%s)",
+				column, value, reflect.TypeOf(value), fieldName, fieldValue.Type())
+		}
 	}
-	fieldValue.Set(reflect.ValueOf(value))
+	fieldValue.Set(v)
 	return nil
 }
 
@@ -133,7 +149,12 @@ func NewInfo(table *ovsdb.TableSchema, obj interface{}) (*Info, error) {
 
 		// Perform schema-based type checking
 		expType := ovsdb.NativeType(column)
-		if expType != field.Type {
+		// check for slice of enums
+		if expType.Kind() == reflect.Slice && expType.Elem().Kind() == reflect.String {
+			// it's a slice of enums
+		} else if expType.Kind() == reflect.String && field.Type.Kind() == reflect.String {
+			// it' an enum
+		} else if expType != field.Type {
 			return nil, &ErrMapper{
 				objType:   objType.String(),
 				field:     field.Name,

@@ -10,25 +10,57 @@ import (
 )
 
 var sampleTable = []byte(`{
-      "columns": {
+    "columns": {
         "aString": {
-          "type": "string"
+            "type": "string"
         },
         "aInteger": {
-          "type": "integer"
+            "type": "integer"
         },
         "aSet": {
-          "type": {
-            "key": "string",
-            "max": "unlimited",
-            "min": 0
-          }
+            "type": {
+                "key": "string",
+                "max": "unlimited",
+                "min": 0
+            }
         },
         "aMap": {
-          "type": {
-            "key": "string",
-            "value": "string"
-          }
+            "type": {
+                "key": "string",
+                "value": "string"
+            }
+        },
+        "aEnum": {
+            "type": {
+                "key": {
+                    "enum": [
+                        "set",
+                        [
+                            "enum1",
+                            "enum2",
+                            "enum3"
+                        ]
+                    ],
+                    "type": "string"
+                }
+            }
+        },
+        "aEnumSet": {
+            "type": {
+                "key": {
+                    "enum": [
+                        "set",
+                        [
+                            "enum1",
+                            "enum2",
+                            "enum3"
+                        ]
+                    ],
+                    "type": "string"
+                },
+                "max": "unlimited",
+                "min": 0
+            }
         }
     }
 }`)
@@ -73,11 +105,19 @@ func TestNewMapperInfo(t *testing.T) {
 }
 
 func TestMapperInfoSet(t *testing.T) {
+	type enum string
+	const (
+		enum1 enum = "one"
+		enum2 enum = "two"
+		enum3 enum = "three"
+	)
 	type obj struct {
-		Ostring string            `ovsdb:"aString"`
-		Oint    int               `ovsdb:"aInteger"`
-		Oset    []string          `ovsdb:"aSet"`
-		Omap    map[string]string `ovsdb:"aMap"`
+		Ostring  string            `ovsdb:"aString"`
+		Oint     int               `ovsdb:"aInteger"`
+		Oset     []string          `ovsdb:"aSet"`
+		Omap     map[string]string `ovsdb:"aMap"`
+		Oenum    enum              `ovsdb:"aEnum"`
+		OenumSet []enum            `ovsdb:"aEnumSet"`
 	}
 
 	type test struct {
@@ -127,12 +167,28 @@ func TestMapperInfoSet(t *testing.T) {
 			err:    false,
 		},
 		{
-			name:   "un-assignable",
+			name:   "unassignable",
 			table:  sampleTable,
 			obj:    &obj{},
 			field:  []string{"foo"},
 			column: "aMap",
 			err:    true,
+		},
+		{
+			name:   "enum",
+			table:  sampleTable,
+			obj:    &obj{},
+			field:  enum1,
+			column: "aEnum",
+			err:    false,
+		},
+		{
+			name:   "enumSet",
+			table:  sampleTable,
+			obj:    &obj{},
+			field:  []enum{enum2, enum3},
+			column: "aEnumSet",
+			err:    false,
 		},
 	}
 	for _, tt := range tests {

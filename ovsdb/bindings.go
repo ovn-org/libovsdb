@@ -182,11 +182,28 @@ func NativeToOvsAtomic(basicType string, nativeElem interface{}) (interface{}, e
 // NativeToOvs transforms an native type to a ovs type based on the column type information
 func NativeToOvs(column *ColumnSchema, rawElem interface{}) (interface{}, error) {
 	naType := NativeType(column)
-
-	if t := reflect.TypeOf(rawElem); t != naType {
+	rawElemType := reflect.TypeOf(rawElem)
+	if column.Type == TypeEnum && rawElemType != strType && rawElemType.Kind() == reflect.String {
+		// cast type alias back to string
+		rawElem = rawElem.(string)
+		rawElemType = reflect.TypeOf(rawElem)
+	}
+	if column.Type == TypeSet && len(column.TypeObj.Key.Enum) > 0 && rawElemType.Elem() != strType && rawElemType.Elem().Kind() == reflect.String {
+		// convert a set of enums where the type is an alias, to a set of strings
+		tmp := []string{}
+		v := reflect.ValueOf(rawElem)
+		for i := 0; i < v.Len(); i++ {
+			// convert value to string first, because the String method won't panic
+			// but will instead return a string of <T value> which isn't what we want
+			vi := v.Index(i).Convert(strType)
+			tmp = append(tmp, vi.String())
+		}
+		rawElem = tmp
+		rawElemType = reflect.TypeOf(rawElem)
+	}
+	if t := rawElemType; t != naType {
 		return nil, NewErrWrongType("NativeToOvs", naType.String(), rawElem)
 	}
-
 	switch column.Type {
 	case TypeInteger, TypeReal, TypeString, TypeBoolean, TypeEnum:
 		return rawElem, nil

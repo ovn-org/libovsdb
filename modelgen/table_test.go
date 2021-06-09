@@ -54,8 +54,8 @@ func TestNewTableTemplate(t *testing.T) {
 package test
 
 type (
-	AtomicTableEventType = string
-	AtomicTableProtocol  = string
+	AtomicTableEventType string
+	AtomicTableProtocol  string
 )
 
 const (
@@ -114,8 +114,8 @@ type AtomicTable struct {
 package test
 
 type (
-	AtomicTableEventType = string
-	AtomicTableProtocol  = string
+	AtomicTableEventType string
+	AtomicTableProtocol  string
 )
 
 const (
@@ -163,8 +163,8 @@ func {{ index . "TestName" }} () string {
 package test
 
 type (
-	AtomicTableEventType = string
-	AtomicTableProtocol  = string
+	AtomicTableEventType string
+	AtomicTableProtocol  string
 )
 
 const (

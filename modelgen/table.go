@@ -51,7 +51,7 @@ func NewTableTemplate() *template.Template {
 {{ if index . "Enums" }}
 type (
 {{ range index . "Enums" }}
-{{ .Alias }} = {{ .Type }}
+{{ .Alias }} {{ .Type }}
 {{- end }}
 )
 
