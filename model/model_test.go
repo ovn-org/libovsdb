@@ -10,13 +10,13 @@ import (
 )
 
 type modelA struct {
-	UUID string `ovs:"_uuid"`
+	UUID string `ovsdb:"_uuid"`
 }
 
 type modelB struct {
-	UID string `ovs:"_uuid"`
-	Foo string `ovs:"bar"`
-	Bar string `ovs:"baz"`
+	UID string `ovsdb:"_uuid"`
+	Foo string `ovsdb:"bar"`
+	Bar string `ovsdb:"baz"`
 }
 
 type modelInvalid struct {
@@ -88,12 +88,12 @@ func TestSetUUID(t *testing.T) {
 func TestValidate(t *testing.T) {
 	model, err := NewDBModel("TestDB", map[string]Model{
 		"TestTable": &struct {
-			aUUID   string            `ovs:"_uuid"`
-			aString string            `ovs:"aString"`
-			aInt    int               `ovs:"aInt"`
-			aFloat  float64           `ovs:"aFloat"`
-			aSet    []string          `ovs:"aSet"`
-			aMap    map[string]string `ovs:"aMap"`
+			aUUID   string            `ovsdb:"_uuid"`
+			aString string            `ovsdb:"aString"`
+			aInt    int               `ovsdb:"aInt"`
+			aFloat  float64           `ovsdb:"aFloat"`
+			aSet    []string          `ovsdb:"aSet"`
+			aMap    map[string]string `ovsdb:"aMap"`
 		}{},
 	})
 	assert.Nil(t, err)

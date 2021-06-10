@@ -13,9 +13,9 @@ import (
 )
 
 type testModel struct {
-	UUID string `ovs:"_uuid"`
-	Foo  string `ovs:"foo"`
-	Bar  string `ovs:"bar"`
+	UUID string `ovsdb:"_uuid"`
+	Foo  string `ovsdb:"foo"`
+	Bar  string `ovsdb:"bar"`
 }
 
 func TestRowCache_Row(t *testing.T) {

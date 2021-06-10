@@ -10,13 +10,13 @@ import (
 // Mapper offers functions to interact with libovsdb through user-provided native structs.
 // The way to specify what field of the struct goes
 // to what column in the database id through field a field tag.
-// The tag used is "ovs" and has the following structure
-// 'ovs:"${COLUMN_NAME}"'
+// The tag used is "ovsdb" and has the following structure
+// 'ovsdb:"${COLUMN_NAME}"'
 //	where COLUMN_NAME is the name of the column and must match the schema
 //
 //Example:
 //  type MyObj struct {
-//  	Name string `ovs:"name"`
+//  	Name string `ovsdb:"name"`
 //  }
 type Mapper struct {
 	Schema *ovsdb.DatabaseSchema
@@ -163,7 +163,7 @@ func (m Mapper) NewRow(tableName string, data interface{}, fields ...interface{}
 
 // NewEqualityCondition returns a list of equality conditions that match a given object
 // A list of valid columns that shall be used as a index can be provided.
-// If none are provided, we will try to use object's field that matches the '_uuid' ovs tag
+// If none are provided, we will try to use object's field that matches the '_uuid' ovsdb tag
 // If it does not exist or is null (""), then we will traverse all of the table indexes and
 // use the first index (list of simultaneously unique columnns) for which the provided mapper
 // object has valid data. The order in which they are traversed matches the order defined

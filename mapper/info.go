@@ -57,7 +57,7 @@ func (mi *MapperInfo) ColumnByPtr(fieldPtr interface{}) (string, error) {
 	objType := reflect.TypeOf(mi.obj).Elem()
 	for i := 0; i < objType.NumField(); i++ {
 		if objType.Field(i).Offset == offset {
-			column := objType.Field(i).Tag.Get("ovs")
+			column := objType.Field(i).Tag.Get("ovsdb")
 			if _, ok := mi.fields[column]; !ok {
 				return "", fmt.Errorf("field does not have orm column information")
 			}
@@ -115,7 +115,7 @@ func NewMapperInfo(table *ovsdb.TableSchema, obj interface{}) (*MapperInfo, erro
 	fields := make(map[string]string, objType.NumField())
 	for i := 0; i < objType.NumField(); i++ {
 		field := objType.Field(i)
-		colName := field.Tag.Get("ovs")
+		colName := field.Tag.Get("ovsdb")
 		if colName == "" {
 			// Untagged fields are ignored
 			continue

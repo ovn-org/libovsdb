@@ -74,10 +74,10 @@ func TestNewMapperInfo(t *testing.T) {
 
 func TestMapperInfoSet(t *testing.T) {
 	type obj struct {
-		Ostring string            `ovs:"aString"`
-		Oint    int               `ovs:"aInteger"`
-		Oset    []string          `ovs:"aSet"`
-		Omap    map[string]string `ovs:"aMap"`
+		Ostring string            `ovsdb:"aString"`
+		Oint    int               `ovsdb:"aInteger"`
+		Oset    []string          `ovsdb:"aSet"`
+		Omap    map[string]string `ovsdb:"aMap"`
 	}
 
 	type test struct {
@@ -160,10 +160,10 @@ func TestMapperInfoSet(t *testing.T) {
 
 func TestMapperInfoColByPtr(t *testing.T) {
 	type obj struct {
-		ostring string            `ovs:"aString"`
-		oint    int               `ovs:"aInteger"`
-		oset    []string          `ovs:"aSet"`
-		omap    map[string]string `ovs:"aMap"`
+		ostring string            `ovsdb:"aString"`
+		oint    int               `ovsdb:"aInteger"`
+		oset    []string          `ovsdb:"aSet"`
+		omap    map[string]string `ovsdb:"aMap"`
 	}
 	obj1 := obj{}
 
@@ -269,11 +269,11 @@ func TestOrmGetIndex(t *testing.T) {
 	assert.Nil(t, err)
 
 	type obj struct {
-		ID     string            `ovs:"_uuid"`
-		MyName string            `ovs:"name"`
-		Config map[string]string `ovs:"config"`
-		Comp1  string            `ovs:"composed_1"`
-		Comp2  string            `ovs:"composed_2"`
+		ID     string            `ovsdb:"_uuid"`
+		MyName string            `ovsdb:"name"`
+		Config map[string]string `ovsdb:"config"`
+		Comp1  string            `ovsdb:"composed_1"`
+		Comp2  string            `ovsdb:"composed_2"`
 	}
 	type test struct {
 		name     string
