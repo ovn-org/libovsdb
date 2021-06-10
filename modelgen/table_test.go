@@ -26,7 +26,13 @@ func TestNewTableTemplate(t *testing.T) {
 					},
 					"float": {
 						"type": "real"
-					}
+					},
+					"protocol": {
+						"type": {"key": {"type": "string",
+								 "enum": ["set", ["tcp", "udp", "sctp"]]},
+								 "min": 0, "max": 1}},
+					"event_type": {"type": {"key": {"type": "string",
+													"enum": ["set", ["empty_lb_backends"]]}}}
 				}
 			}
 		}
@@ -46,12 +52,26 @@ func TestNewTableTemplate(t *testing.T) {
 
 package test
 
-// test defines an object in test table
-type test struct {
-	UUID  string  ` + "`" + `ovs:"_uuid"` + "`" + `
-	Float float64 ` + "`" + `ovs:"float"` + "`" + `
-	Int   int     ` + "`" + `ovs:"int"` + "`" + `
-	Str   string  ` + "`" + `ovs:"str"` + "`" + `
+type (
+	AtomicTableEventType = string
+	AtomicTableProtocol  = string
+)
+
+const (
+	AtomicTableEventTypeEmptyLbBackends AtomicTableEventType = "empty_lb_backends"
+	AtomicTableProtocolTCP              AtomicTableProtocol  = "tcp"
+	AtomicTableProtocolUDP              AtomicTableProtocol  = "udp"
+	AtomicTableProtocolSCTP             AtomicTableProtocol  = "sctp"
+)
+
+// AtomicTable defines an object in atomicTable table
+type AtomicTable struct {
+	UUID      string                ` + "`" + `ovs:"_uuid"` + "`" + `
+	EventType AtomicTableEventType  ` + "`" + `ovs:"event_type"` + "`" + `
+	Float     float64               ` + "`" + `ovs:"float"` + "`" + `
+	Int       int                   ` + "`" + `ovs:"int"` + "`" + `
+	Protocol  []AtomicTableProtocol ` + "`" + `ovs:"protocol"` + "`" + `
+	Str       string                ` + "`" + `ovs:"str"` + "`" + `
 }
 `,
 		},
@@ -70,17 +90,33 @@ type test struct {
 
 package test
 
-// test defines an object in test table
-type test struct {
-	UUID  string  ` + "`" + `ovs:"_uuid"` + "`" + `
-	Float float64 ` + "`" + `ovs:"float"` + "`" + `
-	Int   int     ` + "`" + `ovs:"int"` + "`" + `
-	Str   string  ` + "`" + `ovs:"str"` + "`" + `
+type (
+	AtomicTableEventType = string
+	AtomicTableProtocol  = string
+)
 
-	OtherUUID  string
-	OtherFloat float64
-	OtherInt   int
-	OtherStr   string
+const (
+	AtomicTableEventTypeEmptyLbBackends AtomicTableEventType = "empty_lb_backends"
+	AtomicTableProtocolTCP              AtomicTableProtocol  = "tcp"
+	AtomicTableProtocolUDP              AtomicTableProtocol  = "udp"
+	AtomicTableProtocolSCTP             AtomicTableProtocol  = "sctp"
+)
+
+// AtomicTable defines an object in atomicTable table
+type AtomicTable struct {
+	UUID      string                ` + "`" + `ovs:"_uuid"` + "`" + `
+	EventType AtomicTableEventType  ` + "`" + `ovs:"event_type"` + "`" + `
+	Float     float64               ` + "`" + `ovs:"float"` + "`" + `
+	Int       int                   ` + "`" + `ovs:"int"` + "`" + `
+	Protocol  []AtomicTableProtocol ` + "`" + `ovs:"protocol"` + "`" + `
+	Str       string                ` + "`" + `ovs:"str"` + "`" + `
+
+	OtherUUID      string
+	OtherEventType AtomicTableEventType
+	OtherFloat     float64
+	OtherInt       int
+	OtherProtocol  []AtomicTableProtocol
+	OtherStr       string
 }
 `,
 		},
@@ -103,16 +139,30 @@ func {{ index . "TestName" }} () string {
 
 package test
 
-// test defines an object in test table
-type test struct {
-	UUID  string  ` + "`" + `ovs:"_uuid"` + "`" + `
-	Float float64 ` + "`" + `ovs:"float"` + "`" + `
-	Int   int     ` + "`" + `ovs:"int"` + "`" + `
-	Str   string  ` + "`" + `ovs:"str"` + "`" + `
+type (
+	AtomicTableEventType = string
+	AtomicTableProtocol  = string
+)
+
+const (
+	AtomicTableEventTypeEmptyLbBackends AtomicTableEventType = "empty_lb_backends"
+	AtomicTableProtocolTCP              AtomicTableProtocol  = "tcp"
+	AtomicTableProtocolUDP              AtomicTableProtocol  = "udp"
+	AtomicTableProtocolSCTP             AtomicTableProtocol  = "sctp"
+)
+
+// AtomicTable defines an object in atomicTable table
+type AtomicTable struct {
+	UUID      string                ` + "`" + `ovs:"_uuid"` + "`" + `
+	EventType AtomicTableEventType  ` + "`" + `ovs:"event_type"` + "`" + `
+	Float     float64               ` + "`" + `ovs:"float"` + "`" + `
+	Int       int                   ` + "`" + `ovs:"int"` + "`" + `
+	Protocol  []AtomicTableProtocol ` + "`" + `ovs:"protocol"` + "`" + `
+	Str       string                ` + "`" + `ovs:"str"` + "`" + `
 }
 
 func TestFunc() string {
-	return "test"
+	return "AtomicTable"
 }
 `,
 		},
@@ -140,10 +190,11 @@ WRONG FORMAT
 
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("Table Test: %s", tt.name), func(t *testing.T) {
-			table := schema.Tables["atomicTable"]
+			fakeTable := "atomicTable"
+			table := schema.Tables[fakeTable]
 			templ, data := NewTableTemplate(
 				"test",
-				"test",
+				fakeTable,
 				&table,
 			)
 			if tt.err {

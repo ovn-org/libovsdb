@@ -22,6 +22,23 @@ const BASE_TABLE_TEMPLATE = `{{ template "header" . }}
 
 package {{ index . "PackageName" }}
 
+{{ if index . "Enums" }}
+type (
+{{ range index . "Enums" }}
+{{ .Alias }} = {{ .Type }}
+{{- end }}
+)
+
+const (
+{{ range  index . "Enums" }}
+{{- $e := . }}
+{{- range .Sets }}
+{{ $e.Alias }}{{ camelCase . }} {{ $e.Alias }} = {{ printVal . $e.Type }}
+{{- end }}
+{{- end }}
+)
+{{ end }}
+
 {{ template "preStructDefinitions" }}
 {{ template "structComment" . }}
 type {{ index . "StructName" }} struct {
@@ -53,6 +70,13 @@ const DEFAULT_EXTRA_FIELDS_TEMPLATE = `{{ define "extraFields" }}{{ end }}`
 // DEFAULT_POST_TABLE_TEMPLATE is the default template for "postStructDefinitions"
 const DEFAULT_POST_TABLE_TEMPLATE = `{{ define "postStructDefinitions" }}{{ end }}`
 
+// Enum represents the enum schema type
+type Enum struct {
+	Type  string
+	Alias string
+	Sets  []interface{}
+}
+
 // Field represents the field information
 type Field struct {
 	Column string
@@ -72,6 +96,7 @@ func GetTableTemplateData(pkg, name string, table *ovsdb.TableSchema) map[string
 	data["PackageName"] = pkg
 	data["StructName"] = StructName(name)
 	Fields := []Field{}
+	Enums := []Enum{}
 
 	// First, add UUID
 	Fields = append(Fields,
@@ -95,18 +120,26 @@ func GetTableTemplateData(pkg, name string, table *ovsdb.TableSchema) map[string
 		Fields = append(Fields, Field{
 			Column: columnName,
 			Name:   FieldName(columnName),
-			Type:   FieldType(columnSchema),
+			Type:   FieldType(name, columnName, columnSchema),
 			Tag:    Tag(columnName),
 		})
+		if enum := FieldEnum(name, columnName, columnSchema); enum != nil {
+			Enums = append(Enums, *enum)
+		}
 	}
 	data["Fields"] = Fields
+	data["Enums"] = Enums
 	return data
 }
 
 // NewTableTemplate returns a new TableTemplate and the TableTemplate data map
 // See BASE_TABLE_TEMPLATE to a detailed explanation of the possible ways this template can be expanded
 func NewTableTemplate(pkg string, name string, table *ovsdb.TableSchema) (*template.Template, map[string]interface{}) {
-	main, err := template.New(name).Parse(BASE_TABLE_TEMPLATE)
+	funcMap := template.FuncMap{
+		"printVal":  printVal,
+		"camelCase": camelCase,
+	}
+	main, err := template.New(name).Funcs(funcMap).Parse(BASE_TABLE_TEMPLATE)
 	if err != nil {
 		panic(err)
 	}
@@ -144,21 +177,41 @@ func FieldName(column string) string {
 
 // StructName returns the name of the table struct
 func StructName(tableName string) string {
-	return strings.ReplaceAll(tableName, "_", "")
+	return strings.Title(strings.ReplaceAll(tableName, "_", ""))
+}
+
+// EnumName returns the name of the enum field
+func EnumName(tableName, columnName string) string {
+	return strings.Title(StructName(tableName)) + camelCase(columnName)
 }
 
 // FieldType returns the string representation of a column type
-func FieldType(column *ovsdb.ColumnSchema) string {
+func FieldType(tableName, columnName string, column *ovsdb.ColumnSchema) string {
 	switch column.Type {
 	case ovsdb.TypeEnum:
-		return AtomicType(column.TypeObj.Key.Type)
+		return EnumName(tableName, columnName)
 	case ovsdb.TypeMap:
 		return fmt.Sprintf("map[%s]%s", AtomicType(column.TypeObj.Key.Type),
 			AtomicType(column.TypeObj.Value.Type))
 	case ovsdb.TypeSet:
+		if FieldEnum(tableName, columnName, column) != nil {
+			return fmt.Sprintf("[]%s", EnumName(tableName, columnName))
+		}
 		return fmt.Sprintf("[]%s", AtomicType(column.TypeObj.Key.Type))
 	default:
 		return AtomicType(column.Type)
+	}
+}
+
+// FieldEnum returns the Enum if the column is an enum type
+func FieldEnum(tableName, columnName string, column *ovsdb.ColumnSchema) *Enum {
+	if column.TypeObj.Key.Enum == nil {
+		return nil
+	}
+	return &Enum{
+		Type:  column.TypeObj.Key.Type,
+		Alias: EnumName(tableName, columnName),
+		Sets:  column.TypeObj.Key.Enum,
 	}
 }
 
@@ -211,9 +264,15 @@ var initialisms = map[string]bool{
 	"SSL":   true,
 	"STP":   true,
 	"TCP":   true,
+	"SCTP":  true,
 	"UDP":   true,
 	"UUID":  true,
 	"VLAN":  true,
+	"STT":   true,
+	"DNAT":  true,
+	"SNAT":  true,
+	"ICMP":  true,
+	"SLB":   true,
 }
 
 func camelCase(field string) string {
@@ -245,4 +304,18 @@ func expandInitilaisms(s string) string {
 		}
 	}
 	return s
+}
+
+func printVal(v interface{}, t string) string {
+	switch t {
+	case "int":
+		return fmt.Sprintf(`%d`, v)
+	case "float64":
+		return fmt.Sprintf(`%f`, v)
+	case "bool":
+		return fmt.Sprintf(`%t`, v)
+	case "string":
+		return fmt.Sprintf(`"%s"`, v)
+	}
+	return ""
 }
