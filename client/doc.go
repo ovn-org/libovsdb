@@ -5,10 +5,10 @@ This package uses structs, that contain the 'ovs' field tag to determine which f
 which column in the database. We refer to pointers to this structs as Models. Example:
 
    type MyLogicalSwitch struct {
-   	UUID   string            `ovs:"_uuid"` // _uuid tag is mandatory
-   	Name   string            `ovs:"name"`
-   	Ports  []string          `ovs:"ports"`
-   	Config map[string]string `ovs:"other_config"`
+   	UUID   string            `ovsdb:"_uuid"` // _uuid tag is mandatory
+   	Name   string            `ovsdb:"name"`
+   	Ports  []string          `ovsdb:"ports"`
+   	Config map[string]string `ovsdb:"other_config"`
    }
 
 Based on these Models a Database Model (see DBModel type) is built to represent

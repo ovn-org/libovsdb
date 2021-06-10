@@ -21,18 +21,18 @@ import (
 
 // ORMBridge is the simplified ORM model of the Bridge table
 type bridgeType struct {
-	UUID        string            `ovs:"_uuid"`
-	Name        string            `ovs:"name"`
-	OtherConfig map[string]string `ovs:"other_config"`
-	ExternalIds map[string]string `ovs:"external_ids"`
-	Ports       []string          `ovs:"ports"`
-	Status      map[string]string `ovs:"status"`
+	UUID        string            `ovsdb:"_uuid"`
+	Name        string            `ovsdb:"name"`
+	OtherConfig map[string]string `ovsdb:"other_config"`
+	ExternalIds map[string]string `ovsdb:"external_ids"`
+	Ports       []string          `ovsdb:"ports"`
+	Status      map[string]string `ovsdb:"status"`
 }
 
 // ORMovs is the simplified ORM model of the Bridge table
 type ovsType struct {
-	UUID    string   `ovs:"_uuid"`
-	Bridges []string `ovs:"bridges"`
+	UUID    string   `ovsdb:"_uuid"`
+	Bridges []string `ovsdb:"bridges"`
 }
 
 var (

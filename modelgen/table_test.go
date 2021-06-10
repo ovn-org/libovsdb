@@ -66,12 +66,12 @@ const (
 
 // AtomicTable defines an object in atomicTable table
 type AtomicTable struct {
-	UUID      string                ` + "`" + `ovs:"_uuid"` + "`" + `
-	EventType AtomicTableEventType  ` + "`" + `ovs:"event_type"` + "`" + `
-	Float     float64               ` + "`" + `ovs:"float"` + "`" + `
-	Int       int                   ` + "`" + `ovs:"int"` + "`" + `
-	Protocol  []AtomicTableProtocol ` + "`" + `ovs:"protocol"` + "`" + `
-	Str       string                ` + "`" + `ovs:"str"` + "`" + `
+	UUID      string                ` + "`" + `ovsdb:"_uuid"` + "`" + `
+	EventType AtomicTableEventType  ` + "`" + `ovsdb:"event_type"` + "`" + `
+	Float     float64               ` + "`" + `ovsdb:"float"` + "`" + `
+	Int       int                   ` + "`" + `ovsdb:"int"` + "`" + `
+	Protocol  []AtomicTableProtocol ` + "`" + `ovsdb:"protocol"` + "`" + `
+	Str       string                ` + "`" + `ovsdb:"str"` + "`" + `
 }
 `,
 		},
@@ -104,12 +104,12 @@ const (
 
 // AtomicTable defines an object in atomicTable table
 type AtomicTable struct {
-	UUID      string                ` + "`" + `ovs:"_uuid"` + "`" + `
-	EventType AtomicTableEventType  ` + "`" + `ovs:"event_type"` + "`" + `
-	Float     float64               ` + "`" + `ovs:"float"` + "`" + `
-	Int       int                   ` + "`" + `ovs:"int"` + "`" + `
-	Protocol  []AtomicTableProtocol ` + "`" + `ovs:"protocol"` + "`" + `
-	Str       string                ` + "`" + `ovs:"str"` + "`" + `
+	UUID      string                ` + "`" + `ovsdb:"_uuid"` + "`" + `
+	EventType AtomicTableEventType  ` + "`" + `ovsdb:"event_type"` + "`" + `
+	Float     float64               ` + "`" + `ovsdb:"float"` + "`" + `
+	Int       int                   ` + "`" + `ovsdb:"int"` + "`" + `
+	Protocol  []AtomicTableProtocol ` + "`" + `ovsdb:"protocol"` + "`" + `
+	Str       string                ` + "`" + `ovsdb:"str"` + "`" + `
 
 	OtherUUID      string
 	OtherEventType AtomicTableEventType
@@ -153,12 +153,12 @@ const (
 
 // AtomicTable defines an object in atomicTable table
 type AtomicTable struct {
-	UUID      string                ` + "`" + `ovs:"_uuid"` + "`" + `
-	EventType AtomicTableEventType  ` + "`" + `ovs:"event_type"` + "`" + `
-	Float     float64               ` + "`" + `ovs:"float"` + "`" + `
-	Int       int                   ` + "`" + `ovs:"int"` + "`" + `
-	Protocol  []AtomicTableProtocol ` + "`" + `ovs:"protocol"` + "`" + `
-	Str       string                ` + "`" + `ovs:"str"` + "`" + `
+	UUID      string                ` + "`" + `ovsdb:"_uuid"` + "`" + `
+	EventType AtomicTableEventType  ` + "`" + `ovsdb:"event_type"` + "`" + `
+	Float     float64               ` + "`" + `ovsdb:"float"` + "`" + `
+	Int       int                   ` + "`" + `ovsdb:"int"` + "`" + `
+	Protocol  []AtomicTableProtocol ` + "`" + `ovsdb:"protocol"` + "`" + `
+	Str       string                ` + "`" + `ovsdb:"str"` + "`" + `
 }
 
 func TestFunc() string {
@@ -277,8 +277,8 @@ func TestAtomicType(t *testing.T) {
 }
 
 func TestTag(t *testing.T) {
-	if s := Tag("Foo_Bar"); s != "ovs:\"Foo_Bar\"" {
-		t.Fatalf("got %s, wanted ovs:\"Foo_Bar\"", s)
+	if s := Tag("Foo_Bar"); s != "ovsdb:\"Foo_Bar\"" {
+		t.Fatalf("got %s, wanted ovsdb:\"Foo_Bar\"", s)
 	}
 }
 

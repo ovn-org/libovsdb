@@ -372,7 +372,7 @@ func TestConditionFromModel(t *testing.T) {
 		{
 			name: "wrong condition must fail",
 			model: &struct {
-				a string `ovs:"_uuid"`
+				a string `ovsdb:"_uuid"`
 			}{},
 			conds: []model.Condition{{Field: "foo"}},
 			err:   true,

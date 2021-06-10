@@ -184,17 +184,17 @@ func getOvsTestRow(t *testing.T) ovsdb.Row {
 
 func TestMapperGetData(t *testing.T) {
 	type ormTestType struct {
-		AString             string            `ovs:"aString"`
-		ASet                []string          `ovs:"aSet"`
-		ASingleSet          []string          `ovs:"aSingleSet"`
-		AUUIDSet            []string          `ovs:"aUUIDSet"`
-		AUUID               string            `ovs:"aUUID"`
-		AIntSet             []int             `ovs:"aIntSet"`
-		AFloat              float64           `ovs:"aFloat"`
-		AFloatSet           []float64         `ovs:"aFloatSet"`
-		YetAnotherStringSet []string          `ovs:"aEmptySet"`
-		AEnum               string            `ovs:"aEnum"`
-		AMap                map[string]string `ovs:"aMap"`
+		AString             string            `ovsdb:"aString"`
+		ASet                []string          `ovsdb:"aSet"`
+		ASingleSet          []string          `ovsdb:"aSingleSet"`
+		AUUIDSet            []string          `ovsdb:"aUUIDSet"`
+		AUUID               string            `ovsdb:"aUUID"`
+		AIntSet             []int             `ovsdb:"aIntSet"`
+		AFloat              float64           `ovsdb:"aFloat"`
+		AFloatSet           []float64         `ovsdb:"aFloatSet"`
+		YetAnotherStringSet []string          `ovsdb:"aEmptySet"`
+		AEnum               string            `ovsdb:"aEnum"`
+		AMap                map[string]string `ovsdb:"aMap"`
 		NonTagged           string
 	}
 
@@ -247,7 +247,7 @@ func TestMapperNewRow(t *testing.T) {
 	}{{
 		name: "string",
 		objInput: &struct {
-			AString string `ovs:"aString"`
+			AString string `ovsdb:"aString"`
 		}{
 			AString: aString,
 		},
@@ -255,7 +255,7 @@ func TestMapperNewRow(t *testing.T) {
 	}, {
 		name: "set",
 		objInput: &struct {
-			SomeSet []string `ovs:"aSet"`
+			SomeSet []string `ovsdb:"aSet"`
 		}{
 			SomeSet: aSet,
 		},
@@ -263,7 +263,7 @@ func TestMapperNewRow(t *testing.T) {
 	}, {
 		name: "emptySet with no column specification",
 		objInput: &struct {
-			EmptySet []string `ovs:"aSet"`
+			EmptySet []string `ovsdb:"aSet"`
 		}{
 			EmptySet: []string{},
 		},
@@ -271,7 +271,7 @@ func TestMapperNewRow(t *testing.T) {
 	}, {
 		name: "UUID",
 		objInput: &struct {
-			MyUUID string `ovs:"aUUID"`
+			MyUUID string `ovsdb:"aUUID"`
 		}{
 			MyUUID: aUUID0,
 		},
@@ -279,7 +279,7 @@ func TestMapperNewRow(t *testing.T) {
 	}, {
 		name: "aUUIDSet",
 		objInput: &struct {
-			MyUUIDSet []string `ovs:"aUUIDSet"`
+			MyUUIDSet []string `ovsdb:"aUUIDSet"`
 		}{
 			MyUUIDSet: []string{aUUID0, aUUID1},
 		},
@@ -287,7 +287,7 @@ func TestMapperNewRow(t *testing.T) {
 	}, {
 		name: "aIntSet",
 		objInput: &struct {
-			MyIntSet []int `ovs:"aIntSet"`
+			MyIntSet []int `ovsdb:"aIntSet"`
 		}{
 			MyIntSet: []int{0, 42},
 		},
@@ -295,7 +295,7 @@ func TestMapperNewRow(t *testing.T) {
 	}, {
 		name: "aFloat",
 		objInput: &struct {
-			MyFloat float64 `ovs:"aFloat"`
+			MyFloat float64 `ovsdb:"aFloat"`
 		}{
 			MyFloat: 42.42,
 		},
@@ -303,7 +303,7 @@ func TestMapperNewRow(t *testing.T) {
 	}, {
 		name: "aFloatSet",
 		objInput: &struct {
-			MyFloatSet []float64 `ovs:"aFloatSet"`
+			MyFloatSet []float64 `ovsdb:"aFloatSet"`
 		}{
 			MyFloatSet: aFloatSet,
 		},
@@ -311,7 +311,7 @@ func TestMapperNewRow(t *testing.T) {
 	}, {
 		name: "Enum",
 		objInput: &struct {
-			MyEnum string `ovs:"aEnum"`
+			MyEnum string `ovsdb:"aEnum"`
 		}{
 			MyEnum: aEnum,
 		},
@@ -319,7 +319,7 @@ func TestMapperNewRow(t *testing.T) {
 	}, {
 		name: "untagged fields should not affect row",
 		objInput: &struct {
-			AString string `ovs:"aString"`
+			AString string `ovsdb:"aString"`
 			MyStuff map[string]string
 		}{
 			AString: aString,
@@ -329,7 +329,7 @@ func TestMapperNewRow(t *testing.T) {
 	}, {
 		name: "Maps",
 		objInput: &struct {
-			MyMap map[string]string `ovs:"aMap"`
+			MyMap map[string]string `ovsdb:"aMap"`
 		}{
 			MyMap: aMap,
 		},
@@ -357,10 +357,10 @@ func TestMapperNewRowFields(t *testing.T) {
 	}
 
 	type obj struct {
-		MyMap    map[string]string `ovs:"aMap"`
-		MySet    []string          `ovs:"aSet"`
-		MyString string            `ovs:"aString"`
-		MyFloat  float64           `ovs:"aFloat"`
+		MyMap    map[string]string `ovsdb:"aMap"`
+		MySet    []string          `ovsdb:"aSet"`
+		MyString string            `ovsdb:"aString"`
+		MyFloat  float64           `ovsdb:"aFloat"`
 	}
 	testObj := obj{}
 
@@ -476,11 +476,11 @@ func TestMapperCondition(t *testing.T) {
   }
 }`)
 	type testType struct {
-		ID     string            `ovs:"_uuid"`
-		MyName string            `ovs:"name"`
-		Config map[string]string `ovs:"config"`
-		Comp1  string            `ovs:"composed_1"`
-		Comp2  string            `ovs:"composed_2"`
+		ID     string            `ovsdb:"_uuid"`
+		MyName string            `ovsdb:"name"`
+		Config map[string]string `ovsdb:"config"`
+		Comp1  string            `ovsdb:"composed_1"`
+		Comp2  string            `ovsdb:"composed_2"`
 	}
 
 	var schema ovsdb.DatabaseSchema
@@ -645,13 +645,13 @@ func TestMapperEqualIndexes(t *testing.T) {
   }
 }`)
 	type testType struct {
-		ID     string            `ovs:"_uuid"`
-		MyName string            `ovs:"name"`
-		Config map[string]string `ovs:"config"`
-		Comp1  string            `ovs:"composed_1"`
-		Comp2  string            `ovs:"composed_2"`
-		Int1   int               `ovs:"int1"`
-		Int2   int               `ovs:"int2"`
+		ID     string            `ovsdb:"_uuid"`
+		MyName string            `ovsdb:"name"`
+		Config map[string]string `ovsdb:"config"`
+		Comp1  string            `ovsdb:"composed_1"`
+		Comp2  string            `ovsdb:"composed_2"`
+		Int1   int               `ovsdb:"int1"`
+		Int2   int               `ovsdb:"int2"`
 	}
 
 	var schema ovsdb.DatabaseSchema
@@ -904,12 +904,12 @@ func TestMapperMutation(t *testing.T) {
   }
 }`)
 	type testType struct {
-		UUID      string            `ovs:"_uuid"`
-		String    string            `ovs:"string"`
-		Set       []string          `ovs:"set"`
-		Map       map[string]string `ovs:"map"`
-		Int       int               `ovs:"int"`
-		UnMutable int               `ovs:"unmutable"`
+		UUID      string            `ovsdb:"_uuid"`
+		String    string            `ovsdb:"string"`
+		Set       []string          `ovsdb:"set"`
+		Map       map[string]string `ovsdb:"map"`
+		Int       int               `ovsdb:"int"`
+		UnMutable int               `ovsdb:"unmutable"`
 	}
 
 	var schema ovsdb.DatabaseSchema

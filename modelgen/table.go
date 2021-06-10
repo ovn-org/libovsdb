@@ -234,7 +234,7 @@ func AtomicType(atype string) string {
 
 // Tag returns the Tag string of a column
 func Tag(column string) string {
-	return fmt.Sprintf("ovs:\"%s\"", column)
+	return fmt.Sprintf("ovsdb:\"%s\"", column)
 }
 
 // Filename returns the filename of a table

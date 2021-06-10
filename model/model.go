@@ -17,10 +17,10 @@ import (
 // The Model interface must be implemented by the pointer to such type
 // Example:
 //type MyLogicalRouter struct {
-//	UUID          string            `ovs:"_uuid"`
-//	Name          string            `ovs:"name"`
-//	ExternalIDs   map[string]string `ovs:"external_ids"`
-//	LoadBalancers []string          `ovs:"load_balancer"`
+//	UUID          string            `ovsdb:"_uuid"`
+//	Name          string            `ovsdb:"name"`
+//	ExternalIDs   map[string]string `ovsdb:"external_ids"`
+//	LoadBalancers []string          `ovsdb:"load_balancer"`
 //}
 type Model interface{}
 
@@ -100,7 +100,7 @@ func NewDBModel(name string, models map[string]Model) (*DBModel, error) {
 		}
 		hasUUID := false
 		for i := 0; i < modelType.Elem().NumField(); i++ {
-			if field := modelType.Elem().Field(i); field.Tag.Get("ovs") == "_uuid" &&
+			if field := modelType.Elem().Field(i); field.Tag.Get("ovsdb") == "_uuid" &&
 				field.Type.Kind() == reflect.String {
 				hasUUID = true
 			}
@@ -120,7 +120,7 @@ func NewDBModel(name string, models map[string]Model) (*DBModel, error) {
 func modelSetUUID(model Model, uuid string) error {
 	modelVal := reflect.ValueOf(model).Elem()
 	for i := 0; i < modelVal.NumField(); i++ {
-		if field := modelVal.Type().Field(i); field.Tag.Get("ovs") == "_uuid" &&
+		if field := modelVal.Type().Field(i); field.Tag.Get("ovsdb") == "_uuid" &&
 			field.Type.Kind() == reflect.String {
 			modelVal.Field(i).Set(reflect.ValueOf(uuid))
 			return nil

@@ -16,10 +16,10 @@ It's used mainly for managing the configuration of Open vSwitch and OVN, but it 
 The API to interact with OVSDB is based on tagged golang structs. We call it a Model. e.g:
 
     type MyLogicalSwitch struct {
-        UUID   string            `ovs:"_uuid"` // _uuid tag is mandatory
-        Name   string            `ovs:"name"`
-        Ports  []string          `ovs:"ports"`
-        Config map[string]string `ovs:"other_config"`
+        UUID   string            `ovsdb:"_uuid"` // _uuid tag is mandatory
+        Name   string            `ovsdb:"name"`
+        Ports  []string          `ovsdb:"ports"`
+        Config map[string]string `ovsdb:"other_config"`
     }
 
 A Open vSwitch Database is modeled using a DBModel which is a created by assigning table names to pointers to these structs:
