@@ -8,6 +8,7 @@ import (
 
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewTableTemplate(t *testing.T) {
@@ -191,8 +192,9 @@ WRONG FORMAT
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("Table Test: %s", tt.name), func(t *testing.T) {
 			fakeTable := "atomicTable"
+			tmpl := NewTableTemplate()
 			table := schema.Tables[fakeTable]
-			templ, data := NewTableTemplate(
+			data := GetTableTemplateData(
 				"test",
 				fakeTable,
 				&table,
@@ -201,16 +203,15 @@ WRONG FORMAT
 				assert.NotNil(t, err)
 			} else {
 				if tt.extend != nil {
-					tt.extend(templ, data)
+					tt.extend(tmpl, data)
 				}
-
 				for i := 0; i < 3; i++ {
 					g := NewGenerator(false)
-					b, err := g.Format(templ, data)
+					b, err := g.Format(tmpl, data)
 					if tt.formatErr {
 						assert.NotNil(t, err)
 					} else {
-						assert.Nil(t, err)
+						require.NoError(t, err)
 						assert.Equal(t, tt.expected, string(b))
 					}
 				}
@@ -331,7 +332,8 @@ func ExampleNewTableTemplate() {
 	var schema ovsdb.DatabaseSchema
 	_ = json.Unmarshal(schemaString, &schema)
 
-	base, data := NewTableTemplate("mypackage", "table1", schema.Table("table1"))
+	base := NewTableTemplate()
+	data := GetTableTemplateData("mypackage", "table1", schema.Table("table1"))
 
 	// Add a function at after the struct definition
 	// It can access the default data values plus any extra field that is added to data
