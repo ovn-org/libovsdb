@@ -1,7 +1,6 @@
 package server
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"sync"
@@ -11,10 +10,6 @@ import (
 	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
-)
-
-var (
-	ErrNotImplemented = errors.New("not implemented")
 )
 
 // Database abstracts database operations from ovsdb
@@ -148,7 +143,15 @@ func (db *inMemoryDatabase) Insert(database string, table string, rowUUID string
 
 	// insert in to db
 	if err := targetDb.Table(table).Create(rowUUID, model); err != nil {
-		panic(err)
+		if indexErr, ok := err.(*cache.IndexExistsError); ok {
+			e := ovsdb.ConstraintViolation{}
+			return ovsdb.OperationResult{
+				Error:   e.Error(),
+				Details: indexErr.Error(),
+			}, nil
+		} else {
+			panic(err)
+		}
 	}
 
 	resultRow, err := targetDb.Mapper().NewRow(table, model)
@@ -226,7 +229,16 @@ func (db *inMemoryDatabase) Update(database, table string, where []ovsdb.Conditi
 			panic(err)
 		}
 		if err = targetDb.Table(table).Update(uuid.(string), row); err != nil {
-			panic(err)
+			if indexErr, ok := err.(*cache.IndexExistsError); ok {
+				e := ovsdb.ConstraintViolation{}
+				return ovsdb.OperationResult{
+					Error: e.Error(),
+
+					Details: indexErr.Error(),
+				}, nil
+			} else {
+				panic(err)
+			}
 		}
 		tableUpdate.AddRowUpdate(uuid.(string), &ovsdb.RowUpdate{
 			Old: &oldRow,
@@ -292,7 +304,15 @@ func (db *inMemoryDatabase) Mutate(database, table string, where []ovsdb.Conditi
 			// the field in old has been set, write back to db
 			err = targetDb.Table(table).Update(uuid.(string), old)
 			if err != nil {
-				panic(err)
+				if indexErr, ok := err.(*cache.IndexExistsError); ok {
+					e := ovsdb.ConstraintViolation{}
+					return ovsdb.OperationResult{
+						Error:   e.Error(),
+						Details: indexErr.Error(),
+					}, nil
+				} else {
+					panic(err)
+				}
 			}
 			newRow, err := targetDb.Mapper().NewRow(table, old)
 			if err != nil {
@@ -349,23 +369,28 @@ func (db *inMemoryDatabase) Delete(database, table string, where []ovsdb.Conditi
 }
 
 func (db *inMemoryDatabase) Wait(database, table string, timeout int, conditions []ovsdb.Condition, columns []string, until string, rows []ovsdb.Row) ovsdb.OperationResult {
-	return ovsdb.OperationResult{Error: ErrNotImplemented.Error()}
+	e := ovsdb.NotSupported{}
+	return ovsdb.OperationResult{Error: e.Error()}
 }
 
 func (db *inMemoryDatabase) Commit(database, table string, durable bool) ovsdb.OperationResult {
-	return ovsdb.OperationResult{Error: ErrNotImplemented.Error()}
+	e := ovsdb.NotSupported{}
+	return ovsdb.OperationResult{Error: e.Error()}
 }
 
 func (db *inMemoryDatabase) Abort(database, table string) ovsdb.OperationResult {
-	return ovsdb.OperationResult{Error: ErrNotImplemented.Error()}
+	e := ovsdb.NotSupported{}
+	return ovsdb.OperationResult{Error: e.Error()}
 }
 
 func (db *inMemoryDatabase) Comment(database, table string, comment string) ovsdb.OperationResult {
-	return ovsdb.OperationResult{Error: ErrNotImplemented.Error()}
+	e := ovsdb.NotSupported{}
+	return ovsdb.OperationResult{Error: e.Error()}
 }
 
 func (db *inMemoryDatabase) Assert(database, table, lock string) ovsdb.OperationResult {
-	return ovsdb.OperationResult{Error: ErrNotImplemented.Error()}
+	e := ovsdb.NotSupported{}
+	return ovsdb.OperationResult{Error: e.Error()}
 }
 
 func mutate(current interface{}, mutator ovsdb.Mutator, value interface{}) interface{} {
