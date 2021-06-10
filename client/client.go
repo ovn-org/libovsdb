@@ -40,55 +40,48 @@ func newOvsdbClient() *OvsdbClient {
 
 // Constants defined for libovsdb
 const (
-	defaultTCPAddress  = "127.0.0.1:6640"
-	defaultUnixAddress = "/var/run/openvswitch/ovnnb_db.sock"
-	SSL                = "ssl"
-	TCP                = "tcp"
-	UNIX               = "unix"
+	SSL  = "ssl"
+	TCP  = "tcp"
+	UNIX = "unix"
 )
 
-// Connect to ovn, using endpoint in format ovsdb Connection Methods
-// If address is empty, use default address for specified protocol
-func Connect(ctx context.Context, endpoints string, database *model.DBModel, tlsConfig *tls.Config) (*OvsdbClient, error) {
+// Connect to an OVSDB Server using the provided endpoint in OVSDB Connection Format
+// For more details, see the ovsdb(7) man page
+// The connection can be configured using one or more Option(s), like WithTLSConfig
+// If no WithEndpoint option is supplied, the default of unix:/var/run/openvswitch/ovsdb.sock is used
+func Connect(ctx context.Context, database *model.DBModel, opts ...Option) (*OvsdbClient, error) {
 	var c net.Conn
 	var dialer net.Dialer
 	var err error
 	var u *url.URL
 
-	for _, endpoint := range strings.Split(endpoints, ",") {
+	options, err := newOptions(opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, endpoint := range options.endpoints {
 		if u, err = url.Parse(endpoint); err != nil {
 			return nil, err
 		}
-		// u.Opaque contains the original endPoint with the leading protocol stripped
-		// off. For example: endPoint is "tcp:127.0.0.1:6640" and u.Opaque is "127.0.0.1:6640"
-		host := u.Opaque
-		if len(host) == 0 {
-			host = defaultTCPAddress
-		}
 		switch u.Scheme {
 		case UNIX:
-			path := u.Path
-			if len(path) == 0 {
-				path = defaultUnixAddress
-			}
-			c, err = dialer.DialContext(ctx, u.Scheme, path)
+			c, err = dialer.DialContext(ctx, u.Scheme, u.Path)
 		case TCP:
-			c, err = dialer.DialContext(ctx, u.Scheme, host)
+			c, err = dialer.DialContext(ctx, u.Scheme, u.Opaque)
 		case SSL:
 			dialer := tls.Dialer{
-				Config: tlsConfig,
+				Config: options.tlsConfig,
 			}
-			c, err = dialer.DialContext(ctx, "tcp", host)
+			c, err = dialer.DialContext(ctx, "tcp", u.Opaque)
 		default:
 			err = fmt.Errorf("unknown network protocol %s", u.Scheme)
 		}
-
 		if err == nil {
 			return newRPC2Client(c, database)
 		}
 	}
-
-	return nil, fmt.Errorf("failed to connect to endpoints %q: %v", endpoints, err)
+	return nil, fmt.Errorf("failed to connect to endpoints %q: %v", options.endpoints, err)
 }
 
 func newRPC2Client(conn net.Conn, database *model.DBModel) (*OvsdbClient, error) {

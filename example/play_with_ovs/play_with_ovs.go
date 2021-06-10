@@ -101,12 +101,8 @@ func main() {
 	if err != nil {
 		log.Fatal("Unable to create DB model ", err)
 	}
-	// By default libovsdb connects to 127.0.0.0:6400.
-	ovs, err := client.Connect(context.Background(), *connection, dbmodel, nil)
 
-	// If you prefer to connect to OVS in a specific location :
-	// ovs, err := client.Connect("tcp:192.168.56.101:6640", nil)
-
+	ovs, err := client.Connect(context.Background(), dbmodel, client.WithEndpoint(*connection))
 	if err != nil {
 		log.Fatal("Unable to Connect ", err)
 	}
