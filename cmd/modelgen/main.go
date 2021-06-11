@@ -67,12 +67,14 @@ func main() {
 
 	gen := modelgen.NewGenerator(*dryRun)
 	for name, table := range dbSchema.Tables {
-		template, args := modelgen.NewTableTemplate(pkgName, name, &table)
-		if err := gen.Generate(modelgen.FileName(name), template, args); err != nil {
+		tmpl := modelgen.NewTableTemplate()
+		args := modelgen.GetTableTemplateData(pkgName, name, &table)
+		if err := gen.Generate(modelgen.FileName(name), tmpl, args); err != nil {
 			log.Fatal(err)
 		}
 	}
-	dbTemplate, dbArgs := modelgen.NewDBTemplate(pkgName, &dbSchema)
+	dbTemplate := modelgen.NewDBTemplate()
+	dbArgs := modelgen.GetDBTemplateData(pkgName, &dbSchema)
 	if err := gen.Generate("model.go", dbTemplate, dbArgs); err != nil {
 		log.Fatal(err)
 	}
