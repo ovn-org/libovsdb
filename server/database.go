@@ -149,9 +149,8 @@ func (db *inMemoryDatabase) Insert(database string, table string, rowUUID string
 				Error:   e.Error(),
 				Details: indexErr.Error(),
 			}, nil
-		} else {
-			panic(err)
 		}
+		panic(err)
 	}
 
 	resultRow, err := targetDb.Mapper().NewRow(table, model)
@@ -218,7 +217,7 @@ func (db *inMemoryDatabase) Update(database, table string, where []ovsdb.Conditi
 		}, nil
 	}
 	for _, old := range rows {
-		info, _ := mapper.NewMapperInfo(schema, old)
+		info, _ := mapper.NewInfo(schema, old)
 		uuid, _ := info.FieldByColumn("_uuid")
 		oldRow, err := targetDb.Mapper().NewRow(table, old)
 		if err != nil {
@@ -236,9 +235,8 @@ func (db *inMemoryDatabase) Update(database, table string, where []ovsdb.Conditi
 
 					Details: indexErr.Error(),
 				}, nil
-			} else {
-				panic(err)
 			}
+			panic(err)
 		}
 		tableUpdate.AddRowUpdate(uuid.(string), &ovsdb.RowUpdate{
 			Old: &oldRow,
@@ -271,7 +269,7 @@ func (db *inMemoryDatabase) Mutate(database, table string, where []ovsdb.Conditi
 	}
 
 	for _, old := range rows {
-		info, err := mapper.NewMapperInfo(schema, old)
+		info, err := mapper.NewInfo(schema, old)
 		if err != nil {
 			panic(err)
 		}
@@ -289,7 +287,7 @@ func (db *inMemoryDatabase) Mutate(database, table string, where []ovsdb.Conditi
 			if err := ovsdb.ValidateMutation(column, m.Mutator, nativeValue); err != nil {
 				panic(err)
 			}
-			info, err := mapper.NewMapperInfo(schema, old)
+			info, err := mapper.NewInfo(schema, old)
 			if err != nil {
 				panic(err)
 			}
@@ -310,9 +308,8 @@ func (db *inMemoryDatabase) Mutate(database, table string, where []ovsdb.Conditi
 						Error:   e.Error(),
 						Details: indexErr.Error(),
 					}, nil
-				} else {
-					panic(err)
 				}
+				panic(err)
 			}
 			newRow, err := targetDb.Mapper().NewRow(table, old)
 			if err != nil {
@@ -347,7 +344,7 @@ func (db *inMemoryDatabase) Delete(database, table string, where []ovsdb.Conditi
 		panic(err)
 	}
 	for _, row := range rows {
-		info, _ := mapper.NewMapperInfo(schema, row)
+		info, _ := mapper.NewInfo(schema, row)
 		uuid, _ := info.FieldByColumn("_uuid")
 		oldRow, err := targetDb.Mapper().NewRow(table, row)
 		if err != nil {
@@ -392,154 +389,6 @@ func (db *inMemoryDatabase) Assert(database, table, lock string) ovsdb.Operation
 	e := ovsdb.NotSupported{}
 	return ovsdb.OperationResult{Error: e.Error()}
 }
-
-func mutate(current interface{}, mutator ovsdb.Mutator, value interface{}) interface{} {
-	switch current.(type) {
-	case bool, string:
-		return current
-	}
-	switch mutator {
-	case ovsdb.MutateOperationInsert:
-		switch current.(type) {
-		case int, float64:
-			return current
-		}
-		vc := reflect.ValueOf(current)
-		vv := reflect.ValueOf(value)
-		if vc.Kind() == reflect.Slice && vc.Type() == reflect.SliceOf(vv.Type()) {
-			v := reflect.Append(vc, vv)
-			return v.Interface()
-		}
-		if vc.Kind() == reflect.Slice && vv.Kind() == reflect.Slice {
-			v := reflect.AppendSlice(vc, vv)
-			return v.Interface()
-		}
-	case ovsdb.MutateOperationDelete:
-		switch current.(type) {
-		case int, float64:
-			return current
-		}
-		vc := reflect.ValueOf(current)
-		vv := reflect.ValueOf(value)
-		if vc.Kind() == reflect.Slice && vc.Type() == reflect.SliceOf(vv.Type()) {
-			v := removeFromSlice(vc, vv)
-			return v.Interface()
-		}
-		if vc.Kind() == reflect.Slice && vv.Kind() == reflect.Slice {
-			v := vc
-			for i := 0; i < vv.Len(); i++ {
-				v = removeFromSlice(v, vv.Index(i))
-			}
-			return v.Interface()
-		}
-	case ovsdb.MutateOperationAdd:
-		if i, ok := current.(int); ok {
-			v := value.(int)
-			return i + v
-		}
-		if i, ok := current.(float64); ok {
-			v := value.(float64)
-			return i + v
-		}
-		if is, ok := current.([]int); ok {
-			v := value.(int)
-			for i, j := range is {
-				is[i] = j + v
-			}
-			return is
-		}
-		if is, ok := current.([]float64); ok {
-			v := value.(float64)
-			for i, j := range is {
-				is[i] = j + v
-			}
-			return is
-		}
-	case ovsdb.MutateOperationSubtract:
-		if i, ok := current.(int); ok {
-			v := value.(int)
-			return i - v
-		}
-		if i, ok := current.(float64); ok {
-			v := value.(float64)
-			return i - v
-		}
-		if is, ok := current.([]int); ok {
-			v := value.(int)
-			for i, j := range is {
-				is[i] = j - v
-			}
-			return is
-		}
-		if is, ok := current.([]float64); ok {
-			v := value.(float64)
-			for i, j := range is {
-				is[i] = j - v
-			}
-			return is
-		}
-	case ovsdb.MutateOperationMultiply:
-		if i, ok := current.(int); ok {
-			v := value.(int)
-			return i * v
-		}
-		if i, ok := current.(float64); ok {
-			v := value.(float64)
-			return i * v
-		}
-		if is, ok := current.([]int); ok {
-			v := value.(int)
-			for i, j := range is {
-				is[i] = j * v
-			}
-			return is
-		}
-		if is, ok := current.([]float64); ok {
-			v := value.(float64)
-			for i, j := range is {
-				is[i] = j * v
-			}
-			return is
-		}
-	case ovsdb.MutateOperationDivide:
-		if i, ok := current.(int); ok {
-			v := value.(int)
-			return i / v
-		}
-		if i, ok := current.(float64); ok {
-			v := value.(float64)
-			return i / v
-		}
-		if is, ok := current.([]int); ok {
-			v := value.(int)
-			for i, j := range is {
-				is[i] = j / v
-			}
-			return is
-		}
-		if is, ok := current.([]float64); ok {
-			v := value.(float64)
-			for i, j := range is {
-				is[i] = j / v
-			}
-			return is
-		}
-	case ovsdb.MutateOperationModulo:
-		if i, ok := current.(int); ok {
-			v := value.(int)
-			return i % v
-		}
-		if is, ok := current.([]int); ok {
-			v := value.(int)
-			for i, j := range is {
-				is[i] = j % v
-			}
-			return is
-		}
-	}
-	return current
-}
-
 func removeFromSlice(a, b reflect.Value) reflect.Value {
 	for i := 0; i < a.Len(); i++ {
 		if a.Index(i).Interface() == b.Interface() {

@@ -176,7 +176,7 @@ func (o *OvsdbServer) Cancel(client *rpc2.Client, args []interface{}, reply *[]i
 	return fmt.Errorf("not implemented")
 }
 
-// Monitor montiors a given database table and provides updates to the client via an RPC callback
+// Monitor monitors a given database table and provides updates to the client via an RPC callback
 func (o *OvsdbServer) Monitor(client *rpc2.Client, args []json.RawMessage, reply *ovsdb.TableUpdates) error {
 	var db string
 	if err := json.Unmarshal(args[0], &db); err != nil {
