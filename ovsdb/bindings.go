@@ -65,12 +65,12 @@ func NativeType(column *ColumnSchema) reflect.Type {
 	case TypeEnum:
 		return NativeTypeFromAtomic(column.TypeObj.Key.Type)
 	case TypeMap:
-		kType := NativeTypeFromAtomic(column.TypeObj.Key.Type)
-		vType := NativeTypeFromAtomic(column.TypeObj.Value.Type)
-		return reflect.MapOf(kType, vType)
+		keyType := NativeTypeFromAtomic(column.TypeObj.Key.Type)
+		valueType := NativeTypeFromAtomic(column.TypeObj.Value.Type)
+		return reflect.MapOf(keyType, valueType)
 	case TypeSet:
-		kType := NativeTypeFromAtomic(column.TypeObj.Key.Type)
-		return reflect.SliceOf(kType)
+		keyType := NativeTypeFromAtomic(column.TypeObj.Key.Type)
+		return reflect.SliceOf(keyType)
 	default:
 		panic(fmt.Errorf("unknown extended type %s", column.Type))
 	}

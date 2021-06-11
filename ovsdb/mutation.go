@@ -9,13 +9,20 @@ import (
 type Mutator string
 
 const (
-	MutateOperationDelete   Mutator = "delete"
-	MutateOperationInsert   Mutator = "insert"
-	MutateOperationAdd      Mutator = "+="
+	// MutateOperationDelete is the delete mutator
+	MutateOperationDelete Mutator = "delete"
+	// MutateOperationInsert is the insert mutator
+	MutateOperationInsert Mutator = "insert"
+	// MutateOperationAdd is the add mutator
+	MutateOperationAdd Mutator = "+="
+	// MutateOperationSubtract is the subtract mutator
 	MutateOperationSubtract Mutator = "-="
+	// MutateOperationMultiply is the multiply mutator
 	MutateOperationMultiply Mutator = "*="
-	MutateOperationDivide   Mutator = "/="
-	MutateOperationModulo   Mutator = "%="
+	// MutateOperationDivide is the divide mutator
+	MutateOperationDivide Mutator = "/="
+	// MutateOperationModulo is the modulo mutator
+	MutateOperationModulo Mutator = "%="
 )
 
 // Mutation is described in RFC 7047: 5.1

@@ -9,14 +9,22 @@ import (
 type ConditionFunction string
 
 const (
-	ConditionLessThan           ConditionFunction = "<"
-	ConditionLessThanOrEqual    ConditionFunction = "<="
-	ConditionEqual              ConditionFunction = "=="
-	ConditionNotEqual           ConditionFunction = "!="
-	ConditionGreaterThan        ConditionFunction = ">"
+	// ConditionLessThan is the less than condition
+	ConditionLessThan ConditionFunction = "<"
+	// ConditionLessThanOrEqual is the less than or equal condtion
+	ConditionLessThanOrEqual ConditionFunction = "<="
+	// ConditionEqual is the equal condition
+	ConditionEqual ConditionFunction = "=="
+	// ConditionNotEqual is the not equal condition
+	ConditionNotEqual ConditionFunction = "!="
+	// ConditionGreaterThan is the greater than condition
+	ConditionGreaterThan ConditionFunction = ">"
+	// ConditionGreaterThanOrEqual is the greater than or equal condition
 	ConditionGreaterThanOrEqual ConditionFunction = ">="
-	ConditionIncludes           ConditionFunction = "includes"
-	ConditionExcludes           ConditionFunction = "excludes"
+	// ConditionIncludes is the indcludes condition
+	ConditionIncludes ConditionFunction = "includes"
+	// ConditionExcludes is the excludes condition
+	ConditionExcludes ConditionFunction = "excludes"
 )
 
 // Condition is described in RFC 7047: 5.1

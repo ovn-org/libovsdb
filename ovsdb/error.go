@@ -130,7 +130,7 @@ func (e *ConstraintViolation) Operation() *Operation {
 	return e.operation
 }
 
-// ResourcesExhasued is described in RFC 7047: 4.1.3
+// ResourcesExhausted is described in RFC 7047: 4.1.3
 type ResourcesExhausted struct {
 	details   string
 	operation *Operation
@@ -270,7 +270,7 @@ func (e *NotSupported) Operation() *Operation {
 	return e.operation
 }
 
-// ABorted is described in RFC 7047: 5.2.8
+// Aborted is described in RFC 7047: 5.2.8
 type Aborted struct {
 	details   string
 	operation *Operation

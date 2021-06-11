@@ -129,7 +129,7 @@ type RefType = string
 // unlimited is not constant as we can't take the address of int constants
 var (
 	// Unlimited is used to express unlimited "Max"
-	Unlimited int = -1
+	Unlimited = -1
 )
 
 const (
@@ -206,8 +206,8 @@ func (b *BaseType) MaxReal() (float64, error) {
 	return math.MaxFloat64, nil
 }
 
-// MinInteger returns the minimum real value
-// RFC7047 species the minimum to be -2^63
+// MinInteger returns the minimum integer value
+// RFC7047 specifies the minimum to be -2^63
 func (b *BaseType) MinInteger() (int, error) {
 	if b.Type != TypeInteger {
 		return 0, fmt.Errorf("%s is not an integer", b.Type)
@@ -218,8 +218,8 @@ func (b *BaseType) MinInteger() (int, error) {
 	return int(math.Pow(-2, 63)), nil
 }
 
-// MinInteger returns the minimum real value
-// RFC7047 species the minimum to be 2^63-1
+// MaxInteger returns the minimum integer value
+// RFC7047 specifies the minimum to be 2^63-1
 func (b *BaseType) MaxInteger() (int, error) {
 	if b.Type != TypeInteger {
 		return 0, fmt.Errorf("%s is not an integer", b.Type)

@@ -288,7 +288,7 @@ func (m Mapper) NewCondition(tableName string, data interface{}, field interface
 
 }
 
-// newMutation creates a RFC7047 mutation object based on an ORM object and the mutation fields (in native format)
+// NewMutation creates a RFC7047 mutation object based on an ORM object and the mutation fields (in native format)
 // It takes care of field validation against the column type
 func (m Mapper) NewMutation(tableName string, data interface{}, column string, mutator ovsdb.Mutator, value interface{}) (*ovsdb.Mutation, error) {
 	table := m.Schema.Table(tableName)

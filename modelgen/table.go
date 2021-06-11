@@ -204,7 +204,7 @@ func FieldEnum(tableName, columnName string, column *ovsdb.ColumnSchema) *Enum {
 	}
 }
 
-// BasicType returns the string type of an AtomicType
+// AtomicType returns the string type of an AtomicType
 func AtomicType(atype string) string {
 	switch atype {
 	case ovsdb.TypeInteger:
@@ -226,7 +226,7 @@ func Tag(column string) string {
 	return fmt.Sprintf("ovsdb:\"%s\"", column)
 }
 
-// Filename returns the filename of a table
+// FileName returns the filename of a table
 func FileName(table string) string {
 	return fmt.Sprintf("%s.go", strings.ToLower(table))
 }

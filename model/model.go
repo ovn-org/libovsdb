@@ -40,7 +40,7 @@ func (db DBModel) NewModel(table string) (Model, error) {
 	return model.Interface().(Model), nil
 }
 
-// GetTypes returns the DBModel Types
+// Types returns the DBModel Types
 // the DBModel types is a map of reflect.Types indexed by string
 // The reflect.Type is a pointer to a struct that contains 'ovs' tags
 // as described above. Such pointer to struct also implements the Model interface

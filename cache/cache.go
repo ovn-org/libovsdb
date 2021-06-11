@@ -588,7 +588,7 @@ func (e *eventProcessor) Run(stopCh <-chan struct{}) {
 	}
 }
 
-// createModel creates a new Model instance based on the Row information
+// CreateModel creates a new Model instance based on the Row information
 func (t *TableCache) CreateModel(tableName string, row *ovsdb.Row, uuid string) (model.Model, error) {
 	table := t.mapper.Schema.Table(tableName)
 	if table == nil {
