@@ -1,7 +1,7 @@
 libovsdb
 ========
 
-[![libovsb-ci](https://github.com/ovn-org/libovsdb/actions/workflows/ci.yml/badge.svg)](https://github.com/ovn-org/libovsdb/actions/workflows/ci.yml) [![Coverage Status](https://coveralls.io/repos/github/ovn-org/libovsdb/badge.svg?branch=main)](https://coveralls.io/github/ovn-org/libovsdb?branch=main)
+[![libovsb-ci](https://github.com/ovn-org/libovsdb/actions/workflows/ci.yml/badge.svg)](https://github.com/ovn-org/libovsdb/actions/workflows/ci.yml) [![Coverage Status](https://coveralls.io/repos/github/ovn-org/libovsdb/badge.svg?branch=main)](https://coveralls.io/github/ovn-org/libovsdb?branch=main) [![Go Report Card](https://goreportcard.com/badge/github.com/ovn-org/libovsdb)](https://goreportcard.com/report/github.com/ovn-org/libovsdb)
 
 An OVSDB Library written in Go
 
