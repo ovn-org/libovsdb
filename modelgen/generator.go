@@ -46,14 +46,12 @@ func (g *generator) Generate(filename string, tmpl *template.Template, args inte
 		log.Print(string(src))
 		fmt.Print("\n")
 		return nil
-	} else {
-		content, err := ioutil.ReadFile(filename)
-		if err == nil && bytes.Equal(content, src) {
-			return nil
-		} else {
-			return ioutil.WriteFile(filename, src, 0644)
-		}
 	}
+	content, err := ioutil.ReadFile(filename)
+	if err == nil && bytes.Equal(content, src) {
+		return nil
+	}
+	return ioutil.WriteFile(filename, src, 0644)
 }
 
 // NewGenerator returns a new Generator

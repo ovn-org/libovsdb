@@ -224,17 +224,17 @@ func (a api) Get(m model.Model) error {
 	}
 
 	// If model contains _uuid value, we can access it via cache index
-	mapperInfo, err := mapper.NewMapperInfo(a.cache.Mapper().Schema.Table(table), m)
+	mapperInfo, err := mapper.NewInfo(a.cache.Mapper().Schema.Table(table), m)
 	if err != nil {
 		return err
 	}
 	if uuid, err := mapperInfo.FieldByColumn("_uuid"); err != nil && uuid != nil {
-		if found := tableCache.Row(uuid.(string)); found == nil {
+		found := tableCache.Row(uuid.(string))
+		if found == nil {
 			return ErrNotFound
-		} else {
-			reflect.ValueOf(m).Elem().Set(reflect.Indirect(reflect.ValueOf(found)))
-			return nil
 		}
+		reflect.ValueOf(m).Elem().Set(reflect.Indirect(reflect.ValueOf(found)))
+		return nil
 	}
 
 	// Look across the entire cache for table index equality
@@ -269,7 +269,7 @@ func (a api) Create(models ...model.Model) ([]ovsdb.Operation, error) {
 		table := a.cache.Mapper().Schema.Table(tableName)
 
 		// Read _uuid field, and use it as named-uuid
-		info, err := mapper.NewMapperInfo(table, model)
+		info, err := mapper.NewInfo(table, model)
 		if err != nil {
 			return nil, err
 		}
@@ -314,7 +314,7 @@ func (a api) Mutate(model model.Model, mutationObjs ...model.Mutation) ([]ovsdb.
 		return nil, err
 	}
 
-	info, err := mapper.NewMapperInfo(table, model)
+	info, err := mapper.NewInfo(table, model)
 	if err != nil {
 		return nil, err
 	}

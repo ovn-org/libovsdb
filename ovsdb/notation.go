@@ -77,12 +77,6 @@ type MonitorRequest struct {
 	Select  *MonitorSelect `json:"select,omitempty"`
 }
 
-// OvsdbError is an OVS Error Condition
-type OvsdbError struct {
-	Error   string `json:"error"`
-	Details string `json:"details,omitempty"`
-}
-
 // TransactResponse represents the response to a Transact Operation
 type TransactResponse struct {
 	Result []OperationResult `json:"result"`

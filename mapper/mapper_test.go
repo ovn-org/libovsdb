@@ -859,7 +859,7 @@ func TestMapperEqualIndexes(t *testing.T) {
 	eq, err := mapper.EqualFields("TestTable", &obj1, &obj2, &obj1.Int1, &obj1.Int2)
 	assert.Nil(t, err)
 	assert.True(t, eq)
-	// Useing pointers to second value is not supported
+	// Using pointers to second value is not supported
 	_, err = mapper.EqualFields("TestTable", &obj1, &obj2, &obj2.Int1, &obj2.Int2)
 	assert.NotNil(t, err)
 

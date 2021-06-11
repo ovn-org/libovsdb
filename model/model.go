@@ -83,7 +83,7 @@ func (db DBModel) Validate(schema *ovsdb.DatabaseSchema) []error {
 			errors = append(errors, err)
 			continue
 		}
-		if _, err := mapper.NewMapperInfo(tableSchema, model); err != nil {
+		if _, err := mapper.NewInfo(tableSchema, model); err != nil {
 			errors = append(errors, err)
 		}
 	}

@@ -69,7 +69,7 @@ func TestNewModel(t *testing.T) {
 	assert.NotNilf(t, err, "Creating model from unknown table should fail")
 	model, err := db.NewModel("Test_A")
 	assert.Nilf(t, err, "Creating model from valid table should succeed")
-	assert.IsTypef(t, model, &modelA{}, "model creation should return the apropriate type")
+	assert.IsTypef(t, model, &modelA{}, "model creation should return the appropriate type")
 }
 
 func TestSetUUID(t *testing.T) {

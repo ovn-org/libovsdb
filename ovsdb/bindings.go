@@ -48,7 +48,7 @@ func NativeTypeFromAtomic(basicType string) reflect.Type {
 	case TypeUUID:
 		return strType
 	default:
-		panic("Unkown basic type %s basicType")
+		panic("Unknown basic type %s basicType")
 	}
 }
 
@@ -247,7 +247,7 @@ func validateMutationAtomic(atype string, mutator Mutator, value interface{}) er
 	}
 }
 
-// ValidateMutation checks if the mutation value and mutator string area apropriate
+// ValidateMutation checks if the mutation value and mutator string area appropriate
 // for a given column based on the rules specified RFC7047
 func ValidateMutation(column *ColumnSchema, mutator Mutator, value interface{}) error {
 	if !column.Mutable() {

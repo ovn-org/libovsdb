@@ -146,7 +146,7 @@ func newRPC2Client(conn net.Conn, database *model.DBModel) (*OvsdbClient, error)
 	return ovs, nil
 }
 
-// Register registers the supplied NotificationHandler to recieve OVSDB Notifications
+// Register registers the supplied NotificationHandler to receive OVSDB Notifications
 func (ovs *OvsdbClient) Register(handler ovsdb.NotificationHandler) {
 	ovs.handlersMutex.Lock()
 	defer ovs.handlersMutex.Unlock()
@@ -163,7 +163,7 @@ func getHandlerIndex(handler ovsdb.NotificationHandler, handlers []ovsdb.Notific
 	return -1, fmt.Errorf("handler not found")
 }
 
-// Unregister the supplied NotificationHandler to not recieve OVSDB Notifications anymore
+// Unregister the supplied NotificationHandler to not receive OVSDB Notifications anymore
 func (ovs *OvsdbClient) Unregister(handler ovsdb.NotificationHandler) error {
 	ovs.handlersMutex.Lock()
 	defer ovs.handlersMutex.Unlock()
@@ -339,7 +339,7 @@ func (ovs OvsdbClient) Disconnect() {
 // We add this wrapper to allow users to access the API directly on the
 // client object
 
-// Ensure client implementes API
+// Ensure client implements API
 var _ API = OvsdbClient{}
 
 //Get implements the API interface's Get function
@@ -347,7 +347,7 @@ func (ovs OvsdbClient) Get(model model.Model) error {
 	return ovs.api.Get(model)
 }
 
-//Create implementes the API interface's Create function
+//Create implements the API interface's Create function
 func (ovs OvsdbClient) Create(models ...model.Model) ([]ovsdb.Operation, error) {
 	return ovs.api.Create(models...)
 }

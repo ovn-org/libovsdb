@@ -41,7 +41,7 @@ func TestEqualityConditional(t *testing.T) {
 	for i := range lspcacheList {
 		lspcache[lspcacheList[i].(*testLogicalSwitchPort).UUID] = lspcacheList[i]
 	}
-	testData := cache.CacheData{
+	testData := cache.Data{
 		"Logical_Switch_Port": lspcache,
 	}
 	tcache := apiTestCache(t, testData)
@@ -181,7 +181,7 @@ func TestPredicateConditional(t *testing.T) {
 	for i := range lspcacheList {
 		lspcache[lspcacheList[i].(*testLogicalSwitchPort).UUID] = lspcacheList[i]
 	}
-	testData := cache.CacheData{
+	testData := cache.Data{
 		"Logical_Switch_Port": lspcache,
 	}
 	tcache := apiTestCache(t, testData)
@@ -290,7 +290,7 @@ func TestExplicitConditional(t *testing.T) {
 	for i := range lspcacheList {
 		lspcache[lspcacheList[i].(*testLogicalSwitchPort).UUID] = lspcacheList[i]
 	}
-	testData := cache.CacheData{
+	testData := cache.Data{
 		"Logical_Switch_Port": lspcache,
 	}
 	tcache := apiTestCache(t, testData)

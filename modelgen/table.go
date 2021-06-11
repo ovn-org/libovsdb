@@ -10,7 +10,7 @@ import (
 )
 
 // NewTableTemplate returns a new table template
-// It includes the following other templates that can be overriden to customize the generated file
+// It includes the following other templates that can be overridden to customize the generated file
 // "header"
 // "preStructDefinitions"
 // "structComment"
@@ -161,9 +161,8 @@ func fieldType(tableName, columnName string, column *ovsdb.ColumnSchema, enumTyp
 	case ovsdb.TypeEnum:
 		if enumTypes {
 			return enumName(tableName, columnName)
-		} else {
-			return AtomicType(column.TypeObj.Key.Type)
 		}
+		return AtomicType(column.TypeObj.Key.Type)
 	case ovsdb.TypeMap:
 		return fmt.Sprintf("map[%s]%s", AtomicType(column.TypeObj.Key.Type),
 			AtomicType(column.TypeObj.Value.Type))

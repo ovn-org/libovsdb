@@ -76,7 +76,7 @@ func (m Mapper) getData(tableName string, ovsData ovsdb.Row, result interface{})
 		return newErrNoTable(tableName)
 	}
 
-	mapperInfo, err := NewMapperInfo(table, result)
+	mapperInfo, err := NewInfo(table, result)
 	if err != nil {
 		return err
 	}
@@ -114,7 +114,7 @@ func (m Mapper) NewRow(tableName string, data interface{}, fields ...interface{}
 	if table == nil {
 		return nil, newErrNoTable(tableName)
 	}
-	mapperInfo, err := NewMapperInfo(table, data)
+	mapperInfo, err := NewInfo(table, data)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +178,7 @@ func (m Mapper) NewEqualityCondition(tableName string, data interface{}, fields 
 		return nil, newErrNoTable(tableName)
 	}
 
-	mapperInfo, err := NewMapperInfo(table, data)
+	mapperInfo, err := NewInfo(table, data)
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +237,7 @@ func (m Mapper) EqualFields(tableName string, one, other interface{}, fields ...
 		return false, newErrNoTable(tableName)
 	}
 
-	info, err := NewMapperInfo(table, one)
+	info, err := NewInfo(table, one)
 	if err != nil {
 		return false, err
 	}
@@ -258,7 +258,7 @@ func (m Mapper) NewCondition(tableName string, data interface{}, field interface
 		return nil, newErrNoTable(tableName)
 	}
 
-	info, err := NewMapperInfo(table, data)
+	info, err := NewInfo(table, data)
 	if err != nil {
 		return nil, err
 	}
@@ -296,7 +296,7 @@ func (m Mapper) NewMutation(tableName string, data interface{}, column string, m
 		return nil, newErrNoTable(tableName)
 	}
 
-	mapperInfo, err := NewMapperInfo(table, data)
+	mapperInfo, err := NewInfo(table, data)
 	if err != nil {
 		return nil, err
 	}
@@ -341,11 +341,11 @@ func (m Mapper) NewMutation(tableName string, data interface{}, column string, m
 func (m Mapper) equalIndexes(table *ovsdb.TableSchema, one, other interface{}, indexes ...string) (bool, error) {
 	match := false
 
-	oneMapperInfo, err := NewMapperInfo(table, one)
+	oneMapperInfo, err := NewInfo(table, one)
 	if err != nil {
 		return false, err
 	}
-	otherMapperInfo, err := NewMapperInfo(table, other)
+	otherMapperInfo, err := NewInfo(table, other)
 	if err != nil {
 		return false, err
 	}

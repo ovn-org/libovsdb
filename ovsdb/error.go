@@ -62,7 +62,7 @@ func errorFromResult(op *Operation, r OperationResult) OperationError {
 func CheckOperationResults(result []OperationResult, ops []Operation) ([]OperationError, error) {
 	// this shouldn't happen, but we'll cover the case to be certain
 	if len(result) < len(ops) {
-		return nil, fmt.Errorf("ovsdb transaction error. %d operations submitted but only %d results recieved", len(ops), len(result))
+		return nil, fmt.Errorf("ovsdb transaction error. %d operations submitted but only %d results received", len(ops), len(result))
 	}
 	var errs []OperationError
 	for i, op := range result {
@@ -86,7 +86,7 @@ func CheckOperationResults(result []OperationResult, ops []Operation) ([]Operati
 // OVSDB Operation
 type OperationError interface {
 	error
-	// Operation is a pointer to the operation which casued the error
+	// Operation is a pointer to the operation which caused the error
 	Operation() *Operation
 }
 

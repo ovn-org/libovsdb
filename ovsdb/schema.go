@@ -503,7 +503,7 @@ func (c *ColumnSchema) Ephemeral() bool {
 }
 
 // UnmarshalJSON unmarshalls a json-formatted column
-func (column *ColumnSchema) UnmarshalJSON(data []byte) error {
+func (c *ColumnSchema) UnmarshalJSON(data []byte) error {
 	// ColumnJSON represents the known json values for a Column
 	var colJSON struct {
 		Type      *ColumnType `json:"type"`
@@ -516,62 +516,62 @@ func (column *ColumnSchema) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("cannot parse column object %s", err)
 	}
 
-	column.ephemeral = colJSON.Ephemeral
-	column.mutable = colJSON.Mutable
-	column.TypeObj = colJSON.Type
+	c.ephemeral = colJSON.Ephemeral
+	c.mutable = colJSON.Mutable
+	c.TypeObj = colJSON.Type
 
 	// Infer the ExtendedType from the TypeObj
-	if column.TypeObj.Value != nil {
-		column.Type = TypeMap
-	} else if column.TypeObj.Min() != 1 || column.TypeObj.Max() != 1 {
-		column.Type = TypeSet
-	} else if len(column.TypeObj.Key.Enum) > 0 {
-		column.Type = TypeEnum
+	if c.TypeObj.Value != nil {
+		c.Type = TypeMap
+	} else if c.TypeObj.Min() != 1 || c.TypeObj.Max() != 1 {
+		c.Type = TypeSet
+	} else if len(c.TypeObj.Key.Enum) > 0 {
+		c.Type = TypeEnum
 	} else {
-		column.Type = column.TypeObj.Key.Type
+		c.Type = c.TypeObj.Key.Type
 	}
 	return nil
 }
 
 // MarshalJSON marshalls a column schema to JSON
-func (column ColumnSchema) MarshalJSON() ([]byte, error) {
+func (c ColumnSchema) MarshalJSON() ([]byte, error) {
 	type colJSON struct {
 		Type      *ColumnType `json:"type"`
 		Ephemeral *bool       `json:"ephemeral,omitempty"`
 		Mutable   *bool       `json:"mutable,omitempty"`
 	}
-	c := colJSON{
-		Type:      column.TypeObj,
-		Ephemeral: column.ephemeral,
-		Mutable:   column.mutable,
+	column := colJSON{
+		Type:      c.TypeObj,
+		Ephemeral: c.ephemeral,
+		Mutable:   c.mutable,
 	}
-	return json.Marshal(c)
+	return json.Marshal(column)
 }
 
 // String returns a string representation of the (native) column type
-func (column *ColumnSchema) String() string {
+func (c *ColumnSchema) String() string {
 	var flags []string
 	var flagStr string
 	var typeStr string
-	if column.Ephemeral() {
+	if c.Ephemeral() {
 		flags = append(flags, "E")
 	}
-	if column.Mutable() {
+	if c.Mutable() {
 		flags = append(flags, "M")
 	}
 	if len(flags) > 0 {
 		flagStr = fmt.Sprintf("[%s]", strings.Join(flags, ","))
 	}
 
-	switch column.Type {
+	switch c.Type {
 	case TypeInteger, TypeReal, TypeBoolean, TypeString:
-		typeStr = string(column.Type)
+		typeStr = string(c.Type)
 	case TypeUUID:
-		if column.TypeObj != nil && column.TypeObj.Key != nil {
+		if c.TypeObj != nil && c.TypeObj.Key != nil {
 			// ignore err as we've already asserted this is a uuid
-			reftable, _ := column.TypeObj.Key.RefTable()
+			reftable, _ := c.TypeObj.Key.RefTable()
 			reftype := ""
-			if s, err := column.TypeObj.Key.RefType(); err != nil {
+			if s, err := c.TypeObj.Key.RefType(); err != nil {
 				reftype = s
 			}
 			typeStr = fmt.Sprintf("uuid [%s (%s)]", reftable, reftype)
@@ -580,22 +580,22 @@ func (column *ColumnSchema) String() string {
 		}
 
 	case TypeEnum:
-		typeStr = fmt.Sprintf("enum (type: %s): %v", column.TypeObj.Key.Type, column.TypeObj.Key.Enum)
+		typeStr = fmt.Sprintf("enum (type: %s): %v", c.TypeObj.Key.Type, c.TypeObj.Key.Enum)
 	case TypeMap:
-		typeStr = fmt.Sprintf("[%s]%s", column.TypeObj.Key.Type, column.TypeObj.Value.Type)
+		typeStr = fmt.Sprintf("[%s]%s", c.TypeObj.Key.Type, c.TypeObj.Value.Type)
 	case TypeSet:
 		var keyStr string
-		if column.TypeObj.Key.Type == TypeUUID {
+		if c.TypeObj.Key.Type == TypeUUID {
 			// ignore err as we've already asserted this is a uuid
-			reftable, _ := column.TypeObj.Key.RefTable()
-			reftype, _ := column.TypeObj.Key.RefType()
+			reftable, _ := c.TypeObj.Key.RefTable()
+			reftype, _ := c.TypeObj.Key.RefType()
 			keyStr = fmt.Sprintf(" [%s (%s)]", reftable, reftype)
 		} else {
-			keyStr = string(column.TypeObj.Key.Type)
+			keyStr = string(c.TypeObj.Key.Type)
 		}
-		typeStr = fmt.Sprintf("[]%s (min: %d, max: %d)", keyStr, column.TypeObj.Min(), column.TypeObj.Max())
+		typeStr = fmt.Sprintf("[]%s (min: %d, max: %d)", keyStr, c.TypeObj.Min(), c.TypeObj.Max())
 	default:
-		panic(fmt.Sprintf("Unsupported type %s", column.Type))
+		panic(fmt.Sprintf("Unsupported type %s", c.Type))
 	}
 
 	return strings.Join([]string{typeStr, flagStr}, " ")
