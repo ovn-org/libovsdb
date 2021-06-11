@@ -18,11 +18,20 @@ import (
 // "extraTags"
 // "postStructDefinitions"
 // It is design to be used with a map[string] interface and some defined keys (see GetTableTemplateData)
+// In addition, the following functions can be used within the template:
+// "PrintVal": prints a field value
+// "FieldName": prints the name of a field based on its column
+// "FieldType": prints the field name based on its column and schema
+// "FieldTypeWithEnums": same as FieldType but with enum type expansion
+// "OvsdbTag": prints the ovsdb tag
 func NewTableTemplate() *template.Template {
 	return template.Must(template.New("").Funcs(
 		template.FuncMap{
-			"printVal":  printVal,
-			"camelCase": camelCase,
+			"PrintVal":           printVal,
+			"FieldName":          FieldName,
+			"FieldType":          FieldType,
+			"FieldTypeWithEnums": FieldTypeWithEnums,
+			"OvsdbTag":           Tag,
 		},
 	).Parse(`
 {{- define "header" }}
@@ -38,6 +47,7 @@ func NewTableTemplate() *template.Template {
 {{ template "header" . }}
 {{ define "postStructDefinitions" }}{{ end }}
 {{ define "enums" }}
+{{ if index . "WithEnumTypes" }}
 {{ if index . "Enums" }}
 type (
 {{ range index . "Enums" }}
@@ -49,18 +59,25 @@ const (
 {{ range  index . "Enums" }}
 {{- $e := . }}
 {{- range .Sets }}
-{{ $e.Alias }}{{ camelCase . }} {{ $e.Alias }} = {{ printVal . $e.Type }}
+{{ $e.Alias }}{{ FieldName . }} {{ $e.Alias }} = {{ PrintVal . $e.Type }}
 {{- end }}
 {{- end }}
 )
-{{ end }}
-{{ end }}
+{{- end }}
+{{- end }}
+{{- end }}
 package {{ index . "PackageName" }}
 {{ template "preStructDefinitions" }}
 {{ template "enums" . }}
 {{ template "structComment" . }}
 type {{ index . "StructName" }} struct {
-{{ range index . "Fields" }}	{{ .Name }}  {{ .Type }} ` + "`" + `{{ .Tag }}{{ template "extraTags" . }}` + "`" + `
+{{- $tableName := index . "TableName" }}
+{{ if index . "WithEnumTypes" }}
+{{ range $field := index . "Fields" }}	{{ FieldName $field.Column }}  {{ FieldTypeWithEnums $tableName $field.Column $field.Schema }} ` + "`" + `{{ OvsdbTag $field.Column }}{{ template "extraTags" . }}` + "`" + `
+{{ end }}
+{{ else }}
+{{ range  $field := index . "Fields" }}	{{ FieldName $field.Column }}  {{ FieldType $tableName $field.Column $field.Schema }} ` + "`" + `{{ OvsdbTag $field.Column }}{{ template "extraTags" . }}` + "`" + `
+{{ end }}
 {{ end }}
 {{ template "extraFields" . }}
 }
@@ -79,9 +96,17 @@ type Enum struct {
 // Field represents the field information
 type Field struct {
 	Column string
-	Name   string
-	Type   string
-	Tag    string
+	Schema *ovsdb.ColumnSchema
+}
+
+// TableTemplateData represents the data used by the Table Template
+type TableTemplateData map[string]interface{}
+
+// WithEnumTypes configures whether the Template should expand enum types or not
+// Enum expansion (true by default) makes the template define an type alias for each enum type
+// and a const for each possible enum value
+func (t TableTemplateData) WithEnumTypes(val bool) {
+	t["WithEnumTypes"] = val
 }
 
 // GetTableTemplateData returns the TableTemplateData map. It has the following keys:
@@ -89,22 +114,13 @@ type Field struct {
 // PackageName : (string) the package name
 // StructName: (string) the struct name
 // Fields: []Field a list of Fields that the struct has
-func GetTableTemplateData(pkg, name string, table *ovsdb.TableSchema) map[string]interface{} {
+func GetTableTemplateData(pkg, name string, table *ovsdb.TableSchema) TableTemplateData {
 	data := map[string]interface{}{}
 	data["TableName"] = name
 	data["PackageName"] = pkg
 	data["StructName"] = StructName(name)
 	Fields := []Field{}
 	Enums := []Enum{}
-
-	// First, add UUID
-	Fields = append(Fields,
-		Field{
-			Column: "_uuid",
-			Name:   "UUID",
-			Type:   "string",
-			Tag:    Tag("_uuid"),
-		})
 
 	// Map iteration order is random, so for predictable generation
 	// lets sort fields by name
@@ -114,13 +130,11 @@ func GetTableTemplateData(pkg, name string, table *ovsdb.TableSchema) map[string
 	}
 	order.Sort()
 
-	for _, columnName := range order {
-		columnSchema := table.Columns[columnName]
+	for _, columnName := range append([]string{"_uuid"}, order...) {
+		columnSchema := table.Column(columnName)
 		Fields = append(Fields, Field{
 			Column: columnName,
-			Name:   FieldName(columnName),
-			Type:   FieldType(name, columnName, columnSchema),
-			Tag:    Tag(columnName),
+			Schema: columnSchema,
 		})
 		if enum := FieldEnum(name, columnName, columnSchema); enum != nil {
 			Enums = append(Enums, *enum)
@@ -128,12 +142,13 @@ func GetTableTemplateData(pkg, name string, table *ovsdb.TableSchema) map[string
 	}
 	data["Fields"] = Fields
 	data["Enums"] = Enums
+	data["WithEnumTypes"] = true
 	return data
 }
 
 // FieldName returns the name of a column field
 func FieldName(column string) string {
-	return camelCase(column)
+	return camelCase(strings.Trim(column, "_"))
 }
 
 // StructName returns the name of the table struct
@@ -141,22 +156,20 @@ func StructName(tableName string) string {
 	return strings.Title(strings.ReplaceAll(tableName, "_", ""))
 }
 
-// EnumName returns the name of the enum field
-func EnumName(tableName, columnName string) string {
-	return strings.Title(StructName(tableName)) + camelCase(columnName)
-}
-
-// FieldType returns the string representation of a column type
-func FieldType(tableName, columnName string, column *ovsdb.ColumnSchema) string {
+func fieldType(tableName, columnName string, column *ovsdb.ColumnSchema, enumTypes bool) string {
 	switch column.Type {
 	case ovsdb.TypeEnum:
-		return EnumName(tableName, columnName)
+		if enumTypes {
+			return enumName(tableName, columnName)
+		} else {
+			return AtomicType(column.TypeObj.Key.Type)
+		}
 	case ovsdb.TypeMap:
 		return fmt.Sprintf("map[%s]%s", AtomicType(column.TypeObj.Key.Type),
 			AtomicType(column.TypeObj.Value.Type))
 	case ovsdb.TypeSet:
-		if FieldEnum(tableName, columnName, column) != nil {
-			return fmt.Sprintf("[]%s", EnumName(tableName, columnName))
+		if enumTypes && FieldEnum(tableName, columnName, column) != nil {
+			return fmt.Sprintf("[]%s", enumName(tableName, columnName))
 		}
 		return fmt.Sprintf("[]%s", AtomicType(column.TypeObj.Key.Type))
 	default:
@@ -164,14 +177,30 @@ func FieldType(tableName, columnName string, column *ovsdb.ColumnSchema) string 
 	}
 }
 
+// EnumName returns the name of the enum field
+func enumName(tableName, columnName string) string {
+	return strings.Title(StructName(tableName)) + camelCase(columnName)
+}
+
+// FieldType returns the string representation of a column type without enum types expansion
+func FieldType(tableName, columnName string, column *ovsdb.ColumnSchema) string {
+	return fieldType(tableName, columnName, column, false)
+}
+
+// FieldTypeWithEnums returns the string representation of a column type where Enums
+// are expanded into their own types
+func FieldTypeWithEnums(tableName, columnName string, column *ovsdb.ColumnSchema) string {
+	return fieldType(tableName, columnName, column, true)
+}
+
 // FieldEnum returns the Enum if the column is an enum type
 func FieldEnum(tableName, columnName string, column *ovsdb.ColumnSchema) *Enum {
-	if column.TypeObj.Key.Enum == nil {
+	if column.TypeObj == nil || column.TypeObj.Key.Enum == nil {
 		return nil
 	}
 	return &Enum{
 		Type:  column.TypeObj.Key.Type,
-		Alias: EnumName(tableName, columnName),
+		Alias: enumName(tableName, columnName),
 		Sets:  column.TypeObj.Key.Enum,
 	}
 }
