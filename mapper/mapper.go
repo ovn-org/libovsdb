@@ -107,7 +107,7 @@ func (m Mapper) getData(tableName string, ovsData ovsdb.Row, result interface{})
 }
 
 // NewRow transforms an orm struct to a map[string] interface{} that can be used as libovsdb.Row
-// By default, default or null values are skipped. This behaviour can be modified by specifying
+// By default, default or null values are skipped. This behavior can be modified by specifying
 // a list of fields (pointers to fields in the struct) to be added to the row
 func (m Mapper) NewRow(tableName string, data interface{}, fields ...interface{}) (ovsdb.Row, error) {
 	table := m.Schema.Table(tableName)
@@ -165,7 +165,7 @@ func (m Mapper) NewRow(tableName string, data interface{}, fields ...interface{}
 // A list of valid columns that shall be used as a index can be provided.
 // If none are provided, we will try to use object's field that matches the '_uuid' ovsdb tag
 // If it does not exist or is null (""), then we will traverse all of the table indexes and
-// use the first index (list of simultaneously unique columnns) for which the provided mapper
+// use the first index (list of simultaneously unique columns) for which the provided mapper
 // object has valid data. The order in which they are traversed matches the order defined
 // in the schema.
 // By `valid data` we mean non-default data.
@@ -316,7 +316,7 @@ func (m Mapper) NewMutation(tableName string, data interface{}, column string, m
 
 	var ovsValue interface{}
 	if mutator == "delete" && columnSchema.Type == ovsdb.TypeMap {
-		// It's OK to cast the value to a list of elemets because validation has passed
+		// It's OK to cast the value to a list of elements because validation has passed
 		ovsSet, err := ovsdb.NewOvsSet(value)
 		if err != nil {
 			return nil, err
@@ -333,7 +333,7 @@ func (m Mapper) NewMutation(tableName string, data interface{}, column string, m
 }
 
 // equalIndexes returns whether both models are equal from the DB point of view
-// Two objectes are considered equal if any of the following conditions is true
+// Two objects are considered equal if any of the following conditions is true
 // They have a field tagged with column name '_uuid' and their values match
 // For any of the indexes defined in the Table Schema, the values all of its columns are simultaneously equal
 // (as per RFC7047)

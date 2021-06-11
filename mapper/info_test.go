@@ -127,7 +127,7 @@ func TestMapperInfoSet(t *testing.T) {
 			err:    false,
 		},
 		{
-			name:   "unassignalbe",
+			name:   "un-assignable",
 			table:  sampleTable,
 			obj:    &obj{},
 			field:  []string{"foo"},

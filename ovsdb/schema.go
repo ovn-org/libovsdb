@@ -133,7 +133,7 @@ var (
 )
 
 const (
-	unlimtedString = "unlimited"
+	unlimitedString = "unlimited"
 	//Strong RefType
 	Strong RefType = "strong"
 	//Weak RefType
@@ -152,7 +152,7 @@ const (
 	//TypeUUID is equivalent to 'libovsdb.UUID'
 	TypeUUID ExtendedType = "uuid"
 
-	//Extended Types used to summarize the interal type of the field.
+	//Extended Types used to summarize the internal type of the field.
 
 	//TypeEnum is an enumerator of type defined by Key.Type
 	TypeEnum ExtendedType = "enum"
@@ -257,7 +257,7 @@ func (b *BaseType) MaxLength() (int, error) {
 }
 
 // RefTable returns the table to which a UUID type refers
-// It will return an empry string if not set
+// It will return an empty string if not set
 func (b *BaseType) RefTable() (string, error) {
 	if b.Type != TypeUUID {
 		return "", fmt.Errorf("%s is not a uuid", b.Type)
@@ -280,7 +280,7 @@ func (b *BaseType) RefType() (RefType, error) {
 	return Strong, nil
 }
 
-// UnmarshalJSON unmarshalls a json-formatted base type
+// UnmarshalJSON unmarshals a json-formatted base type
 func (b *BaseType) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err == nil {
@@ -398,7 +398,7 @@ func (c *ColumnType) Min() int {
 	return *c.min
 }
 
-// UnmarshalJSON unmarshalls a json-formatted column type
+// UnmarshalJSON unmarshals a json-formatted column type
 func (c *ColumnType) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err == nil {
@@ -424,7 +424,7 @@ func (c *ColumnType) UnmarshalJSON(data []byte) error {
 	c.min = colType.Min
 	switch v := colType.Max.(type) {
 	case string:
-		if v == unlimtedString {
+		if v == unlimitedString {
 			c.max = &Unlimited
 		} else {
 			return fmt.Errorf("unexpected string value in max field")
@@ -453,7 +453,7 @@ func (c ColumnType) MarshalJSON() ([]byte, error) {
 			Key:   c.Key,
 			Value: c.Value,
 			Min:   c.min,
-			Max:   unlimtedString,
+			Max:   unlimitedString,
 		}
 		return json.Marshal(&colType)
 	}
@@ -511,7 +511,7 @@ func (c *ColumnSchema) UnmarshalJSON(data []byte) error {
 		Mutable   *bool       `json:"mutable,omitempty"`
 	}
 
-	// Unmarshall known keys
+	// Unmarshal known keys
 	if err := json.Unmarshal(data, &colJSON); err != nil {
 		return fmt.Errorf("cannot parse column object %s", err)
 	}

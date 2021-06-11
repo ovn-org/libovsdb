@@ -11,7 +11,7 @@ type ConditionFunction string
 const (
 	// ConditionLessThan is the less than condition
 	ConditionLessThan ConditionFunction = "<"
-	// ConditionLessThanOrEqual is the less than or equal condtion
+	// ConditionLessThanOrEqual is the less than or equal condition
 	ConditionLessThanOrEqual ConditionFunction = "<="
 	// ConditionEqual is the equal condition
 	ConditionEqual ConditionFunction = "=="
@@ -21,7 +21,7 @@ const (
 	ConditionGreaterThan ConditionFunction = ">"
 	// ConditionGreaterThanOrEqual is the greater than or equal condition
 	ConditionGreaterThanOrEqual ConditionFunction = ">="
-	// ConditionIncludes is the indcludes condition
+	// ConditionIncludes is the includes condition
 	ConditionIncludes ConditionFunction = "includes"
 	// ConditionExcludes is the excludes condition
 	ConditionExcludes ConditionFunction = "excludes"

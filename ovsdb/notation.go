@@ -47,7 +47,7 @@ type Operation struct {
 }
 
 // MarshalJSON marshalls 'Operation' to a byte array
-// For 'select' operations, we dont omit the 'Where' field
+// For 'select' operations, we don't omit the 'Where' field
 // to allow selecting all rows of a table
 func (o Operation) MarshalJSON() ([]byte, error) {
 	type OpAlias Operation

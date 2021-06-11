@@ -73,7 +73,7 @@ type ConditionalAPI interface {
 	// the fields to be updated
 	Update(model.Model, ...interface{}) ([]ovsdb.Operation, error)
 
-	// Delete returns the Operations needed to delete the models seleted via the condition
+	// Delete returns the Operations needed to delete the models selected via the condition
 	Delete() ([]ovsdb.Operation, error)
 }
 
@@ -253,7 +253,7 @@ func (a api) Get(m model.Model) error {
 }
 
 // Create is a generic function capable of creating any row in the DB
-// A valud Model (pointer to object) must be provided.
+// A valid Model (pointer to object) must be provided.
 func (a api) Create(models ...model.Model) ([]ovsdb.Operation, error) {
 	var operations []ovsdb.Operation
 
@@ -300,7 +300,7 @@ func (a api) Mutate(model model.Model, mutationObjs ...model.Mutation) ([]ovsdb.
 	var operations []ovsdb.Operation
 
 	if len(mutationObjs) < 1 {
-		return nil, fmt.Errorf("At least one Mutation must be provided")
+		return nil, fmt.Errorf("at least one Mutation must be provided")
 	}
 
 	tableName := a.cache.DBModel().FindTable(reflect.ValueOf(model).Type())
