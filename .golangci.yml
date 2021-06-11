@@ -4,11 +4,12 @@ linters:
     - deadcode
     - errcheck
     - gocyclo
-    - golint
+    - goimports
     - gosimple
     - govet
     - ineffassign
     - misspell
+    - revive
     - staticcheck
     - structcheck
     - typecheck
