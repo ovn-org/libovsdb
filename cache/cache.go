@@ -93,7 +93,7 @@ func (r *RowCache) create(uuid string, m model.Model) error {
 	if reflect.TypeOf(m) != r.dataType {
 		return fmt.Errorf("expected data of type %s, but got %s", r.dataType.String(), reflect.TypeOf(m).String())
 	}
-	info, err := mapper.NewMapperInfo(&r.schema, m)
+	info, err := mapper.NewInfo(&r.schema, m)
 	if err != nil {
 		return err
 	}
@@ -146,11 +146,11 @@ func (r *RowCache) update(uuid string, m model.Model) error {
 		return fmt.Errorf("row %s does not exist", uuid)
 	}
 	oldRow := r.cache[uuid]
-	oldInfo, err := mapper.NewMapperInfo(&r.schema, oldRow)
+	oldInfo, err := mapper.NewInfo(&r.schema, oldRow)
 	if err != nil {
 		return err
 	}
-	newInfo, err := mapper.NewMapperInfo(&r.schema, m)
+	newInfo, err := mapper.NewInfo(&r.schema, m)
 	if err != nil {
 		return err
 	}
@@ -232,7 +232,7 @@ func (r *RowCache) delete(uuid string) error {
 		return fmt.Errorf("row %s does not exist", uuid)
 	}
 	oldRow := r.cache[uuid]
-	oldInfo, err := mapper.NewMapperInfo(&r.schema, oldRow)
+	oldInfo, err := mapper.NewInfo(&r.schema, oldRow)
 	if err != nil {
 		return err
 	}
@@ -320,11 +320,11 @@ type TableCache struct {
 	dbModel        *model.DBModel
 }
 
-// CacheData is the type for data that can be prepoulated in the cache
-type CacheData map[string]map[string]model.Model
+// Data is the type for data that can be prepoulated in the cache
+type Data map[string]map[string]model.Model
 
 // NewTableCache creates a new TableCache
-func NewTableCache(schema *ovsdb.DatabaseSchema, dbModel *model.DBModel, data CacheData) (*TableCache, error) {
+func NewTableCache(schema *ovsdb.DatabaseSchema, dbModel *model.DBModel, data Data) (*TableCache, error) {
 	if schema == nil || dbModel == nil {
 		return nil, fmt.Errorf("tablecache without databasemodel cannot be populated")
 	}
@@ -468,7 +468,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 	}
 }
 
-// AddEventHandler registers the supplied EventHandler to recieve cache events
+// AddEventHandler registers the supplied EventHandler to receive cache events
 func (t *TableCache) AddEventHandler(handler EventHandler) {
 	t.eventProcessor.AddEventHandler(handler)
 }
@@ -565,7 +565,7 @@ func (e *eventProcessor) AddEvent(eventType string, table string, old model.Mode
 // Run runs the eventProcessor loop.
 // It will block until the stopCh has been closed
 // Otherwise it will wait for events to arrive on the event channel
-// Once recieved, it will dispatch the event to each registered handler
+// Once received, it will dispatch the event to each registered handler
 func (e *eventProcessor) Run(stopCh <-chan struct{}) {
 	for {
 		select {
@@ -588,7 +588,7 @@ func (e *eventProcessor) Run(stopCh <-chan struct{}) {
 	}
 }
 
-// createModel creates a new Model instance based on the Row information
+// CreateModel creates a new Model instance based on the Row information
 func (t *TableCache) CreateModel(tableName string, row *ovsdb.Row, uuid string) (model.Model, error) {
 	table := t.mapper.Schema.Table(tableName)
 	if table == nil {
@@ -605,7 +605,7 @@ func (t *TableCache) CreateModel(tableName string, row *ovsdb.Row, uuid string) 
 	}
 
 	if uuid != "" {
-		mapperInfo, err := mapper.NewMapperInfo(table, model)
+		mapperInfo, err := mapper.NewInfo(table, model)
 		if err != nil {
 			return nil, err
 		}
@@ -617,7 +617,7 @@ func (t *TableCache) CreateModel(tableName string, row *ovsdb.Row, uuid string) 
 	return model, nil
 }
 
-func hashColumnValues(info *mapper.MapperInfo, columns []string) (string, error) {
+func hashColumnValues(info *mapper.Info, columns []string) (string, error) {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
 	for _, column := range columns {

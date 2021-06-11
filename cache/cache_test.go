@@ -104,7 +104,7 @@ func TestRowCacheCreate(t *testing.T) {
 	     }
 	`), &schema)
 	require.Nil(t, err)
-	testData := CacheData{
+	testData := Data{
 		"Open_vSwitch": map[string]model.Model{"bar": &testModel{Foo: "bar"}},
 	}
 	tc, err := NewTableCache(&schema, db, testData)
@@ -173,7 +173,7 @@ func TestRowCacheCreateMultiIndex(t *testing.T) {
 	`), &schema)
 	require.Nil(t, err)
 	tSchema := schema.Table("Open_vSwitch")
-	testData := CacheData{
+	testData := Data{
 		"Open_vSwitch": map[string]model.Model{"bar": &testModel{Foo: "bar", Bar: "bar"}},
 	}
 	tc, err := NewTableCache(&schema, db, testData)
@@ -224,7 +224,7 @@ func TestRowCacheCreateMultiIndex(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.Nil(t, err)
-				mapperInfo, err := mapper.NewMapperInfo(tSchema, tt.model)
+				mapperInfo, err := mapper.NewInfo(tSchema, tt.model)
 				require.Nil(t, err)
 				h, err := hashColumnValues(mapperInfo, []string{"foo", "bar"})
 				require.Nil(t, err)
@@ -256,7 +256,7 @@ func TestRowCacheUpdate(t *testing.T) {
 	     }
 	`), &schema)
 	require.Nil(t, err)
-	testData := CacheData{
+	testData := Data{
 		"Open_vSwitch": map[string]model.Model{
 			"bar":    &testModel{Foo: "bar"},
 			"foobar": &testModel{Foo: "foobar"},
@@ -328,7 +328,7 @@ func TestRowCacheUpdateMultiIndex(t *testing.T) {
 	`), &schema)
 	tSchema := schema.Table("Open_vSwitch")
 	require.Nil(t, err)
-	testData := CacheData{
+	testData := Data{
 		"Open_vSwitch": map[string]model.Model{
 			"bar":    &testModel{Foo: "bar", Bar: "bar"},
 			"foobar": &testModel{Foo: "foobar", Bar: "foobar"},
@@ -377,7 +377,7 @@ func TestRowCacheUpdateMultiIndex(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.Nil(t, err)
-				mapperInfo, err := mapper.NewMapperInfo(tSchema, tt.model)
+				mapperInfo, err := mapper.NewInfo(tSchema, tt.model)
 				require.Nil(t, err)
 				h, err := hashColumnValues(mapperInfo, []string{"foo", "bar"})
 				require.Nil(t, err)
@@ -409,7 +409,7 @@ func TestRowCacheDelete(t *testing.T) {
 	     }
 	`), &schema)
 	require.Nil(t, err)
-	testData := CacheData{
+	testData := Data{
 		"Open_vSwitch": map[string]model.Model{
 			"bar": &testModel{Foo: "bar"},
 		},

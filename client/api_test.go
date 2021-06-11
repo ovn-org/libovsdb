@@ -40,7 +40,7 @@ func TestAPIListSimple(t *testing.T) {
 	for i := range lscacheList {
 		lscache[lscacheList[i].(*testLogicalSwitch).UUID] = lscacheList[i]
 	}
-	testData := cache.CacheData{
+	testData := cache.Data{
 		"Logical_Switch": lscache,
 	}
 	tcache := apiTestCache(t, testData)
@@ -149,7 +149,7 @@ func TestAPIListPredicate(t *testing.T) {
 	for i := range lscacheList {
 		lscache[lscacheList[i].(*testLogicalSwitch).UUID] = lscacheList[i]
 	}
-	testData := cache.CacheData{
+	testData := cache.Data{
 		"Logical_Switch": lscache,
 	}
 	tcache := apiTestCache(t, testData)
@@ -247,7 +247,7 @@ func TestAPIListFields(t *testing.T) {
 	for i := range lspcacheList {
 		lspcache[lspcacheList[i].(*testLogicalSwitchPort).UUID] = lspcacheList[i]
 	}
-	testData := cache.CacheData{
+	testData := cache.Data{
 		"Logical_Switch_Port": lspcache,
 	}
 	tcache := apiTestCache(t, testData)
@@ -444,7 +444,7 @@ func TestAPIGet(t *testing.T) {
 	for i := range lspCacheList {
 		lspCache[lspCacheList[i].(*testLogicalSwitchPort).UUID] = lspCacheList[i]
 	}
-	testData := cache.CacheData{
+	testData := cache.Data{
 		"Logical_Switch":      lsCache,
 		"Logical_Switch_Port": lspCache,
 	}
@@ -526,7 +526,7 @@ func TestAPICreate(t *testing.T) {
 	for i := range lspCacheList {
 		lspCache[lspCacheList[i].(*testLogicalSwitchPort).UUID] = lspCacheList[i]
 	}
-	testData := cache.CacheData{
+	testData := cache.Data{
 		"Logical_Switch":      lsCache,
 		"Logical_Switch_Port": lspCache,
 	}
@@ -642,7 +642,7 @@ func TestAPIMutate(t *testing.T) {
 			Tag:         []int{1},
 		},
 	}
-	testData := cache.CacheData{
+	testData := cache.Data{
 		"Logical_Switch_Port": lspCache,
 	}
 	tcache := apiTestCache(t, testData)
@@ -812,7 +812,7 @@ func TestAPIUpdate(t *testing.T) {
 			Tag:         []int{1},
 		},
 	}
-	testData := cache.CacheData{
+	testData := cache.Data{
 		"Logical_Switch_Port": lspCache,
 	}
 	tcache := apiTestCache(t, testData)
@@ -1060,7 +1060,7 @@ func TestAPIDelete(t *testing.T) {
 			Tag:         []int{1},
 		},
 	}
-	testData := cache.CacheData{
+	testData := cache.Data{
 		"Logical_Switch_Port": lspCache,
 	}
 	tcache := apiTestCache(t, testData)

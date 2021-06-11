@@ -7,8 +7,8 @@ import (
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
-// BASE_DB_TEMPLATE is the base DBModel template
-// It includes the following other templates that can be overriden to customize the generated file
+// NewDBTemplate return a new DBModel template
+// It includes the following other templates that can be overridden to customize the generated file
 // "header"
 // "preDBDefinitions"
 // "postDBDefinitions"

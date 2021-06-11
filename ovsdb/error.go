@@ -62,7 +62,7 @@ func errorFromResult(op *Operation, r OperationResult) OperationError {
 func CheckOperationResults(result []OperationResult, ops []Operation) ([]OperationError, error) {
 	// this shouldn't happen, but we'll cover the case to be certain
 	if len(result) < len(ops) {
-		return nil, fmt.Errorf("ovsdb transaction error. %d operations submitted but only %d results recieved", len(ops), len(result))
+		return nil, fmt.Errorf("ovsdb transaction error. %d operations submitted but only %d results received", len(ops), len(result))
 	}
 	var errs []OperationError
 	for i, op := range result {
@@ -86,7 +86,7 @@ func CheckOperationResults(result []OperationResult, ops []Operation) ([]Operati
 // OVSDB Operation
 type OperationError interface {
 	error
-	// Operation is a pointer to the operation which casued the error
+	// Operation is a pointer to the operation which caused the error
 	Operation() *Operation
 }
 
@@ -130,7 +130,7 @@ func (e *ConstraintViolation) Operation() *Operation {
 	return e.operation
 }
 
-// ResourcesExhasued is described in RFC 7047: 4.1.3
+// ResourcesExhausted is described in RFC 7047: 4.1.3
 type ResourcesExhausted struct {
 	details   string
 	operation *Operation
@@ -270,7 +270,7 @@ func (e *NotSupported) Operation() *Operation {
 	return e.operation
 }
 
-// ABorted is described in RFC 7047: 5.2.8
+// Aborted is described in RFC 7047: 5.2.8
 type Aborted struct {
 	details   string
 	operation *Operation

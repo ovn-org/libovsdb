@@ -3,9 +3,13 @@ linters:
   enable:
     - deadcode
     - errcheck
+    - gocyclo
+    - goimports
     - gosimple
     - govet
     - ineffassign
+    - misspell
+    - revive
     - staticcheck
     - structcheck
     - typecheck

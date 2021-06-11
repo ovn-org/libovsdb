@@ -60,12 +60,12 @@ func (r RowUpdate) Insert() bool {
 	return r.New != nil && r.Old == nil
 }
 
-// Insert returns true if this is an update for a modify operation
+// Modify returns true if this is an update for a modify operation
 func (r RowUpdate) Modify() bool {
 	return r.New != nil && r.Old != nil
 }
 
-// Insert returns true if this is an update for a delete operation
+// Delete returns true if this is an update for a delete operation
 func (r RowUpdate) Delete() bool {
 	return r.New == nil && r.Old != nil
 }

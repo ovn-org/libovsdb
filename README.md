@@ -1,7 +1,7 @@
 libovsdb
 ========
 
-[![libovsb-ci](https://github.com/ovn-org/libovsdb/actions/workflows/ci.yml/badge.svg)](https://github.com/ovn-org/libovsdb/actions/workflows/ci.yml) [![Coverage Status](https://coveralls.io/repos/github/ovn-org/libovsdb/badge.svg?branch=main)](https://coveralls.io/github/ovn-org/libovsdb?branch=main)
+[![libovsb-ci](https://github.com/ovn-org/libovsdb/actions/workflows/ci.yml/badge.svg)](https://github.com/ovn-org/libovsdb/actions/workflows/ci.yml) [![Coverage Status](https://coveralls.io/repos/github/ovn-org/libovsdb/badge.svg?branch=main)](https://coveralls.io/github/ovn-org/libovsdb?branch=main) [![Go Report Card](https://goreportcard.com/badge/github.com/ovn-org/libovsdb)](https://goreportcard.com/report/github.com/ovn-org/libovsdb)
 
 An OVSDB Library written in Go
 
@@ -69,11 +69,11 @@ create an equality condition (using `ovsdb.ConditionEqual`) on the `_uuid` field
             return strings.HasPrefix(ls.Name, "ext_")
     }).List(&lsList)
 
-The table is infered from the type that the function accepts as only argument.
+The table is inferred from the type that the function accepts as only argument.
 
 ## Documentation
 
-This package is divided into several subpackages. Documentation for each subpackage is available at [pkg.go.dev][doc]:
+This package is divided into several sub-packages. Documentation for each sub-package is available at [pkg.go.dev][doc]:
 
 * **client**: ovsdb client and API [![godoc for libovsdb/client][clientbadge]][clientdoc]
 * **mapper**: mapping from tagged structs to ovsdb types [![godoc for libovsdb/mapper][mapperbadge]][mapperdoc]
@@ -209,7 +209,7 @@ It can be used as follows:
             Package name (default "ovsmodel")
 
 The result will be the definition of a Model per table defined in the ovsdb schema file.
-Additionally, a function called `FullDatabaseModel()` that retuns the `DBModel` is created for convenience.
+Additionally, a function called `FullDatabaseModel()` that returns the `DBModel` is created for convenience.
 
 Example:
 
@@ -217,7 +217,7 @@ Download the schema:
 
     ovsdb-client get-schema "tcp:localhost:6641" > mypackage/ovs-nb.ovsschema
 
-Run `go gennerate`
+Run `go generate`
 
     cat <<EOF > mypackage/gen.go
     package mypackage
@@ -263,7 +263,7 @@ Mac users can use [boot2docker](http://boot2docker.io)
     # exit
     docker-compose down
 
-By invoking the command **make**, you will automatically get the same behaviour as what
+By invoking the command **make**, you will automatically get the same behavior as what
 is shown above. In other words, it will start the two containers and execute
 **make test-local** from the test container.
 

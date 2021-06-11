@@ -7,16 +7,26 @@ import (
 )
 
 const (
-	OperationInsert  = "insert"
-	OperationSelect  = "select"
-	OperationUpdate  = "update"
-	OperationMutate  = "mutate"
-	OperationDelete  = "delete"
-	OperationWait    = "wait"
-	OperationCommit  = "commit"
-	OperationAbort   = "abort"
+	// OperationInsert is an insert operation
+	OperationInsert = "insert"
+	// OperationSelect is a select operation
+	OperationSelect = "select"
+	// OperationUpdate is an update operation
+	OperationUpdate = "update"
+	// OperationMutate is a mutate operation
+	OperationMutate = "mutate"
+	// OperationDelete is a delete operation
+	OperationDelete = "delete"
+	// OperationWait is a wait operation
+	OperationWait = "wait"
+	// OperationCommit is a commit operation
+	OperationCommit = "commit"
+	// OperationAbort is an abort operation
+	OperationAbort = "abort"
+	// OperationComment is a comment operation
 	OperationComment = "comment"
-	OperationAssert  = "assert"
+	// OperationAssert is an assert operation
+	OperationAssert = "assert"
 )
 
 // Operation represents an operation according to RFC7047 section 5.2
@@ -37,7 +47,7 @@ type Operation struct {
 }
 
 // MarshalJSON marshalls 'Operation' to a byte array
-// For 'select' operations, we dont omit the 'Where' field
+// For 'select' operations, we don't omit the 'Where' field
 // to allow selecting all rows of a table
 func (o Operation) MarshalJSON() ([]byte, error) {
 	type OpAlias Operation
@@ -75,12 +85,6 @@ type MonitorRequests struct {
 type MonitorRequest struct {
 	Columns []string       `json:"columns,omitempty"`
 	Select  *MonitorSelect `json:"select,omitempty"`
-}
-
-// OvsdbError is an OVS Error Condition
-type OvsdbError struct {
-	Error   string `json:"error"`
-	Details string `json:"details,omitempty"`
 }
 
 // TransactResponse represents the response to a Transact Operation

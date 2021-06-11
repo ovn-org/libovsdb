@@ -129,11 +129,11 @@ type RefType = string
 // unlimited is not constant as we can't take the address of int constants
 var (
 	// Unlimited is used to express unlimited "Max"
-	Unlimited int = -1
+	Unlimited = -1
 )
 
 const (
-	unlimtedString = "unlimited"
+	unlimitedString = "unlimited"
 	//Strong RefType
 	Strong RefType = "strong"
 	//Weak RefType
@@ -152,7 +152,7 @@ const (
 	//TypeUUID is equivalent to 'libovsdb.UUID'
 	TypeUUID ExtendedType = "uuid"
 
-	//Extended Types used to summarize the interal type of the field.
+	//Extended Types used to summarize the internal type of the field.
 
 	//TypeEnum is an enumerator of type defined by Key.Type
 	TypeEnum ExtendedType = "enum"
@@ -206,8 +206,8 @@ func (b *BaseType) MaxReal() (float64, error) {
 	return math.MaxFloat64, nil
 }
 
-// MinInteger returns the minimum real value
-// RFC7047 species the minimum to be -2^63
+// MinInteger returns the minimum integer value
+// RFC7047 specifies the minimum to be -2^63
 func (b *BaseType) MinInteger() (int, error) {
 	if b.Type != TypeInteger {
 		return 0, fmt.Errorf("%s is not an integer", b.Type)
@@ -218,8 +218,8 @@ func (b *BaseType) MinInteger() (int, error) {
 	return int(math.Pow(-2, 63)), nil
 }
 
-// MinInteger returns the minimum real value
-// RFC7047 species the minimum to be 2^63-1
+// MaxInteger returns the minimum integer value
+// RFC7047 specifies the minimum to be 2^63-1
 func (b *BaseType) MaxInteger() (int, error) {
 	if b.Type != TypeInteger {
 		return 0, fmt.Errorf("%s is not an integer", b.Type)
@@ -257,7 +257,7 @@ func (b *BaseType) MaxLength() (int, error) {
 }
 
 // RefTable returns the table to which a UUID type refers
-// It will return an empry string if not set
+// It will return an empty string if not set
 func (b *BaseType) RefTable() (string, error) {
 	if b.Type != TypeUUID {
 		return "", fmt.Errorf("%s is not a uuid", b.Type)
@@ -280,7 +280,7 @@ func (b *BaseType) RefType() (RefType, error) {
 	return Strong, nil
 }
 
-// UnmarshalJSON unmarshalls a json-formatted base type
+// UnmarshalJSON unmarshals a json-formatted base type
 func (b *BaseType) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err == nil {
@@ -398,7 +398,7 @@ func (c *ColumnType) Min() int {
 	return *c.min
 }
 
-// UnmarshalJSON unmarshalls a json-formatted column type
+// UnmarshalJSON unmarshals a json-formatted column type
 func (c *ColumnType) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err == nil {
@@ -424,7 +424,7 @@ func (c *ColumnType) UnmarshalJSON(data []byte) error {
 	c.min = colType.Min
 	switch v := colType.Max.(type) {
 	case string:
-		if v == unlimtedString {
+		if v == unlimitedString {
 			c.max = &Unlimited
 		} else {
 			return fmt.Errorf("unexpected string value in max field")
@@ -453,7 +453,7 @@ func (c ColumnType) MarshalJSON() ([]byte, error) {
 			Key:   c.Key,
 			Value: c.Value,
 			Min:   c.min,
-			Max:   unlimtedString,
+			Max:   unlimitedString,
 		}
 		return json.Marshal(&colType)
 	}
@@ -503,7 +503,7 @@ func (c *ColumnSchema) Ephemeral() bool {
 }
 
 // UnmarshalJSON unmarshalls a json-formatted column
-func (column *ColumnSchema) UnmarshalJSON(data []byte) error {
+func (c *ColumnSchema) UnmarshalJSON(data []byte) error {
 	// ColumnJSON represents the known json values for a Column
 	var colJSON struct {
 		Type      *ColumnType `json:"type"`
@@ -511,67 +511,67 @@ func (column *ColumnSchema) UnmarshalJSON(data []byte) error {
 		Mutable   *bool       `json:"mutable,omitempty"`
 	}
 
-	// Unmarshall known keys
+	// Unmarshal known keys
 	if err := json.Unmarshal(data, &colJSON); err != nil {
 		return fmt.Errorf("cannot parse column object %s", err)
 	}
 
-	column.ephemeral = colJSON.Ephemeral
-	column.mutable = colJSON.Mutable
-	column.TypeObj = colJSON.Type
+	c.ephemeral = colJSON.Ephemeral
+	c.mutable = colJSON.Mutable
+	c.TypeObj = colJSON.Type
 
 	// Infer the ExtendedType from the TypeObj
-	if column.TypeObj.Value != nil {
-		column.Type = TypeMap
-	} else if column.TypeObj.Min() != 1 || column.TypeObj.Max() != 1 {
-		column.Type = TypeSet
-	} else if len(column.TypeObj.Key.Enum) > 0 {
-		column.Type = TypeEnum
+	if c.TypeObj.Value != nil {
+		c.Type = TypeMap
+	} else if c.TypeObj.Min() != 1 || c.TypeObj.Max() != 1 {
+		c.Type = TypeSet
+	} else if len(c.TypeObj.Key.Enum) > 0 {
+		c.Type = TypeEnum
 	} else {
-		column.Type = column.TypeObj.Key.Type
+		c.Type = c.TypeObj.Key.Type
 	}
 	return nil
 }
 
 // MarshalJSON marshalls a column schema to JSON
-func (column ColumnSchema) MarshalJSON() ([]byte, error) {
+func (c ColumnSchema) MarshalJSON() ([]byte, error) {
 	type colJSON struct {
 		Type      *ColumnType `json:"type"`
 		Ephemeral *bool       `json:"ephemeral,omitempty"`
 		Mutable   *bool       `json:"mutable,omitempty"`
 	}
-	c := colJSON{
-		Type:      column.TypeObj,
-		Ephemeral: column.ephemeral,
-		Mutable:   column.mutable,
+	column := colJSON{
+		Type:      c.TypeObj,
+		Ephemeral: c.ephemeral,
+		Mutable:   c.mutable,
 	}
-	return json.Marshal(c)
+	return json.Marshal(column)
 }
 
 // String returns a string representation of the (native) column type
-func (column *ColumnSchema) String() string {
+func (c *ColumnSchema) String() string {
 	var flags []string
 	var flagStr string
 	var typeStr string
-	if column.Ephemeral() {
+	if c.Ephemeral() {
 		flags = append(flags, "E")
 	}
-	if column.Mutable() {
+	if c.Mutable() {
 		flags = append(flags, "M")
 	}
 	if len(flags) > 0 {
 		flagStr = fmt.Sprintf("[%s]", strings.Join(flags, ","))
 	}
 
-	switch column.Type {
+	switch c.Type {
 	case TypeInteger, TypeReal, TypeBoolean, TypeString:
-		typeStr = string(column.Type)
+		typeStr = string(c.Type)
 	case TypeUUID:
-		if column.TypeObj != nil && column.TypeObj.Key != nil {
+		if c.TypeObj != nil && c.TypeObj.Key != nil {
 			// ignore err as we've already asserted this is a uuid
-			reftable, _ := column.TypeObj.Key.RefTable()
+			reftable, _ := c.TypeObj.Key.RefTable()
 			reftype := ""
-			if s, err := column.TypeObj.Key.RefType(); err != nil {
+			if s, err := c.TypeObj.Key.RefType(); err != nil {
 				reftype = s
 			}
 			typeStr = fmt.Sprintf("uuid [%s (%s)]", reftable, reftype)
@@ -580,22 +580,22 @@ func (column *ColumnSchema) String() string {
 		}
 
 	case TypeEnum:
-		typeStr = fmt.Sprintf("enum (type: %s): %v", column.TypeObj.Key.Type, column.TypeObj.Key.Enum)
+		typeStr = fmt.Sprintf("enum (type: %s): %v", c.TypeObj.Key.Type, c.TypeObj.Key.Enum)
 	case TypeMap:
-		typeStr = fmt.Sprintf("[%s]%s", column.TypeObj.Key.Type, column.TypeObj.Value.Type)
+		typeStr = fmt.Sprintf("[%s]%s", c.TypeObj.Key.Type, c.TypeObj.Value.Type)
 	case TypeSet:
 		var keyStr string
-		if column.TypeObj.Key.Type == TypeUUID {
+		if c.TypeObj.Key.Type == TypeUUID {
 			// ignore err as we've already asserted this is a uuid
-			reftable, _ := column.TypeObj.Key.RefTable()
-			reftype, _ := column.TypeObj.Key.RefType()
+			reftable, _ := c.TypeObj.Key.RefTable()
+			reftype, _ := c.TypeObj.Key.RefType()
 			keyStr = fmt.Sprintf(" [%s (%s)]", reftable, reftype)
 		} else {
-			keyStr = string(column.TypeObj.Key.Type)
+			keyStr = string(c.TypeObj.Key.Type)
 		}
-		typeStr = fmt.Sprintf("[]%s (min: %d, max: %d)", keyStr, column.TypeObj.Min(), column.TypeObj.Max())
+		typeStr = fmt.Sprintf("[]%s (min: %d, max: %d)", keyStr, c.TypeObj.Min(), c.TypeObj.Max())
 	default:
-		panic(fmt.Sprintf("Unsupported type %s", column.Type))
+		panic(fmt.Sprintf("Unsupported type %s", c.Type))
 	}
 
 	return strings.Join([]string{typeStr, flagStr}, " ")

@@ -117,7 +117,7 @@ type testLogicalSwitch struct {
 	Name             string            `ovsdb:"name"`
 	QosRules         []string          `ovsdb:"qos_rules"`
 	LoadBalancer     []string          `ovsdb:"load_balancer"`
-	DnsRecords       []string          `ovsdb:"dns_records"`
+	DNSRecords       []string          `ovsdb:"dns_records"`
 	OtherConfig      map[string]string `ovsdb:"other_config"`
 	ForwardingGroups []string          `ovsdb:"forwarding_groups"`
 	Acls             []string          `ovsdb:"acls"`

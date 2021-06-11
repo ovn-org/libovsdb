@@ -507,7 +507,7 @@ func TestOvsToNativeErr(t *testing.T) {
 
 			res, err := OvsToNative(&column, trans["ovs"])
 			if err == nil {
-				t.Errorf("convertion %s should have failed, instead it has returned %v (%s)", trans, res, reflect.TypeOf(res))
+				t.Errorf("conversion %s should have failed, instead it has returned %v (%s)", trans, res, reflect.TypeOf(res))
 				t.Logf("Conversion schema %v", string(trans["schema"].([]byte)))
 			}
 		})
@@ -528,7 +528,7 @@ func TestNativeToOvsErr(t *testing.T) {
 
 			res, err := NativeToOvs(&column, trans["native"])
 			if err == nil {
-				t.Errorf("convertion %s should have failed, instead it has returned %v (%s)", trans, res, reflect.TypeOf(res))
+				t.Errorf("conversion %s should have failed, instead it has returned %v (%s)", trans, res, reflect.TypeOf(res))
 				t.Logf("Conversion schema %v", string(trans["schema"].([]byte)))
 			}
 		})

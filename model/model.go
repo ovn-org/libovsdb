@@ -40,7 +40,7 @@ func (db DBModel) NewModel(table string) (Model, error) {
 	return model.Interface().(Model), nil
 }
 
-// GetTypes returns the DBModel Types
+// Types returns the DBModel Types
 // the DBModel types is a map of reflect.Types indexed by string
 // The reflect.Type is a pointer to a struct that contains 'ovs' tags
 // as described above. Such pointer to struct also implements the Model interface
@@ -83,7 +83,7 @@ func (db DBModel) Validate(schema *ovsdb.DatabaseSchema) []error {
 			errors = append(errors, err)
 			continue
 		}
-		if _, err := mapper.NewMapperInfo(tableSchema, model); err != nil {
+		if _, err := mapper.NewInfo(tableSchema, model); err != nil {
 			errors = append(errors, err)
 		}
 	}
