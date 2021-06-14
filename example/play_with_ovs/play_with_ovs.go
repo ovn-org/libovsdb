@@ -114,8 +114,10 @@ func main() {
 			}
 		},
 	})
-
-	err = ovs.MonitorAll("")
+	err = ovs.Monitor("play_with_ovs",
+		ovs.NewTableMonitor(&OpenvSwitch{}),
+		ovs.NewTableMonitor(&Bridge{}),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
