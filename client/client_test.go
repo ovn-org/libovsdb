@@ -18,13 +18,13 @@ var (
 	aUUID3 = "2f77b348-9768-4866-b761-89d5177ecda3"
 )
 
-func testOvsSet(t *testing.T, set interface{}) *ovsdb.OvsSet {
+func testOvsSet(t *testing.T, set interface{}) ovsdb.OvsSet {
 	oSet, err := ovsdb.NewOvsSet(set)
 	assert.Nil(t, err)
 	return oSet
 }
 
-func testOvsMap(t *testing.T, set interface{}) *ovsdb.OvsMap {
+func testOvsMap(t *testing.T, set interface{}) ovsdb.OvsMap {
 	oMap, err := ovsdb.NewOvsMap(set)
 	assert.Nil(t, err)
 	return oMap

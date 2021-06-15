@@ -49,10 +49,10 @@ func (o *OvsMap) UnmarshalJSON(b []byte) (err error) {
 }
 
 // NewOvsMap will return an OVSDB style map from a provided Golang Map
-func NewOvsMap(goMap interface{}) (*OvsMap, error) {
+func NewOvsMap(goMap interface{}) (OvsMap, error) {
 	v := reflect.ValueOf(goMap)
 	if v.Kind() != reflect.Map {
-		return nil, fmt.Errorf("ovsmap supports only go map types")
+		return OvsMap{}, fmt.Errorf("ovsmap supports only go map types")
 	}
 
 	genMap := make(map[interface{}]interface{})
@@ -60,5 +60,5 @@ func NewOvsMap(goMap interface{}) (*OvsMap, error) {
 	for _, key := range keys {
 		genMap[key.Interface()] = v.MapIndex(key).Interface()
 	}
-	return &OvsMap{genMap}, nil
+	return OvsMap{genMap}, nil
 }

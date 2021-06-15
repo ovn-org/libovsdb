@@ -155,7 +155,7 @@ var testSchema = []byte(`{
 func getOvsTestRow(t *testing.T) ovsdb.Row {
 	ovsRow := ovsdb.NewRow()
 	ovsRow["aString"] = aString
-	ovsRow["aSet"] = *testOvsSet(t, aSet)
+	ovsRow["aSet"] = testOvsSet(t, aSet)
 	// Set's can hold the value if they have len == 1
 	ovsRow["aSingleSet"] = aString
 
@@ -163,21 +163,21 @@ func getOvsTestRow(t *testing.T) ovsdb.Row {
 	for _, u := range aUUIDSet {
 		us = append(us, ovsdb.UUID{GoUUID: u})
 	}
-	ovsRow["aUUIDSet"] = *testOvsSet(t, us)
+	ovsRow["aUUIDSet"] = testOvsSet(t, us)
 
 	ovsRow["aUUID"] = ovsdb.UUID{GoUUID: aUUID0}
 
-	ovsRow["aIntSet"] = *testOvsSet(t, aIntSet)
+	ovsRow["aIntSet"] = testOvsSet(t, aIntSet)
 
 	ovsRow["aFloat"] = aFloat
 
-	ovsRow["aFloatSet"] = *testOvsSet(t, aFloatSet)
+	ovsRow["aFloatSet"] = testOvsSet(t, aFloatSet)
 
-	ovsRow["aEmptySet"] = *testOvsSet(t, []string{})
+	ovsRow["aEmptySet"] = testOvsSet(t, []string{})
 
 	ovsRow["aEnum"] = aEnum
 
-	ovsRow["aMap"] = *testOvsMap(t, aMap)
+	ovsRow["aMap"] = testOvsMap(t, aMap)
 
 	return ovsRow
 }
@@ -1016,13 +1016,13 @@ func TestMapperMutation(t *testing.T) {
 	}
 }
 
-func testOvsSet(t *testing.T, set interface{}) *ovsdb.OvsSet {
+func testOvsSet(t *testing.T, set interface{}) ovsdb.OvsSet {
 	oSet, err := ovsdb.NewOvsSet(set)
 	assert.Nil(t, err)
 	return oSet
 }
 
-func testOvsMap(t *testing.T, set interface{}) *ovsdb.OvsMap {
+func testOvsMap(t *testing.T, set interface{}) ovsdb.OvsMap {
 	oMap, err := ovsdb.NewOvsMap(set)
 	assert.Nil(t, err)
 	return oMap

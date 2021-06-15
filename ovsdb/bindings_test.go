@@ -86,7 +86,7 @@ func getErrTransMaps() []map[string]interface{} {
 		"name":   "Set instead of Atomic Type",
 		"schema": []byte(`{"type":"string"}`),
 		"native": []string{"foo"},
-		"ovs":    *as,
+		"ovs":    as,
 	})
 	transMap = append(transMap, map[string]interface{}{
 		"name": "Wrong Set Type",
@@ -112,7 +112,7 @@ func getErrTransMaps() []map[string]interface{} {
           }
         }`),
 		"native": map[string]string{"foo": "bar"},
-		"ovs":    *s,
+		"ovs":    s,
 	})
 
 	m, _ := NewOvsMap(map[int]string{1: "one", 2: "two"})
@@ -127,7 +127,7 @@ func getErrTransMaps() []map[string]interface{} {
           }
 	}`),
 		"native": map[int]string{1: "one", 2: "two"},
-		"ovs":    *m,
+		"ovs":    m,
 	})
 	return transMap
 }
@@ -192,7 +192,7 @@ func getTransMaps() []map[string]interface{} {
         }`),
 		"native":     aSet,
 		"native2ovs": s,
-		"ovs":        *s,
+		"ovs":        s,
 		"ovs2native": aSet,
 	})
 
@@ -234,7 +234,7 @@ func getTransMaps() []map[string]interface{} {
 	}`),
 		"native":     aUUIDSet,
 		"native2ovs": uss,
-		"ovs":        *uss,
+		"ovs":        uss,
 		"ovs2native": aUUIDSet,
 	})
 
@@ -275,7 +275,7 @@ func getTransMaps() []map[string]interface{} {
         }`),
 		"native":     aIntSet,
 		"native2ovs": is,
-		"ovs":        *is,
+		"ovs":        is,
 		"ovs2native": aIntSet,
 	})
 
@@ -293,7 +293,7 @@ func getTransMaps() []map[string]interface{} {
         }`),
 		"native":     aIntSet,
 		"native2ovs": is,
-		"ovs":        *fs,
+		"ovs":        fs,
 		"ovs2native": aIntSet,
 	})
 
@@ -313,7 +313,7 @@ func getTransMaps() []map[string]interface{} {
         }`),
 		"native":     []int{aInt},
 		"native2ovs": sis,
-		"ovs":        *sis,
+		"ovs":        sis,
 		"ovs2native": []int{aInt},
 	})
 
@@ -331,7 +331,7 @@ func getTransMaps() []map[string]interface{} {
         }`),
 		"native":     []int{aInt},
 		"native2ovs": sis,
-		"ovs":        *sfs,
+		"ovs":        sfs,
 		"ovs2native": []int{aInt},
 	})
 
@@ -349,7 +349,7 @@ func getTransMaps() []map[string]interface{} {
         }`),
 		"native":     aFloatSet,
 		"native2ovs": fs,
-		"ovs":        *fs,
+		"ovs":        fs,
 		"ovs2native": aFloatSet,
 	})
 
@@ -368,7 +368,7 @@ func getTransMaps() []map[string]interface{} {
         }`),
 		"native":     aEmptySet,
 		"native2ovs": es,
-		"ovs":        *es,
+		"ovs":        es,
 		"ovs2native": aEmptySet,
 	})
 
@@ -419,7 +419,7 @@ func getTransMaps() []map[string]interface{} {
 	}`),
 		"native":     aEnumSet,
 		"native2ovs": ens,
-		"ovs":        *ens,
+		"ovs":        ens,
 		"ovs2native": aEnumSet,
 	})
 
@@ -437,13 +437,13 @@ func getTransMaps() []map[string]interface{} {
 	}`),
 		"native":     aMap,
 		"native2ovs": m,
-		"ovs":        *m,
+		"ovs":        m,
 		"ovs2native": aMap,
 	})
 	return transMap
 }
 
-func TestOvsToNative(t *testing.T) {
+func TestOvsToNativeAndNativeToOvs(t *testing.T) {
 	transMaps := getTransMaps()
 	for _, trans := range transMaps {
 		t.Run(fmt.Sprintf("Ovs To Native: %s", trans["name"]), func(t *testing.T) {
@@ -464,26 +464,14 @@ func TestOvsToNative(t *testing.T) {
 					trans["ovs2native"], reflect.TypeOf(trans["ovs2native"]),
 					res, reflect.TypeOf(res))
 			}
-		})
-	}
-}
 
-func TestNativeToOvs(t *testing.T) {
-	transMaps := getTransMaps()
-	for _, trans := range transMaps {
-		t.Run(fmt.Sprintf("Native To Ovs: %s", trans["name"]), func(t *testing.T) {
-			var column ColumnSchema
-			if err := json.Unmarshal(trans["schema"].([]byte), &column); err != nil {
-				t.Fatal(err)
-			}
-
-			res, err := NativeToOvs(&column, trans["native"])
+			ovs, err := NativeToOvs(&column, res)
 			if err != nil {
 				t.Errorf("failed to convert %s: %s", trans, err)
 				t.Logf("Testing %v", string(trans["schema"].([]byte)))
 			}
 
-			if !reflect.DeepEqual(res, trans["native2ovs"]) {
+			if !reflect.DeepEqual(ovs, trans["native2ovs"]) {
 				t.Errorf("fail to convert native2ovs. native: %v(%s). expected %v(%s). got %v (%s)",
 					trans["native"], reflect.TypeOf(trans["native"]),
 					trans["native2ovs"], reflect.TypeOf(trans["native2ovs"]),
