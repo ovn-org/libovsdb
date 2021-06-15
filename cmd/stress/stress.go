@@ -54,7 +54,11 @@ type result struct {
 }
 
 func cleanup(ctx context.Context) {
-	ovs, err := client.Connect(context.Background(), dbModel, client.WithEndpoint(*connection))
+	ovs, err := client.NewOVSDBClient(dbModel, client.WithEndpoint(*connection))
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = ovs.Connect(context.Background())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -66,7 +70,7 @@ func cleanup(ctx context.Context) {
 
 	var rootUUID string
 	// Get root UUID
-	for _, uuid := range ovs.Cache.Table("Open_vSwitch").Rows() {
+	for _, uuid := range ovs.Cache().Table("Open_vSwitch").Rows() {
 		rootUUID = uuid
 		log.Printf("rootUUID is %v", rootUUID)
 	}
@@ -92,7 +96,11 @@ func run(ctx context.Context, resultsChan chan result, wg *sync.WaitGroup) {
 	ready := false
 	var rootUUID string
 
-	ovs, err := client.Connect(context.Background(), dbModel, client.WithEndpoint(*connection))
+	ovs, err := client.NewOVSDBClient(dbModel, client.WithEndpoint(*connection))
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = ovs.Connect(context.Background())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -106,7 +114,7 @@ func run(ctx context.Context, resultsChan chan result, wg *sync.WaitGroup) {
 		bridgeCh[br.Name] = make(chan bool)
 	}
 
-	ovs.Cache.AddEventHandler(
+	ovs.Cache().AddEventHandler(
 		&cache.EventHandlerFuncs{
 			AddFunc: func(table string, model model.Model) {
 				if ready && table == "Bridge" {
@@ -133,7 +141,7 @@ func run(ctx context.Context, resultsChan chan result, wg *sync.WaitGroup) {
 	}
 
 	// Get root UUID
-	for _, uuid := range ovs.Cache.Table("Open_vSwitch").Rows() {
+	for _, uuid := range ovs.Cache().Table("Open_vSwitch").Rows() {
 		rootUUID = uuid
 		if *verbose {
 			fmt.Printf("rootUUID is %v\n", rootUUID)
@@ -157,7 +165,7 @@ func run(ctx context.Context, resultsChan chan result, wg *sync.WaitGroup) {
 	resultsChan <- result
 }
 
-func transact(ctx context.Context, ovs *client.OvsdbClient, operations []ovsdb.Operation) (bool, string) {
+func transact(ctx context.Context, ovs client.Client, operations []ovsdb.Operation) (bool, string) {
 	reply, err := ovs.Transact(operations...)
 	if err != nil {
 		return false, ""
@@ -168,7 +176,7 @@ func transact(ctx context.Context, ovs *client.OvsdbClient, operations []ovsdb.O
 	return true, reply[0].UUID.GoUUID
 }
 
-func deleteBridge(ctx context.Context, ovs *client.OvsdbClient, rootUUID string, bridge *bridgeType) {
+func deleteBridge(ctx context.Context, ovs client.Client, rootUUID string, bridge *bridgeType) {
 	log.Printf("deleting bridge %s", bridge.Name)
 	deleteOp, err := ovs.Where(bridge).Delete()
 	if err != nil {
@@ -204,7 +212,7 @@ func newBridge() bridgeType {
 	}
 }
 
-func createBridge(ctx context.Context, ovs *client.OvsdbClient, rootUUID string, bridge bridgeType) {
+func createBridge(ctx context.Context, ovs client.Client, rootUUID string, bridge bridgeType) {
 	insertOp, err := ovs.Create(&bridge)
 	if err != nil {
 		log.Fatal(err)
