@@ -133,7 +133,8 @@ func Schema() ovsdb.DatabaseSchema {
 			if tt.err {
 				assert.NotNil(t, err)
 			} else {
-				g := NewGenerator(false)
+				g, err := NewGenerator()
+				require.NoError(t, err)
 				b, err := g.Format(tmpl, data)
 				if tt.formatErr {
 					assert.NotNil(t, err)
