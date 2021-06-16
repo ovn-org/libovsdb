@@ -439,11 +439,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 						if err := tCache.update(uuid, newModel); err != nil {
 							panic(err)
 						}
-						oldModel, err := t.CreateModel(table, row.Old, uuid)
-						if err != nil {
-							panic(err)
-						}
-						t.eventProcessor.AddEvent(updateEvent, table, oldModel, newModel)
+						t.eventProcessor.AddEvent(updateEvent, table, existing, newModel)
 					}
 					// no diff
 					continue
