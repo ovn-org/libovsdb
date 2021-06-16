@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -50,474 +51,464 @@ var (
 	aEmptySet = []string{}
 )
 
-type Transformation map[string]interface{}
-
-func (t Transformation) String() string {
-	return fmt.Sprintf("Transformation: \n\t schema: %s\n\t native: %v\n\t native2ovs: %v\n\t ovs: %v\n\t ovs2native: %v\n\t",
-		string(t["schema"].([]byte)), t["native"], t["native2ovs"], t["ovs"], t["ovs2native"])
-
-}
-
-func getErrTransMaps() []map[string]interface{} {
-	var transMap []map[string]interface{}
-	transMap = append(transMap, map[string]interface{}{
-		"name":   "Wrong Atomic Type",
-		"schema": []byte(`{"type":"string"}`),
-		"native": 42,
-		"ovs":    42,
-	})
-
-	// OVS floats should be convertible to integers since encoding/json will use float64 as
-	// the default numeric type. However, native types should match
-	transMap = append(transMap, map[string]interface{}{
-		"name":   "Wrong Atomic Numeric Type: Int",
-		"schema": []byte(`{"type":"integer"}`),
-		"native": 42.0,
-	})
-
-	transMap = append(transMap, map[string]interface{}{
-		"name":   "Wrong Atomic Numeric Type: Float",
-		"schema": []byte(`{"type":"real"}`),
-		"native": 42,
-		"ovs":    42,
-	})
-	as, _ := NewOvsSet([]string{"foo"})
-	transMap = append(transMap, map[string]interface{}{
-		"name":   "Set instead of Atomic Type",
-		"schema": []byte(`{"type":"string"}`),
-		"native": []string{"foo"},
-		"ovs":    as,
-	})
-	transMap = append(transMap, map[string]interface{}{
-		"name": "Wrong Set Type",
-		"schema": []byte(`{
-          "type": {
-            "key": "string",
-            "max": "unlimited",
-            "min": 0
-          }
-        }`),
-		"native": []int{1, 2},
-		"ovs":    []int{1, 2},
-	})
-
-	s, _ := NewOvsMap(map[string]string{"foo": "bar"})
-	transMap = append(transMap, map[string]interface{}{
-		"name": "Wrong Map instead of Set",
-		"schema": []byte(`{
-          "type": {
-            "key": "string",
-            "max": "unlimited",
-            "min": 0
-          }
-        }`),
-		"native": map[string]string{"foo": "bar"},
-		"ovs":    s,
-	})
-
-	m, _ := NewOvsMap(map[int]string{1: "one", 2: "two"})
-	transMap = append(transMap, map[string]interface{}{
-		"name": "Wrong Map key type",
-		"schema": []byte(`{
-          "type": {
-            "key": "string",
-            "max": "unlimited",
-            "min": 0,
-            "value": "string"
-          }
-	}`),
-		"native": map[int]string{1: "one", 2: "two"},
-		"ovs":    m,
-	})
-	return transMap
-}
-func getTransMaps() []map[string]interface{} {
-	var transMap []map[string]interface{}
-	// String
-	transMap = append(transMap, map[string]interface{}{
-		"name":       "String",
-		"schema":     []byte(`{"type":"string"}`),
-		"native":     aString,
-		"native2ovs": aString,
-		"ovs":        aString,
-		"ovs2native": aString,
-	})
-
-	// Float
-	transMap = append(transMap, map[string]interface{}{
-		"name":       "Float",
-		"schema":     []byte(`{"type":"real"}`),
-		"native":     aFloat,
-		"native2ovs": aFloat,
-		"ovs":        aFloat,
-		"ovs2native": aFloat,
-	})
-
-	// Integers
-	transMap = append(transMap, map[string]interface{}{
-		"name":       "Integers with float ovs type",
-		"schema":     []byte(`{"type":"integer"}`),
-		"native":     aInt,
-		"native2ovs": aInt,
-		"ovs":        aFloat, // Default json encoding uses float64 for all numbers
-		"ovs2native": aInt,
-	})
-	transMap = append(transMap, map[string]interface{}{
-		"name":       "Integers",
-		"schema":     []byte(`{"type":"integer"}`),
-		"native":     aInt,
-		"native2ovs": aInt,
-		"ovs":        aInt,
-		"ovs2native": aInt,
-	})
-	transMap = append(transMap, map[string]interface{}{
-		"name":       "Integer set with float ovs type ",
-		"schema":     []byte(`{"type":"integer", "min":0}`),
-		"native":     aInt,
-		"native2ovs": aInt,
-		"ovs":        aFloat,
-		"ovs2native": aInt,
-	})
-
-	// string set
+func TestOvsToNativeAndNativeToOvs(t *testing.T) {
 	s, _ := NewOvsSet(aSet)
-	transMap = append(transMap, map[string]interface{}{
-		"name": "String Set",
-		"schema": []byte(`{
-          "type": {
-            "key": "string",
-            "max": "unlimited",
-            "min": 0
-          }
-        }`),
-		"native":     aSet,
-		"native2ovs": s,
-		"ovs":        s,
-		"ovs2native": aSet,
-	})
-
-	// string with exactly one element can also be represented
-	// as the element itself. On ovs2native, we keep the slice representation
 	s1, _ := NewOvsSet([]string{aString})
-	transMap = append(transMap, map[string]interface{}{
-		"name": "String Set with exactly one field",
-		"schema": []byte(`{
-          "type": {
-            "key": "string",
-            "max": "unlimited",
-            "min": 0
-          }
-        }`),
-		"native":     []string{aString},
-		"native2ovs": s1,
-		"ovs":        aString,
-		"ovs2native": []string{aString},
-	})
 
-	// UUID set
 	us := make([]UUID, 0)
 	for _, u := range aUUIDSet {
 		us = append(us, UUID{GoUUID: u})
 	}
 	uss, _ := NewOvsSet(us)
-	transMap = append(transMap, map[string]interface{}{
-		"name": "UUID Set",
-		"schema": []byte(`{
-	"type":{
-            "key": {
-              "refTable": "SomeOtherTAble",
-              "refType": "weak",
-              "type": "uuid"
-            },
-            "min": 0
-         }
-	}`),
-		"native":     aUUIDSet,
-		"native2ovs": uss,
-		"ovs":        uss,
-		"ovs2native": aUUIDSet,
-	})
 
-	// UUID set with exactly one element.
 	us1 := []UUID{{GoUUID: aUUID0}}
 	uss1, _ := NewOvsSet(us1)
-	transMap = append(transMap, map[string]interface{}{
-		"name": "UUID Set with exactly one field",
-		"schema": []byte(`{
-	"type":{
-            "key": {
-              "refTable": "SomeOtherTAble",
-              "refType": "weak",
-              "type": "uuid"
-            },
-            "min": 0
-         }
-	}`),
-		"native":     []string{aUUID0},
-		"native2ovs": uss1,
-		"ovs":        UUID{GoUUID: aUUID0},
-		"ovs2native": []string{aUUID0},
-	})
 
-	// A integer set with integer ovs input
 	is, _ := NewOvsSet(aIntSet)
 	fs, _ := NewOvsSet(aFloatSet)
-	transMap = append(transMap, map[string]interface{}{
-		"name": "Integer Set",
-		"schema": []byte(`{
-	"type":{
-            "key": {
-              "type": "integer"
-            },
-            "min": 0,
-            "max": "unlimited"
-          }
-        }`),
-		"native":     aIntSet,
-		"native2ovs": is,
-		"ovs":        is,
-		"ovs2native": aIntSet,
-	})
 
-	// A integer set with float ovs input
-	transMap = append(transMap, map[string]interface{}{
-		"name": "Integer Set single",
-		"schema": []byte(`{
-	"type":{
-            "key": {
-              "type": "integer"
-            },
-            "min": 0,
-            "max": "unlimited"
-          }
-        }`),
-		"native":     aIntSet,
-		"native2ovs": is,
-		"ovs":        fs,
-		"ovs2native": aIntSet,
-	})
-
-	// A single-value integer set with integer ovs input
 	sis, _ := NewOvsSet([]int{aInt})
 	sfs, _ := NewOvsSet([]float64{aFloat})
-	transMap = append(transMap, map[string]interface{}{
-		"name": "Integer Set single",
-		"schema": []byte(`{
-	"type":{
-            "key": {
-              "type": "integer"
-            },
-            "min": 0,
-            "max": "unlimited"
-          }
-        }`),
-		"native":     []int{aInt},
-		"native2ovs": sis,
-		"ovs":        sis,
-		"ovs2native": []int{aInt},
-	})
 
-	// A single-value integer set with float ovs input
-	transMap = append(transMap, map[string]interface{}{
-		"name": "Integer Set single",
-		"schema": []byte(`{
-	"type":{
-            "key": {
-              "type": "integer"
-            },
-            "min": 0,
-            "max": "unlimited"
-          }
-        }`),
-		"native":     []int{aInt},
-		"native2ovs": sis,
-		"ovs":        sfs,
-		"ovs2native": []int{aInt},
-	})
-
-	// A float set
-	transMap = append(transMap, map[string]interface{}{
-		"name": "Float Set",
-		"schema": []byte(`{
-	"type":{
-            "key": {
-              "type": "real"
-            },
-            "min": 0,
-            "max": "unlimited"
-          }
-        }`),
-		"native":     aFloatSet,
-		"native2ovs": fs,
-		"ovs":        fs,
-		"ovs2native": aFloatSet,
-	})
-
-	// A empty string set
 	es, _ := NewOvsSet(aEmptySet)
-	transMap = append(transMap, map[string]interface{}{
-		"name": "Empty String Set",
-		"schema": []byte(`{
-	"type":{
-            "key": {
-              "type": "string"
-            },
-            "min": 0,
-            "max": "unlimited"
-          }
-        }`),
-		"native":     aEmptySet,
-		"native2ovs": es,
-		"ovs":        es,
-		"ovs2native": aEmptySet,
-	})
-
-	// Enum
-	transMap = append(transMap, map[string]interface{}{
-		"name": "Enum (string)",
-		"schema": []byte(`{
-	"type":{
-            "key": {
-              "enum": [
-                "set",
-                [
-                  "enum1",
-                  "enum2",
-                  "enum3"
-                ]
-              ],
-              "type": "string"
-            }
-          }
-	}`),
-		"native":     aEnum,
-		"native2ovs": aEnum,
-		"ovs":        aEnum,
-		"ovs2native": aEnum,
-	})
-
-	// Enum set
 	ens, _ := NewOvsSet(aEnumSet)
-	transMap = append(transMap, map[string]interface{}{
-		"name": "Enum Set (string)",
-		"schema": []byte(`{
-	"type":{
-            "key": {
-              "enum": [
-                "set",
-                [
-                  "enum1",
-                  "enum2",
-                  "enum3"
-                ]
-              ],
-              "type": "string"
-            },
-	    "max": "unlimited",
-	    "min": 0
-          }
-	}`),
-		"native":     aEnumSet,
-		"native2ovs": ens,
-		"ovs":        ens,
-		"ovs2native": aEnumSet,
-	})
 
-	// A Map
 	m, _ := NewOvsMap(aMap)
-	transMap = append(transMap, map[string]interface{}{
-		"name": "Map (string->string)",
-		"schema": []byte(`{
-          "type": {
+
+	tests := []struct {
+		name   string
+		schema []byte
+		input  interface{}
+		native interface{}
+		ovs    interface{}
+	}{
+		{
+			name:   "String",
+			schema: []byte(`{"type":"string"}`),
+			input:  aString,
+			native: aString,
+			ovs:    aString,
+		},
+		{
+			name:   "Float",
+			schema: []byte(`{"type":"real"}`),
+			input:  aFloat,
+			native: aFloat,
+			ovs:    aFloat,
+		},
+		{
+			name:   "Integers with float ovs type",
+			schema: []byte(`{"type":"integer"}`),
+			input:  aFloat,
+			native: aInt,
+			ovs:    aInt,
+		},
+		{
+			name:   "Integers",
+			schema: []byte(`{"type":"integer"}`),
+			input:  aInt,
+			native: aInt,
+			ovs:    aInt,
+		},
+		{
+			name:   "Integer set with float ovs type ",
+			schema: []byte(`{"type":"integer", "min":0}`),
+			input:  aFloat,
+			native: aInt,
+			ovs:    aInt,
+		},
+		{
+			name: "String Set",
+			schema: []byte(`{"type": {
             "key": "string",
             "max": "unlimited",
-            "min": 0,
-            "value": "string"
-          }
-	}`),
-		"native":     aMap,
-		"native2ovs": m,
-		"ovs":        m,
-		"ovs2native": aMap,
-	})
-	return transMap
-}
+            "min": 0
+            }}`),
+			input:  s,
+			native: aSet,
+			ovs:    s,
+		},
+		{
+			// string with exactly one element can also be represented
+			// as the element itself. On ovs2native, we keep the slice representation
+			name: "String Set with exactly one field",
+			schema: []byte(`{
+			  "type": {
+				"key": "string",
+				"max": "unlimited",
+				"min": 0
+			  }
+			}`),
+			input:  aString,
+			native: []string{aString},
+			ovs:    s1,
+		},
+		{
+			name: "UUID Set",
+			schema: []byte(`{
+			"type":{
+				"key": {
+					"refTable": "SomeOtherTAble",
+					"refType": "weak",
+					"type": "uuid"
+				},
+				"min": 0
+				}
+			}`),
+			input:  uss,
+			native: aUUIDSet,
+			ovs:    uss,
+		},
+		{
+			name: "UUID Set with exactly one field",
+			schema: []byte(`{
+			"type":{
+					"key": {
+						"refTable": "SomeOtherTAble",
+						"refType": "weak",
+						"type": "uuid"
+					},
+					"min": 0
+					}
+			}`),
+			input:  UUID{GoUUID: aUUID0},
+			native: []string{aUUID0},
+			ovs:    uss1,
+		},
+		{
+			name: "Integer Set",
+			schema: []byte(`{
+			"type":{
+					"key": {
+					"type": "integer"
+					},
+					"min": 0,
+					"max": "unlimited"
+				}
+			}`),
+			input:  is,
+			native: aIntSet,
+			ovs:    is,
+		},
+		{
+			name: "Integer Set single with float ovs input",
+			schema: []byte(`{
+			"type":{
+					"key": {
+					"type": "integer"
+					},
+					"min": 0,
+					"max": "unlimited"
+				}
+			}`),
+			input:  fs,
+			native: aIntSet,
+			ovs:    is,
+		},
+		{
+			// A single-value integer set with integer ovs input
+			name: "Integer Set single",
+			schema: []byte(`{
+			"type":{
+					"key": {
+					"type": "integer"
+					},
+					"min": 0,
+					"max": "unlimited"
+				}
+			}`),
+			input:  sis,
+			native: []int{aInt},
+			ovs:    sis,
+		},
+		{
+			// A single-value integer set with float ovs input
+			name: "Integer Set single",
+			schema: []byte(`{
+			"type":{
+					"key": {
+					"type": "integer"
+					},
+					"min": 0,
+					"max": "unlimited"
+				}
+			}`),
+			input:  sfs,
+			native: []int{aInt},
+			ovs:    sis,
+		},
 
-func TestOvsToNativeAndNativeToOvs(t *testing.T) {
-	transMaps := getTransMaps()
-	for _, trans := range transMaps {
-		t.Run(fmt.Sprintf("Ovs To Native: %s", trans["name"]), func(t *testing.T) {
+		{
+			// A float set
+			name: "Float Set",
+			schema: []byte(`{
+			"type":{
+					"key": {
+					"type": "real"
+					},
+					"min": 0,
+					"max": "unlimited"
+				}
+			}`),
+			input:  fs,
+			native: aFloatSet,
+			ovs:    fs,
+		},
+		{
+			// A empty string set
+			name: "Empty String Set",
+			schema: []byte(`{
+			"type":{
+					"key": {
+					"type": "string"
+					},
+					"min": 0,
+					"max": "unlimited"
+				}
+			}`),
+			input:  es,
+			native: aEmptySet,
+			ovs:    es,
+		},
+		{
+			// Enum
+			name: "Enum (string)",
+			schema: []byte(`{
+			"type":{
+					"key": {
+					"enum": [
+						"set",
+						[
+						"enum1",
+						"enum2",
+						"enum3"
+						]
+					],
+					"type": "string"
+					}
+				}
+			}`),
+			input:  aEnum,
+			native: aEnum,
+			ovs:    aEnum,
+		},
+		{
+			// Enum set
+			name: "Enum Set (string)",
+			schema: []byte(`{
+			"type":{
+				"key": {
+					"enum": [
+					"set",
+					[
+						"enum1",
+						"enum2",
+						"enum3"
+					]
+					],
+					"type": "string"
+				},
+				"max": "unlimited",
+				"min": 0
+			  }
+			}`),
+			input:  ens,
+			native: aEnumSet,
+			ovs:    ens,
+		},
+		{
+			name: "Map (string->string)",
+			schema: []byte(`{
+			"type": {
+				"key": "string",
+				"max": "unlimited",
+				"min": 0,
+				"value": "string"
+			}
+			}`),
+			input:  m,
+			native: aMap,
+			ovs:    m,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			var column ColumnSchema
-			if err := json.Unmarshal(trans["schema"].([]byte), &column); err != nil {
-				t.Fatal(err)
-			}
+			err := json.Unmarshal(tt.schema, &column)
+			require.NoError(t, err)
 
-			res, err := OvsToNative(&column, trans["ovs"])
-			if err != nil {
-				t.Errorf("failed to convert %s: %s", trans, err)
-				t.Logf("Testing %v", string(trans["schema"].([]byte)))
-			}
+			native, err := OvsToNative(&column, tt.input)
+			require.NoErrorf(t, err, "failed to convert %+v: %s", tt, err)
 
-			if !reflect.DeepEqual(res, trans["ovs2native"]) {
-				t.Errorf("fail to convert ovs2native. ovs: %v(%s). expected %v(%s). got %v (%s)",
-					trans["ovs"], reflect.TypeOf(trans["ovs"]),
-					trans["ovs2native"], reflect.TypeOf(trans["ovs2native"]),
-					res, reflect.TypeOf(res))
-			}
+			require.Equalf(t, native, tt.native,
+				"fail to convert ovs2native. input: %v(%s). expected %v(%s). got %v (%s)",
+				tt.input, reflect.TypeOf(tt.input),
+				tt.native, reflect.TypeOf(tt.native),
+				native, reflect.TypeOf(native),
+			)
 
-			ovs, err := NativeToOvs(&column, res)
-			if err != nil {
-				t.Errorf("failed to convert %s: %s", trans, err)
-				t.Logf("Testing %v", string(trans["schema"].([]byte)))
-			}
+			ovs, err := NativeToOvs(&column, native)
+			require.NoErrorf(t, err, "failed to convert %s: %s", tt, err)
 
-			if !reflect.DeepEqual(ovs, trans["native2ovs"]) {
-				t.Errorf("fail to convert native2ovs. native: %v(%s). expected %v(%s). got %v (%s)",
-					trans["native"], reflect.TypeOf(trans["native"]),
-					trans["native2ovs"], reflect.TypeOf(trans["native2ovs"]),
-					res, reflect.TypeOf(res))
-			}
+			assert.Equalf(t, ovs, tt.ovs,
+				"fail to convert native2ovs. native: %v(%s). expected %v(%s). got %v (%s)",
+				native, reflect.TypeOf(native),
+				tt.ovs, reflect.TypeOf(tt.ovs),
+				ovs, reflect.TypeOf(ovs),
+			)
 		})
 	}
 }
 
 func TestOvsToNativeErr(t *testing.T) {
-	transMaps := getErrTransMaps()
-	for _, trans := range transMaps {
-		if _, ok := trans["ovs"]; !ok {
-			continue
-		}
-		t.Run(fmt.Sprintf("Ovs To Native Error: %s", trans["name"]), func(t *testing.T) {
-			var column ColumnSchema
-			if err := json.Unmarshal(trans["schema"].([]byte), &column); err != nil {
-				t.Fatal(err)
-			}
+	as, _ := NewOvsSet([]string{"foo"})
 
-			res, err := OvsToNative(&column, trans["ovs"])
-			if err == nil {
-				t.Errorf("conversion %s should have failed, instead it has returned %v (%s)", trans, res, reflect.TypeOf(res))
-				t.Logf("Conversion schema %v", string(trans["schema"].([]byte)))
-			}
+	s, _ := NewOvsMap(map[string]string{"foo": "bar"})
+
+	m, _ := NewOvsMap(map[int]string{1: "one", 2: "two"})
+
+	tests := []struct {
+		name   string
+		schema []byte
+		input  interface{}
+	}{
+		{
+			name:   "Wrong Atomic Type",
+			schema: []byte(`{"type":"string"}`),
+			input:  42,
+		},
+		{
+			name:   "Wrong Atomic Numeric Type: Float",
+			schema: []byte(`{"type":"real"}`),
+			input:  42,
+		},
+		{
+			name:   "Set instead of Atomic Type",
+			schema: []byte(`{"type":"string"}`),
+			input:  as,
+		},
+		{
+			name: "Wrong Set Type",
+			schema: []byte(`{
+			  "type": {
+				"key": "string",
+				"max": "unlimited",
+				"min": 0
+			  }
+			}`),
+			input: []int{1, 2},
+		},
+		{
+			name: "Wrong Map instead of Set",
+			schema: []byte(`{
+			  "type": {
+				"key": "string",
+				"max": "unlimited",
+				"min": 0
+			  }
+			}`),
+			input: s,
+		},
+		{
+			name: "Wrong Map key type",
+			schema: []byte(`{
+			  "type": {
+				"key": "string",
+				"max": "unlimited",
+				"min": 0,
+				"value": "string"
+			  }
+			}`),
+			input: m,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf(tt.name), func(t *testing.T) {
+			var column ColumnSchema
+			err := json.Unmarshal(tt.schema, &column)
+			require.NoError(t, err)
+			res, err := OvsToNative(&column, tt.input)
+			assert.Errorf(t, err,
+				"conversion %+v should have failed, instead it has returned %v (%s)",
+				tt, res, reflect.TypeOf(res),
+			)
 		})
 	}
 }
 
 func TestNativeToOvsErr(t *testing.T) {
-	transMaps := getErrTransMaps()
-	for _, trans := range transMaps {
-		if _, ok := trans["native"]; !ok {
-			continue
-		}
-		t.Run(fmt.Sprintf("Native To Ovs Error: %s", trans["name"]), func(t *testing.T) {
+	tests := []struct {
+		name   string
+		schema []byte
+		input  interface{}
+	}{
+		{
+			name:   "Wrong Atomic Type",
+			schema: []byte(`{"type":"string"}`),
+			input:  42,
+		},
+		{
+			// OVS floats should be convertible to integers since encoding/json will use float64 as
+			// the default numeric type. However, native types should match
+			name:   "Wrong Atomic Numeric Type: Int",
+			schema: []byte(`{"type":"integer"}`),
+			input:  42.0,
+		},
+		{
+			name:   "Wrong Atomic Numeric Type: Float",
+			schema: []byte(`{"type":"real"}`),
+			input:  42,
+		},
+		{
+			name:   "Set instead of Atomic Type",
+			schema: []byte(`{"type":"string"}`),
+			input:  []string{"foo"},
+		},
+		{
+			name: "Wrong Set Type",
+			schema: []byte(`{
+			  "type": {
+				"key": "string",
+				"max": "unlimited",
+				"min": 0
+			  }
+			}`),
+			input: []int{1, 2},
+		},
+		{
+			name: "Wrong Map instead of Set",
+			schema: []byte(`{
+			  "type": {
+				"key": "string",
+				"max": "unlimited",
+				"min": 0
+			  }
+			}`),
+			input: map[string]string{"foo": "bar"},
+		},
+		{
+			name: "Wrong Map key type",
+			schema: []byte(`{
+			  "type": {
+				"key": "string",
+				"max": "unlimited",
+				"min": 0,
+				"value": "string"
+			  }
+		}`),
+			input: map[int]string{1: "one", 2: "two"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf(tt.name), func(t *testing.T) {
 			var column ColumnSchema
-			if err := json.Unmarshal(trans["schema"].([]byte), &column); err != nil {
+			if err := json.Unmarshal(tt.schema, &column); err != nil {
 				t.Fatal(err)
 			}
-
-			res, err := NativeToOvs(&column, trans["native"])
+			res, err := NativeToOvs(&column, tt.input)
 			if err == nil {
-				t.Errorf("conversion %s should have failed, instead it has returned %v (%s)", trans, res, reflect.TypeOf(res))
-				t.Logf("Conversion schema %v", string(trans["schema"].([]byte)))
+				t.Errorf("conversion %s should have failed, instead it has returned %v (%s)", tt, res, reflect.TypeOf(res))
+				t.Logf("Conversion schema %v", string(tt.schema))
 			}
 		})
 	}
