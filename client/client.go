@@ -14,6 +14,7 @@ import (
 	"github.com/cenkalti/rpc2"
 	"github.com/cenkalti/rpc2/jsonrpc"
 	"github.com/ovn-org/libovsdb/cache"
+	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
@@ -21,6 +22,7 @@ import (
 // OvsdbClient is an OVSDB client
 type OvsdbClient struct {
 	rpcClient     *rpc2.Client
+	dbModel       *model.DBModel
 	Schema        ovsdb.DatabaseSchema
 	handlers      []ovsdb.NotificationHandler
 	handlersMutex *sync.Mutex
@@ -29,9 +31,10 @@ type OvsdbClient struct {
 	api           API
 }
 
-func newOvsdbClient() *OvsdbClient {
+func newOvsdbClient(dbModel *model.DBModel) *OvsdbClient {
 	// Cache initialization is delayed because we first need to obtain the schema
 	ovs := &OvsdbClient{
+		dbModel:       dbModel,
 		handlersMutex: &sync.Mutex{},
 		stopCh:        make(chan struct{}),
 	}
@@ -85,7 +88,7 @@ func Connect(ctx context.Context, database *model.DBModel, opts ...Option) (*Ovs
 }
 
 func newRPC2Client(conn net.Conn, database *model.DBModel) (*OvsdbClient, error) {
-	ovs := newOvsdbClient()
+	ovs := newOvsdbClient(database)
 	ovs.rpcClient = rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
 	ovs.rpcClient.SetBlocking(true)
 	ovs.rpcClient.Handle("echo", func(_ *rpc2.Client, args []interface{}, reply *[]interface{}) error {
@@ -254,18 +257,11 @@ func (ovs OvsdbClient) Transact(operation ...ovsdb.Operation) ([]ovsdb.Operation
 
 // MonitorAll is a convenience method to monitor every table/column
 func (ovs OvsdbClient) MonitorAll(jsonContext interface{}) error {
-	requests := make(map[string]ovsdb.MonitorRequest)
-	for table, tableSchema := range ovs.Schema.Tables {
-		var columns []string
-		for column := range tableSchema.Columns {
-			columns = append(columns, column)
-		}
-		requests[table] = ovsdb.MonitorRequest{
-			Columns: columns,
-			Select:  ovsdb.NewDefaultMonitorSelect(),
-		}
+	var options []TableMonitor
+	for name := range ovs.dbModel.Types() {
+		options = append(options, TableMonitor{Table: name})
 	}
-	return ovs.Monitor(jsonContext, requests)
+	return ovs.Monitor(jsonContext, options...)
 }
 
 // MonitorCancel will request cancel a previously issued monitor request
@@ -285,13 +281,56 @@ func (ovs OvsdbClient) MonitorCancel(jsonContext interface{}) error {
 	return nil
 }
 
+// TableMonitor is a table to be monitored
+type TableMonitor struct {
+	// Table is the table to be monitored
+	Table string
+	// Fields are the fields in the model to monitor
+	// If none are supplied, all fields will be used
+	Fields []interface{}
+	// Error will contain any errors caught in the creation of a TableMonitor
+	Error error
+}
+
+func (ovs *OvsdbClient) NewTableMonitor(m model.Model, fields ...interface{}) TableMonitor {
+	tableName := ovs.dbModel.FindTable(reflect.TypeOf(m))
+	if tableName == "" {
+		return TableMonitor{
+			Error: fmt.Errorf("object of type %s is not part of the DBModel", reflect.TypeOf(m)),
+		}
+	}
+	return TableMonitor{
+		Table:  tableName,
+		Fields: fields,
+	}
+}
+
 // Monitor will provide updates for a given table/column
 // and populate the cache with them. Subsequent updates will be processed
 // by the Update Notifications
 // RFC 7047 : monitor
-func (ovs OvsdbClient) Monitor(jsonContext interface{}, requests map[string]ovsdb.MonitorRequest) error {
+func (ovs OvsdbClient) Monitor(jsonContext interface{}, options ...TableMonitor) error {
+	if len(options) == 0 {
+		return fmt.Errorf("no monitor options provided")
+	}
 	var reply ovsdb.TableUpdates
-
+	mapper := mapper.NewMapper(&ovs.Schema)
+	typeMap := ovs.dbModel.Types()
+	requests := make(map[string]ovsdb.MonitorRequest)
+	for _, o := range options {
+		if o.Error != nil {
+			return o.Error
+		}
+		m, ok := typeMap[o.Table]
+		if !ok {
+			return fmt.Errorf("type for table %s does not exist in dbModel", o.Table)
+		}
+		request, err := mapper.NewMonitorRequest(o.Table, m, o.Fields)
+		if err != nil {
+			return err
+		}
+		requests[o.Table] = *request
+	}
 	args := ovsdb.NewMonitorArgs(ovs.Schema.Name, jsonContext, requests)
 	err := ovs.rpcClient.Call("monitor", args, &reply)
 	if err != nil {

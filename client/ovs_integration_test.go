@@ -486,7 +486,10 @@ func TestMonitorCancelIntegration(t *testing.T) {
 		Select:  ovsdb.NewDefaultMonitorSelect(),
 	}
 
-	err = ovs.Monitor(monitorID, requests)
+	err = ovs.Monitor(monitorID,
+		ovs.NewTableMonitor(&ovsType{}),
+		ovs.NewTableMonitor(&bridgeType{}),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

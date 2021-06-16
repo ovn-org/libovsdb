@@ -7,6 +7,7 @@ import (
 
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -1026,4 +1027,69 @@ func testOvsMap(t *testing.T, set interface{}) ovsdb.OvsMap {
 	oMap, err := ovsdb.NewOvsMap(set)
 	assert.Nil(t, err)
 	return oMap
+}
+
+func TestNewMonitorRequest(t *testing.T) {
+	var testSchema = []byte(`{
+  "cksum": "223619766 22548",
+  "name": "TestSchema",
+  "tables": {
+    "TestTable": {
+      "indexes": [["name"],["composed_1","composed_2"]],
+      "columns": {
+        "name": {
+          "type": "string"
+        },
+        "composed_1": {
+          "type": {
+            "key": "string"
+          }
+        },
+        "composed_2": {
+          "type": {
+            "key": "string"
+          }
+        },
+        "int1": {
+          "type": {
+            "key": "integer"
+          }
+        },
+        "int2": {
+          "type": {
+            "key": "integer"
+          }
+        },
+        "config": {
+          "type": {
+            "key": "string",
+            "max": "unlimited",
+            "min": 0,
+            "value": "string"
+          }
+	}
+      }
+    }
+  }
+}`)
+	type testType struct {
+		ID     string            `ovsdb:"_uuid"`
+		MyName string            `ovsdb:"name"`
+		Config map[string]string `ovsdb:"config"`
+		Comp1  string            `ovsdb:"composed_1"`
+		Comp2  string            `ovsdb:"composed_2"`
+		Int1   int               `ovsdb:"int1"`
+		Int2   int               `ovsdb:"int2"`
+	}
+	var schema ovsdb.DatabaseSchema
+	err := json.Unmarshal(testSchema, &schema)
+	require.NoError(t, err)
+	mapper := NewMapper(&schema)
+	testTable := &testType{}
+	mr, err := mapper.NewMonitorRequest("TestTable", testTable, nil)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, mr.Columns, []string{"name", "config", "composed_1", "composed_2", "int1", "int2"})
+	mr2, err := mapper.NewMonitorRequest("TestTable", testTable, []interface{}{&testTable.Int1, &testTable.MyName})
+	require.NoError(t, err)
+	assert.ElementsMatch(t, mr2.Columns, []string{"int1", "name"})
 }
