@@ -129,7 +129,7 @@ func TestMap(t *testing.T) {
 		var res OvsMap
 		err = json.Unmarshal(jsonStr, &res)
 		assert.Nil(t, err)
-		assert.Equal(t, *m, res, "they should be equal\n")
+		assert.Equal(t, m, res, "they should be equal\n")
 	}
 }
 

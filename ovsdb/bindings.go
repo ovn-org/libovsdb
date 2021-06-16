@@ -179,14 +179,14 @@ func NativeToOvs(column *ColumnSchema, rawElem interface{}) (interface{}, error)
 	case TypeUUID:
 		return UUID{GoUUID: rawElem.(string)}, nil
 	case TypeSet:
-		var ovsSet *OvsSet
+		var ovsSet OvsSet
 		if column.TypeObj.Key.Type == TypeUUID {
 			var ovsSlice []interface{}
 			for _, v := range rawElem.([]string) {
 				uuid := UUID{GoUUID: v}
 				ovsSlice = append(ovsSlice, uuid)
 			}
-			ovsSet = &OvsSet{GoSet: ovsSlice}
+			ovsSet = OvsSet{GoSet: ovsSlice}
 
 		} else {
 			var err error
