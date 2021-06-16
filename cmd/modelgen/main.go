@@ -65,7 +65,14 @@ func main() {
 		log.Fatal(err)
 	}
 
-	gen := modelgen.NewGenerator(*dryRun)
+	genOpts := []modelgen.Option{}
+	if *dryRun {
+		genOpts = append(genOpts, modelgen.WithDryRun())
+	}
+	gen, err := modelgen.NewGenerator(genOpts...)
+	if err != nil {
+		log.Fatal(err)
+	}
 	for name, table := range dbSchema.Tables {
 		tmpl := modelgen.NewTableTemplate()
 		args := modelgen.GetTableTemplateData(pkgName, name, &table)

@@ -55,8 +55,12 @@ func (g *generator) Generate(filename string, tmpl *template.Template, args inte
 }
 
 // NewGenerator returns a new Generator
-func NewGenerator(dryRun bool) Generator {
-	return &generator{
-		dryRun: dryRun,
+func NewGenerator(opts ...Option) (Generator, error) {
+	options, err := newOptions(opts...)
+	if err != nil {
+		return nil, err
 	}
+	return &generator{
+		dryRun: options.dryRun,
+	}, nil
 }

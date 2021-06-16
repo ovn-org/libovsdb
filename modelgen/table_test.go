@@ -228,7 +228,8 @@ WRONG FORMAT
 					tt.extend(tmpl, data)
 				}
 				for i := 0; i < 3; i++ {
-					g := NewGenerator(false)
+					g, err := NewGenerator()
+					require.NoError(t, err)
 					b, err := g.Format(tmpl, data)
 					if tt.formatErr {
 						assert.NotNil(t, err)
@@ -346,25 +347,37 @@ func ExampleNewTableTemplate() {
 					},
 					"some_integer": {
 						"type": "integer"
-					},
+					}
 				}
 			}
 		}
 	}`)
 	var schema ovsdb.DatabaseSchema
-	_ = json.Unmarshal(schemaString, &schema)
+	err := json.Unmarshal(schemaString, &schema)
+	if err != nil {
+		panic(err)
+	}
 
 	base := NewTableTemplate()
 	data := GetTableTemplateData("mypackage", "table1", schema.Table("table1"))
 
 	// Add a function at after the struct definition
 	// It can access the default data values plus any extra field that is added to data
-	_, _ = base.Parse(`{{define "postStructDefinitions"}}
-func (t {{ index . "StructName" }} {{ index . FuncName}}() string {
+	_, err = base.Parse(`{{define "postStructDefinitions"}}
+func (t {{ index . "StructName" }}) {{ index . "FuncName"}}() string {
     return "bar"
 }{{end}}`)
+	if err != nil {
+		panic(err)
+	}
 	data["FuncName"] = "TestFunc"
 
-	gen := NewGenerator(false)
-	_ = gen.Generate("generated.go", base, data)
+	gen, err := NewGenerator(WithDryRun())
+	if err != nil {
+		panic(err)
+	}
+	err = gen.Generate("generated.go", base, data)
+	if err != nil {
+		panic(err)
+	}
 }
