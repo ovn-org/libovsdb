@@ -48,6 +48,12 @@ var (
 		"key3": "value3",
 	}
 
+	aUUIDMap = map[string]string{
+		"key1": aUUID0,
+		"key2": aUUID1,
+		"key3": aUUID2,
+	}
+
 	aEmptySet = []string{}
 )
 
@@ -74,6 +80,12 @@ func TestOvsToNativeAndNativeToOvs(t *testing.T) {
 	ens, _ := NewOvsSet(aEnumSet)
 
 	m, _ := NewOvsMap(aMap)
+
+	um, _ := NewOvsMap(map[string]UUID{
+		"key1": {GoUUID: aUUID0},
+		"key2": {GoUUID: aUUID1},
+		"key3": {GoUUID: aUUID2},
+	})
 
 	tests := []struct {
 		name   string
@@ -329,6 +341,20 @@ func TestOvsToNativeAndNativeToOvs(t *testing.T) {
 			input:  m,
 			native: aMap,
 			ovs:    m,
+		},
+		{
+			name: "Map (string->uuid)",
+			schema: []byte(`{
+			"type": {
+				"key": "string",
+				"max": "unlimited",
+				"min": 0,
+				"value": "uuid"
+			}
+			}`),
+			input:  um,
+			native: aUUIDMap,
+			ovs:    um,
 		},
 	}
 	for _, tt := range tests {
