@@ -226,7 +226,7 @@ func TestRowCacheCreateMultiIndex(t *testing.T) {
 				assert.Nil(t, err)
 				mapperInfo, err := mapper.NewInfo(tSchema, tt.model)
 				require.Nil(t, err)
-				h, err := hashColumnValues(mapperInfo, []string{"foo", "bar"})
+				h, err := valueFromIndex(mapperInfo, newIndex("foo", "bar"))
 				require.Nil(t, err)
 				assert.Equal(t, tt.uuid, rc.indexes["foo,bar"][h])
 			}
@@ -379,7 +379,7 @@ func TestRowCacheUpdateMultiIndex(t *testing.T) {
 				assert.Nil(t, err)
 				mapperInfo, err := mapper.NewInfo(tSchema, tt.model)
 				require.Nil(t, err)
-				h, err := hashColumnValues(mapperInfo, []string{"foo", "bar"})
+				h, err := valueFromIndex(mapperInfo, newIndex("foo", "bar"))
 				require.Nil(t, err)
 				assert.Equal(t, tt.uuid, rc.indexes["foo,bar"][h])
 			}
@@ -740,4 +740,104 @@ func TestEventProcessor_AddEvent(t *testing.T) {
 
 	// assert channel is empty
 	assert.Equal(t, 0, len(ep.events))
+}
+
+func TestIndex(t *testing.T) {
+	type indexTestModel struct {
+		UUID string `ovsdb:"_uuid"`
+		Foo  string `ovsdb:"foo"`
+		Bar  string `ovsdb:"bar"`
+		Baz  int    `ovsdb:"baz"`
+	}
+	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &indexTestModel{}})
+	assert.Nil(t, err)
+	var schema ovsdb.DatabaseSchema
+	err = json.Unmarshal([]byte(`
+		 {"name": "TestDB",
+		  "tables": {
+		    "Open_vSwitch": {
+			  "indexes": [["foo"], ["bar","baz"]],
+		      "columns": {
+		        "foo": {
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			},
+			"baz": {
+				"type": "integer"
+			}
+		      }
+		    }
+		 }
+	     }
+	`), &schema)
+	assert.Nil(t, err)
+	tc, err := NewTableCache(&schema, db, nil)
+	assert.Nil(t, err)
+	obj := &indexTestModel{
+		UUID: "test1",
+		Foo:  "foo",
+		Bar:  "bar",
+		Baz:  42,
+	}
+	table := tc.Table("Open_vSwitch")
+
+	err = table.Create(obj.UUID, obj)
+	assert.Nil(t, err)
+	t.Run("Index by single column", func(t *testing.T) {
+		idx, err := table.Index("foo")
+		assert.Nil(t, err)
+		info, err := mapper.NewInfo(schema.Table("Open_vSwitch"), obj)
+		assert.Nil(t, err)
+		v, err := valueFromIndex(info, newIndex("foo"))
+		assert.Nil(t, err)
+		assert.Equal(t, idx[v], obj.UUID)
+	})
+	t.Run("Index by single column miss", func(t *testing.T) {
+		idx, err := table.Index("foo")
+		assert.Nil(t, err)
+		obj2 := obj
+		obj2.Foo = "wrong"
+		assert.Nil(t, err)
+		info, err := mapper.NewInfo(schema.Table("Open_vSwitch"), obj2)
+		assert.Nil(t, err)
+		v, err := valueFromIndex(info, newIndex("foo"))
+		assert.Nil(t, err)
+		_, ok := idx[v]
+		assert.False(t, ok)
+	})
+	t.Run("Index by single column wrong", func(t *testing.T) {
+		_, err := table.Index("wrong")
+		assert.NotNil(t, err)
+	})
+	t.Run("Index by multi-column wrong", func(t *testing.T) {
+		_, err := table.Index("bar", "wrong")
+		assert.NotNil(t, err)
+	})
+	t.Run("Index by multi-column", func(t *testing.T) {
+		idx, err := table.Index("bar", "baz")
+		assert.Nil(t, err)
+		info, err := mapper.NewInfo(schema.Table("Open_vSwitch"), obj)
+		assert.Nil(t, err)
+		v, err := valueFromIndex(info, newIndex("bar", "baz"))
+		assert.Nil(t, err)
+		assert.Equal(t, idx[v], obj.UUID)
+	})
+	t.Run("Index by multi-column miss", func(t *testing.T) {
+		idx, err := table.Index("bar", "baz")
+		assert.Nil(t, err)
+		obj2 := obj
+		obj2.Baz++
+		info, err := mapper.NewInfo(schema.Table("Open_vSwitch"), obj)
+		assert.Nil(t, err)
+		v, err := valueFromIndex(info, newIndex("bar", "baz"))
+		assert.Nil(t, err)
+		_, ok := idx[v]
+		assert.False(t, ok)
+	})
+	t.Run("Index type", func(t *testing.T) {
+		idx := newIndex("foo", "bar")
+		assert.Equal(t, idx.columns(), []string{"foo", "bar"})
+	})
 }
