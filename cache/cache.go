@@ -303,11 +303,14 @@ func (e *EventHandlerFuncs) OnDelete(table string, row model.Model) {
 
 // TableCache contains a collection of RowCaches, hashed by name,
 // and an array of EventHandlers that respond to cache updates
+// It implements the ovsdb.NotifcationHandler interface so it may
+// handle update notifications
 type TableCache struct {
 	cache          map[string]*RowCache
 	eventProcessor *eventProcessor
 	mapper         *mapper.Mapper
 	dbModel        *model.DBModel
+	ovsdb.NotificationHandler
 }
 
 // Data is the type for data that can be prepoulated in the cache

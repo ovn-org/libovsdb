@@ -11,6 +11,7 @@ import (
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -62,26 +63,21 @@ func TestConnectIntegration(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
 	}
-	timeoutChan := make(chan bool)
 	connected := make(chan bool)
-	go func() {
-		time.Sleep(10 * time.Second)
-		timeoutChan <- true
-	}()
+	errs := make(chan error)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
 	go func() {
-		// Use Convenience params. Ignore failure even if any
-
-		_, err := Connect(context.Background(), defDB, WithEndpoint(cfg.Addr))
+		ovs, err := NewOVSDBClient(defDB, WithEndpoint(cfg.Addr))
 		if err != nil {
-			log.Println("Couldnt establish OVSDB connection with Defult params. No big deal")
+			errs <- err
+			return
 		}
-	}()
-
-	go func() {
-		ovs, err := Connect(context.Background(), defDB, WithEndpoint(cfg.Addr))
+		err = ovs.Connect(ctx)
 		if err != nil {
-			connected <- false
+			errs <- err
 		} else {
 			connected <- true
 			ovs.Disconnect()
@@ -89,13 +85,49 @@ func TestConnectIntegration(t *testing.T) {
 	}()
 
 	select {
-	case <-timeoutChan:
-		t.Error("Connection Timed Out")
-	case b := <-connected:
-		if !b {
-			t.Error("Couldnt connect to OVSDB Server")
-		}
+	case err := <-errs:
+		t.Fatal(err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("Connection Timed Out")
+	case <-connected:
+		return
 	}
+}
+
+func TestConnectReconnectIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+	SetConfig()
+	if testing.Short() {
+		t.Skip()
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ovs, err := NewOVSDBClient(defDB, WithEndpoint(cfg.Addr))
+	require.NoError(t, err)
+	err = ovs.Connect(ctx)
+	require.NoError(t, err)
+
+	err = ovs.Echo()
+	require.NoError(t, err)
+
+	ovs.Disconnect()
+
+	err = ovs.Echo()
+	require.EqualError(t, err, ErrNotConnected.Error())
+
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err = ovs.Connect(ctx)
+	require.NoError(t, err)
+
+	err = ovs.Echo()
+	assert.NoError(t, err)
+
 }
 
 func TestListDbsIntegration(t *testing.T) {
@@ -106,13 +138,11 @@ func TestListDbsIntegration(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
 	}
-
-	ovs, err := Connect(context.Background(), defDB, WithEndpoint(cfg.Addr))
-	if err != nil {
-		t.Fatalf("Failed to Connect. error: %s", err)
-	}
-	reply, err := ovs.ListDbs()
-
+	ovs, err := newOVSDBClient(defDB, WithEndpoint(cfg.Addr))
+	require.NoError(t, err)
+	err = ovs.Connect(context.Background())
+	require.NoError(t, err)
+	reply, err := ovs.listDbs()
 	if err != nil {
 		log.Fatal("ListDbs error:", err)
 	}
@@ -120,7 +150,6 @@ func TestListDbsIntegration(t *testing.T) {
 	found := false
 	for _, db := range reply {
 		if db == "Open_vSwitch" {
-			log.Println("Couldnt establish OVSDB connection with Defult params. No big deal")
 			found = true
 		}
 	}
@@ -129,7 +158,7 @@ func TestListDbsIntegration(t *testing.T) {
 		t.Error("Expected: 'Open_vSwitch'", reply)
 	}
 	var b bytes.Buffer
-	ovs.Schema.Print(&b)
+	ovs.Schema().Print(&b)
 	ovs.Disconnect()
 }
 
@@ -142,13 +171,12 @@ func TestGetSchemasIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(context.Background(), defDB, WithEndpoint(cfg.Addr))
-	if err != nil {
-		t.Fatalf("Failed to Connect. error: %s", err)
-	}
-
+	ovs, err := newOVSDBClient(defDB, WithEndpoint(cfg.Addr))
+	require.NoError(t, err)
+	err = ovs.Connect(context.Background())
+	require.NoError(t, err)
 	dbName := "Open_vSwitch"
-	reply, err := ovs.GetSchema(dbName)
+	reply, err := ovs.getSchema(dbName)
 
 	if err != nil {
 		log.Fatal("GetSchemas error:", err)
@@ -170,10 +198,10 @@ func TestInsertTransactIntegration(t *testing.T) {
 	}
 	SetConfig()
 
-	ovs, err := Connect(context.Background(), defDB, WithEndpoint(cfg.Addr))
-	if err != nil {
-		t.Fatalf("Failed to Connect. error: %s", err)
-	}
+	ovs, err := NewOVSDBClient(defDB, WithEndpoint(cfg.Addr))
+	require.NoError(t, err)
+	err = ovs.Connect(context.Background())
+	require.NoError(t, err)
 	err = ovs.MonitorAll(nil)
 	assert.Nil(t, err)
 
@@ -228,10 +256,10 @@ func TestDeleteTransactIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(context.Background(), defDB, WithEndpoint(cfg.Addr))
-	if err != nil {
-		t.Fatalf("Failed to Connect. error: %s", err)
-	}
+	ovs, err := NewOVSDBClient(defDB, WithEndpoint(cfg.Addr))
+	require.NoError(t, err)
+	err = ovs.Connect(context.Background())
+	require.NoError(t, err)
 	err = ovs.MonitorAll(nil)
 	assert.Nil(t, err)
 
@@ -273,90 +301,15 @@ func TestMonitorIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(context.Background(), defDB, WithEndpoint(cfg.Addr))
-	if err != nil {
-		t.Fatalf("Failed to Connect. error: %s", err)
-	}
-
+	ovs, err := NewOVSDBClient(defDB, WithEndpoint(cfg.Addr))
+	require.NoError(t, err)
+	err = ovs.Connect(context.Background())
+	require.NoError(t, err)
 	err = ovs.MonitorAll(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	ovs.Disconnect()
-}
-
-func TestNotifyIntegration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test")
-	}
-	SetConfig()
-
-	ovs, err := Connect(context.Background(), defDB, WithEndpoint(cfg.Addr))
-	if err != nil {
-		t.Fatalf("Failed to Connect. error: %s", err)
-	}
-
-	notifyEchoChan := make(chan bool)
-
-	notifier := Notifier{notifyEchoChan}
-	ovs.Register(notifier)
-
-	timeoutChan := make(chan bool)
-	go func() {
-		time.Sleep(10 * time.Second)
-		timeoutChan <- true
-	}()
-
-	select {
-	case <-timeoutChan:
-		t.Fatal("timed out")
-	case <-notifyEchoChan:
-		break
-	}
-	ovs.Disconnect()
-}
-
-func TestRemoveNotifyIntegration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test")
-	}
-	SetConfig()
-
-	ovs, err := Connect(context.Background(), defDB, WithEndpoint(cfg.Addr))
-	if err != nil {
-		t.Fatalf("Failed to Connect. error: %s", err)
-	}
-
-	notifyEchoChan := make(chan bool)
-
-	notifier := Notifier{notifyEchoChan}
-	ovs.Register(notifier)
-
-	lenIni := len(ovs.handlers)
-	_ = ovs.Unregister(notifier)
-	lenEnd := len(ovs.handlers)
-
-	if lenIni == lenEnd {
-		log.Fatal("Failed to Unregister Notifier:")
-	}
-
-	ovs.Disconnect()
-}
-
-type Notifier struct {
-	echoChan chan bool
-}
-
-func (n Notifier) Update(interface{}, ovsdb.TableUpdates) {
-}
-func (n Notifier) Locked([]interface{}) {
-}
-func (n Notifier) Stolen([]interface{}) {
-}
-func (n Notifier) Echo([]interface{}) {
-	n.echoChan <- true
-}
-func (n Notifier) Disconnected() {
 }
 
 func TestTableSchemaValidationIntegration(t *testing.T) {
@@ -365,10 +318,10 @@ func TestTableSchemaValidationIntegration(t *testing.T) {
 	}
 	SetConfig()
 
-	ovs, err := Connect(context.Background(), defDB, WithEndpoint(cfg.Addr))
-	if err != nil {
-		t.Fatalf("Failed to Connect. error: %s", err)
-	}
+	ovs, err := NewOVSDBClient(defDB, WithEndpoint(cfg.Addr))
+	require.NoError(t, err)
+	err = ovs.Connect(context.Background())
+	require.NoError(t, err)
 
 	operation := ovsdb.Operation{
 		Op:    "insert",
@@ -390,10 +343,10 @@ func TestColumnSchemaInRowValidationIntegration(t *testing.T) {
 	}
 	SetConfig()
 
-	ovs, err := Connect(context.Background(), defDB, WithEndpoint(cfg.Addr))
-	if err != nil {
-		t.Fatalf("Failed to Connect. error: %s", err)
-	}
+	ovs, err := NewOVSDBClient(defDB, WithEndpoint(cfg.Addr))
+	require.NoError(t, err)
+	err = ovs.Connect(context.Background())
+	require.NoError(t, err)
 
 	operation := ovsdb.Operation{
 		Op:    "insert",
@@ -416,10 +369,10 @@ func TestColumnSchemaInMultipleRowsValidationIntegration(t *testing.T) {
 	}
 	SetConfig()
 
-	ovs, err := Connect(context.Background(), defDB, WithEndpoint(cfg.Addr))
-	if err != nil {
-		t.Fatalf("Failed to Connect. error: %s", err)
-	}
+	ovs, err := NewOVSDBClient(defDB, WithEndpoint(cfg.Addr))
+	require.NoError(t, err)
+	err = ovs.Connect(context.Background())
+	require.NoError(t, err)
 
 	invalidBridge := ovsdb.Row(map[string]interface{}{"invalid_column": "invalid_column"})
 	bridge := ovsdb.Row(map[string]interface{}{"name": "docker-ovs"})
@@ -448,10 +401,10 @@ func TestColumnSchemaValidationIntegration(t *testing.T) {
 		t.Skip()
 	}
 
-	ovs, err := Connect(context.Background(), defDB, WithEndpoint(cfg.Addr))
-	if err != nil {
-		t.Fatalf("Failed to Connect. error: %s", err)
-	}
+	ovs, err := NewOVSDBClient(defDB, WithEndpoint(cfg.Addr))
+	require.NoError(t, err)
+	err = ovs.Connect(context.Background())
+	require.NoError(t, err)
 
 	operation := ovsdb.Operation{
 		Op:      "select",
@@ -473,10 +426,10 @@ func TestMonitorCancelIntegration(t *testing.T) {
 	}
 	SetConfig()
 
-	ovs, err := Connect(context.Background(), defDB, WithEndpoint(cfg.Addr))
-	if err != nil {
-		t.Fatalf("Failed to Connect. error: %s", err)
-	}
+	ovs, err := NewOVSDBClient(defDB, WithEndpoint(cfg.Addr))
+	require.NoError(t, err)
+	err = ovs.Connect(context.Background())
+	require.NoError(t, err)
 
 	monitorID := "f1b2ca48-aad7-11e7-abc4-cec278b6b50a"
 
@@ -508,10 +461,11 @@ func TestInsertDuplicateTransactIntegration(t *testing.T) {
 	}
 	SetConfig()
 
-	ovs, err := Connect(context.Background(), defDB, WithEndpoint(cfg.Addr))
-	if err != nil {
-		t.Fatalf("Failed to Connect. error: %s", err)
-	}
+	ovs, err := NewOVSDBClient(defDB, WithEndpoint(cfg.Addr))
+	require.NoError(t, err)
+	err = ovs.Connect(context.Background())
+	require.NoError(t, err)
+
 	err = ovs.MonitorAll(nil)
 	assert.Nil(t, err)
 

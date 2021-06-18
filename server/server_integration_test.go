@@ -82,9 +82,10 @@ func TestClientServerEcho(t *testing.T) {
 		return server.Ready()
 	}, 1*time.Second, 10*time.Millisecond)
 
-	ovs, err := client.Connect(context.Background(), defDB, client.WithEndpoint(fmt.Sprintf("unix:%s", tmpfile)))
-	require.Nil(t, err)
-
+	ovs, err := client.NewOVSDBClient(defDB, client.WithEndpoint(fmt.Sprintf("unix:%s", tmpfile)))
+	require.NoError(t, err)
+	err = ovs.Connect(context.Background())
+	require.NoError(t, err)
 	err = ovs.Echo()
 	assert.Nil(t, err)
 }
@@ -118,8 +119,10 @@ func TestClientServerInsert(t *testing.T) {
 		return server.Ready()
 	}, 1*time.Second, 10*time.Millisecond)
 
-	ovs, err := client.Connect(context.Background(), defDB, client.WithEndpoint(fmt.Sprintf("unix:%s", tmpfile)))
-	require.Nil(t, err)
+	ovs, err := client.NewOVSDBClient(defDB, client.WithEndpoint(fmt.Sprintf("unix:%s", tmpfile)))
+	require.NoError(t, err)
+	err = ovs.Connect(context.Background())
+	require.NoError(t, err)
 
 	bridgeRow := &bridgeType{
 		Name:        "foo",
@@ -167,8 +170,10 @@ func TestClientServerMonitor(t *testing.T) {
 		return server.Ready()
 	}, 1*time.Second, 10*time.Millisecond)
 
-	ovs, err := client.Connect(context.Background(), defDB, client.WithEndpoint(fmt.Sprintf("unix:%s", tmpfile)))
-	require.Nil(t, err)
+	ovs, err := client.NewOVSDBClient(defDB, client.WithEndpoint(fmt.Sprintf("unix:%s", tmpfile)))
+	require.NoError(t, err)
+	err = ovs.Connect(context.Background())
+	require.NoError(t, err)
 
 	ovsRow := &ovsType{
 		UUID: "ovs",
@@ -183,7 +188,7 @@ func TestClientServerMonitor(t *testing.T) {
 	seenInsert := false
 	seenMutation := false
 	seenInitialOvs := false
-	ovs.Cache.AddEventHandler(&cache.EventHandlerFuncs{
+	ovs.Cache().AddEventHandler(&cache.EventHandlerFuncs{
 		AddFunc: func(table string, model model.Model) {
 			if table == "Bridge" {
 				br := model.(*bridgeType)
@@ -289,8 +294,10 @@ func TestClientServerInsertAndDelete(t *testing.T) {
 		return server.Ready()
 	}, 1*time.Second, 10*time.Millisecond)
 
-	ovs, err := client.Connect(context.Background(), defDB, client.WithEndpoint(fmt.Sprintf("unix:%s", tmpfile)))
-	require.Nil(t, err)
+	ovs, err := client.NewOVSDBClient(defDB, client.WithEndpoint(fmt.Sprintf("unix:%s", tmpfile)))
+	require.NoError(t, err)
+	err = ovs.Connect(context.Background())
+	require.NoError(t, err)
 
 	bridgeRow := &bridgeType{
 		Name:        "foo",

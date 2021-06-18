@@ -25,7 +25,7 @@ var update chan model.Model
 var rootUUID string
 var connection = flag.String("ovsdb", "unix:/var/run/openvswitch/db.sock", "OVSDB connection string")
 
-func play(ovs *client.OvsdbClient) {
+func play(ovs client.Client) {
 	go processInput(ovs)
 	for model := range update {
 		bridge := model.(*Bridge)
@@ -46,7 +46,7 @@ func play(ovs *client.OvsdbClient) {
 	}
 }
 
-func createBridge(ovs *client.OvsdbClient, bridgeName string) {
+func createBridge(ovs client.Client, bridgeName string) {
 	bridge := Bridge{
 		UUID: "gopher",
 		Name: bridgeName,
@@ -79,7 +79,7 @@ func createBridge(ovs *client.OvsdbClient, bridgeName string) {
 	fmt.Println("Bridge Addition Successful : ", reply[0].UUID.GoUUID)
 }
 
-func processInput(ovs *client.OvsdbClient) {
+func processInput(ovs client.Client) {
 	for {
 		fmt.Printf("\n Enter a Bridge Name : ")
 		var bridgeName string
@@ -96,18 +96,23 @@ func main() {
 	quit = make(chan bool)
 	update = make(chan model.Model)
 
-	dbmodel, err := model.NewDBModel("Open_vSwitch",
+	dbModel, err := model.NewDBModel("Open_vSwitch",
 		map[string]model.Model{bridgeTable: &Bridge{}, ovsTable: &OpenvSwitch{}})
 	if err != nil {
 		log.Fatal("Unable to create DB model ", err)
 	}
 
-	ovs, err := client.Connect(context.Background(), dbmodel, client.WithEndpoint(*connection))
+	ovs, err := client.NewOVSDBClient(dbModel, client.WithEndpoint(*connection))
 	if err != nil {
-		log.Fatal("Unable to Connect ", err)
+		log.Fatal(err)
 	}
+	err = ovs.Connect(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer ovs.Disconnect()
 
-	ovs.Cache.AddEventHandler(&cache.EventHandlerFuncs{
+	ovs.Cache().AddEventHandler(&cache.EventHandlerFuncs{
 		AddFunc: func(table string, model model.Model) {
 			if table == bridgeTable {
 				update <- model
@@ -122,7 +127,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	rootUUID = ovs.Cache.Table(ovsTable).Rows()[0]
+	rootUUID = ovs.Cache().Table(ovsTable).Rows()[0]
 
 	fmt.Println(`Silly game of stopping this app when a Bridge with name "stop" is monitored !`)
 	go play(ovs)
