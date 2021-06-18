@@ -41,6 +41,8 @@ type Client interface {
 	Schema() *ovsdb.DatabaseSchema
 	Cache() *cache.TableCache
 	SetOption(Option) error
+	Connected() bool
+	DisconnectNotify() chan struct{}
 	Echo() error
 	Transact(...ovsdb.Operation) ([]ovsdb.OperationResult, error)
 	Monitor(jsonContext interface{}, t ...TableMonitor) error
@@ -52,15 +54,16 @@ type Client interface {
 
 // ovsdbClient is an OVSDB client
 type ovsdbClient struct {
-	options   *options
-	rpcClient *rpc2.Client
-	dbModel   *model.DBModel
-	schema    *ovsdb.DatabaseSchema
-	cache     *cache.TableCache
-	stopCh    chan struct{}
-	connected bool
-	api       API
-	mutex     sync.Mutex
+	options    *options
+	rpcClient  *rpc2.Client
+	dbModel    *model.DBModel
+	schema     *ovsdb.DatabaseSchema
+	cache      *cache.TableCache
+	stopCh     chan struct{}
+	connected  bool
+	disconnect chan struct{}
+	api        API
+	mutex      sync.Mutex
 }
 
 // NewOVSDBClient creates a new OVSDB Client with the provided
@@ -74,7 +77,8 @@ func NewOVSDBClient(databaseModel *model.DBModel, opts ...Option) (Client, error
 // newOVSDBClient creates a new ovsdbClient
 func newOVSDBClient(databaseModel *model.DBModel, opts ...Option) (*ovsdbClient, error) {
 	ovs := &ovsdbClient{
-		dbModel: databaseModel,
+		dbModel:    databaseModel,
+		disconnect: make(chan struct{}),
 	}
 	var err error
 	ovs.options, err = newOptions(opts...)
@@ -89,11 +93,11 @@ func newOVSDBClient(databaseModel *model.DBModel, opts ...Option) (*ovsdbClient,
 // The connection can be configured using one or more Option(s), like WithTLSConfig
 // If no WithEndpoint option is supplied, the default of unix:/var/run/openvswitch/ovsdb.sock is used
 func (o *ovsdbClient) Connect(ctx context.Context) error {
-	o.mutex.Lock()
-	defer o.mutex.Unlock()
 	if o.connected {
 		return nil
 	}
+	o.mutex.Lock()
+	defer o.mutex.Unlock()
 	var c net.Conn
 	var dialer net.Dialer
 	var err error
@@ -216,6 +220,17 @@ func (o *ovsdbClient) SetOption(opt Option) error {
 		return fmt.Errorf("cannot set option when client is connected")
 	}
 	return opt(o.options)
+}
+
+// Connected returns whether or not the client is currently connected to the server
+func (o *ovsdbClient) Connected() bool {
+	return o.connected
+}
+
+// DisconnectNotify returns a channel which will notify the caller when the
+// server has disconnected
+func (o *ovsdbClient) DisconnectNotify() chan struct{} {
+	return o.disconnect
 }
 
 // RFC 7047 : Section 4.1.6 : Echo
@@ -410,6 +425,12 @@ func (o *ovsdbClient) handleDisconnectNotification() {
 	close(o.stopCh)
 	o.rpcClient = nil
 	o.cache = nil
+	select {
+	case o.disconnect <- struct{}{}:
+		// sent disconnect notification to client
+	default:
+		// client is not listening to the channel
+	}
 }
 
 // Disconnect will close the connection to the OVSDB server
