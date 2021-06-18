@@ -111,10 +111,38 @@ func TestConnectReconnectIntegration(t *testing.T) {
 	err = ovs.Connect(ctx)
 	require.NoError(t, err)
 
+	assert.Equal(t, true, ovs.Connected())
+
 	err = ovs.Echo()
 	require.NoError(t, err)
 
+	// make another connect call, this should return without error as we're already connected
+	ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	err = ovs.Connect(ctx)
+	require.NoError(t, err)
+
+	disconnectNotification := ovs.DisconnectNotify()
+	notified := make(chan struct{})
+	ready := make(chan struct{})
+
+	go func() {
+		ready <- struct{}{}
+		<-disconnectNotification
+		notified <- struct{}{}
+	}()
+
+	<-ready
 	ovs.Disconnect()
+
+	select {
+	case <-notified:
+		// got notification
+	case <-time.After(5 * time.Second):
+		t.Fatal("expected a disconnect notification but didn't receive one")
+	}
+
+	assert.Equal(t, false, ovs.Connected())
 
 	err = ovs.Echo()
 	require.EqualError(t, err, ErrNotConnected.Error())
@@ -124,6 +152,7 @@ func TestConnectReconnectIntegration(t *testing.T) {
 
 	err = ovs.Connect(ctx)
 	require.NoError(t, err)
+	defer ovs.Disconnect()
 
 	err = ovs.Echo()
 	assert.NoError(t, err)
