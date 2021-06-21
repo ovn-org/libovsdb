@@ -64,7 +64,7 @@ func cleanup(ctx context.Context) {
 	}
 	defer ovs.Disconnect()
 
-	if err := ovs.MonitorAll(""); err != nil {
+	if _, err := ovs.MonitorAll(); err != nil {
 		log.Fatal(err)
 	}
 
@@ -136,7 +136,7 @@ func run(ctx context.Context, resultsChan chan result, wg *sync.WaitGroup) {
 		},
 	)
 
-	if err := ovs.MonitorAll(""); err != nil {
+	if _, err := ovs.MonitorAll(); err != nil {
 		log.Fatal(err)
 	}
 

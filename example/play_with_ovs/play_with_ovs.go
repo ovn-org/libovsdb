@@ -119,7 +119,7 @@ func main() {
 			}
 		},
 	})
-	err = ovs.Monitor("play_with_ovs",
+	_, err = ovs.Monitor(
 		ovs.NewTableMonitor(&OpenvSwitch{}),
 		ovs.NewTableMonitor(&Bridge{}),
 	)

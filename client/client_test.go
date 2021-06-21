@@ -758,7 +758,8 @@ func TestOperationWhenNotConnected(t *testing.T) {
 		{
 			"monitor/monitor all",
 			func() error {
-				return ovs.MonitorAll("")
+				_, err := ovs.MonitorAll()
+				return err
 			},
 		},
 		{
