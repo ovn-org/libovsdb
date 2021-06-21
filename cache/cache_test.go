@@ -850,3 +850,149 @@ func TestIndex(t *testing.T) {
 		assert.Equal(t, idx.columns(), []string{"foo", "bar"})
 	})
 }
+
+func TestTableCacheRowByModelSingleIndex(t *testing.T) {
+	var schema ovsdb.DatabaseSchema
+	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	require.Nil(t, err)
+	err = json.Unmarshal([]byte(`
+		 {"name": "TestDB",
+		  "tables": {
+		    "Open_vSwitch": {
+			  "indexes": [["foo"]],
+		      "columns": {
+		        "foo": {
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
+		      }
+		    }
+		 }
+	     }
+	`), &schema)
+	require.NoError(t, err)
+	myFoo := &testModel{Foo: "foo", Bar: "foo"}
+	testData := Data{
+		"Open_vSwitch": map[string]model.Model{
+			"foo": myFoo,
+			"bar": &testModel{Foo: "bar", Bar: "bar"},
+		},
+	}
+	tc, err := NewTableCache(&schema, db, testData)
+	require.NoError(t, err)
+
+	t.Run("get foo by index", func(t *testing.T) {
+		foo := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo"})
+		assert.NotNil(t, foo)
+		assert.Equal(t, myFoo, foo)
+	})
+
+	t.Run("get non-existent item by index", func(t *testing.T) {
+		baz := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "baz"})
+		assert.Nil(t, baz)
+	})
+
+	t.Run("no index data", func(t *testing.T) {
+		foo := tc.Table("Open_vSwitch").RowByModel(&testModel{Bar: "foo"})
+		assert.Nil(t, foo)
+	})
+}
+
+func TestTableCacheRowByModelTwoIndexes(t *testing.T) {
+	var schema ovsdb.DatabaseSchema
+	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	require.Nil(t, err)
+	err = json.Unmarshal([]byte(`
+		 {"name": "TestDB",
+		  "tables": {
+		    "Open_vSwitch": {
+			  "indexes": [["foo"], ["bar"]],
+		      "columns": {
+		        "foo": {
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
+		      }
+		    }
+		 }
+	     }
+	`), &schema)
+	require.NoError(t, err)
+	myFoo := &testModel{Foo: "foo", Bar: "foo"}
+	testData := Data{
+		"Open_vSwitch": map[string]model.Model{
+			"foo": myFoo,
+			"bar": &testModel{Foo: "bar", Bar: "bar"},
+		},
+	}
+	tc, err := NewTableCache(&schema, db, testData)
+	require.NoError(t, err)
+
+	t.Run("get foo by Foo index", func(t *testing.T) {
+		foo := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo"})
+		assert.NotNil(t, foo)
+		assert.Equal(t, myFoo, foo)
+	})
+
+	t.Run("get foo by Bar index", func(t *testing.T) {
+		foo := tc.Table("Open_vSwitch").RowByModel(&testModel{Bar: "foo"})
+		assert.NotNil(t, foo)
+		assert.Equal(t, myFoo, foo)
+	})
+
+	t.Run("get non-existent item by index", func(t *testing.T) {
+		baz := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "baz"})
+		assert.Nil(t, baz)
+	})
+
+}
+
+func TestTableCacheRowByModelMultiIndex(t *testing.T) {
+	var schema ovsdb.DatabaseSchema
+	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	require.Nil(t, err)
+	err = json.Unmarshal([]byte(`
+		 {"name": "TestDB",
+		  "tables": {
+		    "Open_vSwitch": {
+			  "indexes": [["foo", "bar"]],
+		      "columns": {
+		        "foo": {
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
+		      }
+		    }
+		 }
+	     }
+	`), &schema)
+	require.NoError(t, err)
+	myFoo := &testModel{Foo: "foo", Bar: "foo"}
+	testData := Data{
+		"Open_vSwitch": map[string]model.Model{"foo": myFoo, "bar": &testModel{Foo: "bar", Bar: "bar"}},
+	}
+	tc, err := NewTableCache(&schema, db, testData)
+	require.NoError(t, err)
+
+	t.Run("incomplete index", func(t *testing.T) {
+		foo := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo"})
+		assert.Nil(t, foo)
+	})
+
+	t.Run("get foo by index", func(t *testing.T) {
+		foo := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo", Bar: "foo"})
+		assert.NotNil(t, foo)
+		assert.Equal(t, myFoo, foo)
+	})
+
+	t.Run("get non-existent item by index", func(t *testing.T) {
+		baz := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "baz", Bar: "baz"})
+		assert.Nil(t, baz)
+	})
+}
