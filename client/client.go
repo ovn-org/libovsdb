@@ -60,10 +60,10 @@ type ovsdbClient struct {
 	schema     *ovsdb.DatabaseSchema
 	cache      *cache.TableCache
 	stopCh     chan struct{}
-	connected  bool
 	disconnect chan struct{}
 	api        API
-	mutex      sync.Mutex
+	// mutex protects the rpcClient from concurrent access
+	mutex sync.Mutex
 }
 
 // NewOVSDBClient creates a new OVSDB Client with the provided
@@ -93,11 +93,11 @@ func newOVSDBClient(databaseModel *model.DBModel, opts ...Option) (*ovsdbClient,
 // The connection can be configured using one or more Option(s), like WithTLSConfig
 // If no WithEndpoint option is supplied, the default of unix:/var/run/openvswitch/ovsdb.sock is used
 func (o *ovsdbClient) Connect(ctx context.Context) error {
-	if o.connected {
-		return nil
-	}
 	o.mutex.Lock()
 	defer o.mutex.Unlock()
+	if o.rpcClient != nil {
+		return nil
+	}
 	var c net.Conn
 	var dialer net.Dialer
 	var err error
@@ -132,24 +132,6 @@ func (o *ovsdbClient) Connect(ctx context.Context) error {
 	if err := o.createRPC2Client(c); err != nil {
 		return err
 	}
-	o.connected = true
-	return nil
-}
-
-// createRPC2Client creates an rpcClient using the provided connection
-// It is also responsible for setting up go routines for handling disconnect notification
-// and cache population
-func (o *ovsdbClient) createRPC2Client(conn net.Conn) error {
-	o.stopCh = make(chan struct{})
-	o.rpcClient = rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
-	o.rpcClient.SetBlocking(true)
-	o.rpcClient.Handle("echo", func(_ *rpc2.Client, args []interface{}, reply *[]interface{}) error {
-		return o.echo(args, reply)
-	})
-	o.rpcClient.Handle("update", func(_ *rpc2.Client, args []json.RawMessage, reply *[]interface{}) error {
-		return o.update(args, reply)
-	})
-	go o.rpcClient.Run()
 
 	dbs, err := o.listDbs()
 	if err != nil {
@@ -193,10 +175,25 @@ func (o *ovsdbClient) createRPC2Client(conn net.Conn) error {
 		o.rpcClient.Close()
 		return err
 	}
-
 	go o.cache.Run(o.stopCh)
-	go o.handleDisconnectNotification()
+	return nil
+}
 
+// createRPC2Client creates an rpcClient using the provided connection
+// It is also responsible for setting up go routines for client-side event handling
+// and handling disconnects. Should only be called when the mutex is held
+func (o *ovsdbClient) createRPC2Client(conn net.Conn) error {
+	o.stopCh = make(chan struct{})
+	o.rpcClient = rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
+	o.rpcClient.SetBlocking(true)
+	o.rpcClient.Handle("echo", func(_ *rpc2.Client, args []interface{}, reply *[]interface{}) error {
+		return o.echo(args, reply)
+	})
+	o.rpcClient.Handle("update", func(_ *rpc2.Client, args []json.RawMessage, reply *[]interface{}) error {
+		return o.update(args, reply)
+	})
+	go o.rpcClient.Run()
+	go o.handleDisconnectNotification()
 	return nil
 }
 
@@ -216,7 +213,9 @@ func (o *ovsdbClient) Cache() *cache.TableCache {
 // SetOption sets a new value for an option.
 // It may only be called when the client is not connected
 func (o *ovsdbClient) SetOption(opt Option) error {
-	if o.connected {
+	o.mutex.Lock()
+	defer o.mutex.Unlock()
+	if o.rpcClient != nil {
 		return fmt.Errorf("cannot set option when client is connected")
 	}
 	return opt(o.options)
@@ -224,7 +223,9 @@ func (o *ovsdbClient) SetOption(opt Option) error {
 
 // Connected returns whether or not the client is currently connected to the server
 func (o *ovsdbClient) Connected() bool {
-	return o.connected
+	o.mutex.Lock()
+	defer o.mutex.Unlock()
+	return o.rpcClient != nil
 }
 
 // DisconnectNotify returns a channel which will notify the caller when the
@@ -262,6 +263,7 @@ func (o *ovsdbClient) update(args []json.RawMessage, reply *[]interface{}) error
 
 // getSchema returns the schema in use for the provided database name
 // RFC 7047 : get_schema
+// Should only be called when mutex is held
 func (o *ovsdbClient) getSchema(dbName string) (*ovsdb.DatabaseSchema, error) {
 	args := ovsdb.NewGetSchemaArgs(dbName)
 	var reply ovsdb.DatabaseSchema
@@ -274,6 +276,7 @@ func (o *ovsdbClient) getSchema(dbName string) (*ovsdb.DatabaseSchema, error) {
 
 // listDbs returns the list of databases on the server
 // RFC 7047 : list_dbs
+// Should only be called when mutex is held
 func (o *ovsdbClient) listDbs() ([]string, error) {
 	var dbs []string
 	err := o.rpcClient.Call("list_dbs", nil, &dbs)
@@ -286,9 +289,6 @@ func (o *ovsdbClient) listDbs() ([]string, error) {
 // Transact performs the provided Operations on the database
 // RFC 7047 : transact
 func (o *ovsdbClient) Transact(operation ...ovsdb.Operation) ([]ovsdb.OperationResult, error) {
-	if !o.connected {
-		return nil, ErrNotConnected
-	}
 	var reply []ovsdb.OperationResult
 
 	if ok := o.schema.ValidateOperations(operation...); !ok {
@@ -296,7 +296,13 @@ func (o *ovsdbClient) Transact(operation ...ovsdb.Operation) ([]ovsdb.OperationR
 	}
 
 	args := ovsdb.NewTransactArgs(o.schema.Name, operation...)
+	o.mutex.Lock()
+	if o.rpcClient == nil {
+		o.mutex.Unlock()
+		return nil, ErrNotConnected
+	}
 	err := o.rpcClient.Call("transact", args, &reply)
+	o.mutex.Unlock()
 	if err != nil {
 		return nil, err
 	}
@@ -305,9 +311,6 @@ func (o *ovsdbClient) Transact(operation ...ovsdb.Operation) ([]ovsdb.OperationR
 
 // MonitorAll is a convenience method to monitor every table/column
 func (o *ovsdbClient) MonitorAll(jsonContext interface{}) error {
-	if !o.connected {
-		return ErrNotConnected
-	}
 	var options []TableMonitor
 	for name := range o.dbModel.Types() {
 		options = append(options, TableMonitor{Table: name})
@@ -318,13 +321,13 @@ func (o *ovsdbClient) MonitorAll(jsonContext interface{}) error {
 // MonitorCancel will request cancel a previously issued monitor request
 // RFC 7047 : monitor_cancel
 func (o *ovsdbClient) MonitorCancel(jsonContext interface{}) error {
-	if !o.connected {
+	var reply ovsdb.OperationResult
+	args := ovsdb.NewMonitorCancelArgs(jsonContext)
+	o.mutex.Lock()
+	defer o.mutex.Unlock()
+	if o.rpcClient == nil {
 		return ErrNotConnected
 	}
-	var reply ovsdb.OperationResult
-
-	args := ovsdb.NewMonitorCancelArgs(jsonContext)
-
 	err := o.rpcClient.Call("monitor_cancel", args, &reply)
 	if err != nil {
 		return err
@@ -364,9 +367,6 @@ func (o *ovsdbClient) NewTableMonitor(m model.Model, fields ...interface{}) Tabl
 // by the Update Notifications
 // RFC 7047 : monitor
 func (o *ovsdbClient) Monitor(jsonContext interface{}, options ...TableMonitor) error {
-	if !o.connected {
-		return ErrNotConnected
-	}
 	if len(options) == 0 {
 		return fmt.Errorf("no monitor options provided")
 	}
@@ -389,6 +389,11 @@ func (o *ovsdbClient) Monitor(jsonContext interface{}, options ...TableMonitor) 
 		requests[o.Table] = *request
 	}
 	args := ovsdb.NewMonitorArgs(o.schema.Name, jsonContext, requests)
+	o.mutex.Lock()
+	defer o.mutex.Unlock()
+	if o.rpcClient == nil {
+		return ErrNotConnected
+	}
 	err := o.rpcClient.Call("monitor", args, &reply)
 	if err != nil {
 		return err
@@ -399,11 +404,13 @@ func (o *ovsdbClient) Monitor(jsonContext interface{}, options ...TableMonitor) 
 
 // Echo tests the liveness of the OVSDB connetion
 func (o *ovsdbClient) Echo() error {
-	if !o.connected {
-		return ErrNotConnected
-	}
 	args := ovsdb.NewEchoArgs()
 	var reply []interface{}
+	o.mutex.Lock()
+	defer o.mutex.Unlock()
+	if o.rpcClient == nil {
+		return ErrNotConnected
+	}
 	err := o.rpcClient.Call("echo", args, &reply)
 	if err != nil {
 		return err
@@ -415,15 +422,11 @@ func (o *ovsdbClient) Echo() error {
 }
 
 func (o *ovsdbClient) handleDisconnectNotification() {
-	// this will block until Connect() has released the lock via defer
-	o.mutex.Lock()
-	// we continue to hold the lock until the client has disconnected
-	// this prevents another call to Connect() changing the rpcClient
-	// while we're still listening for disconnects
-	defer o.mutex.Unlock()
 	<-o.rpcClient.DisconnectNotify()
-	close(o.stopCh)
+	o.mutex.Lock()
+	defer o.mutex.Unlock()
 	o.rpcClient = nil
+	close(o.stopCh)
 	o.cache = nil
 	select {
 	case o.disconnect <- struct{}{}:
@@ -435,10 +438,11 @@ func (o *ovsdbClient) handleDisconnectNotification() {
 
 // Disconnect will close the connection to the OVSDB server
 func (o *ovsdbClient) Disconnect() {
-	if !o.connected {
+	o.mutex.Lock()
+	defer o.mutex.Unlock()
+	if o.rpcClient == nil {
 		return
 	}
-	o.connected = false
 	o.rpcClient.Close()
 }
 
