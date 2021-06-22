@@ -85,6 +85,13 @@ type OpenvSwitch struct {
 	SystemVersion   []string          `ovsdb:"system_version"`
 }
 
+var defDB, _ = model.NewDBModel("Open_vSwitch",
+	map[string]model.Model{
+		"Open_vSwitch": &OpenvSwitch{},
+		"Bridge":       &Bridge{},
+	},
+)
+
 var schema = `{
 	"name": "Open_vSwitch",
 	"version": "8.2.0",
