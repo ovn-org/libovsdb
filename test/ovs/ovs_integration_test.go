@@ -56,6 +56,9 @@ func (suite *OVSIntegrationSuite) SetupSuite() {
 	err = suite.resource.Expire(30)
 	require.NoError(suite.T(), err)
 
+	// let the container start before we attempt connection
+	time.Sleep(5 * time.Second)
+
 	err = suite.pool.Retry(func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
@@ -74,7 +77,6 @@ func (suite *OVSIntegrationSuite) SetupSuite() {
 	require.NoError(suite.T(), err)
 
 	// give ovsdb-server some time to start up
-	time.Sleep(10 * time.Second)
 
 	err = suite.client.MonitorAll(nil)
 	require.NoError(suite.T(), err)
