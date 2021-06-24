@@ -16,6 +16,7 @@ import (
 // OvsdbServer is an ovsdb server
 type OvsdbServer struct {
 	srv          *rpc2.Server
+	listener     net.Listener
 	done         chan struct{}
 	db           Database
 	dbUpdates    chan ovsdb.TableUpdates
@@ -68,7 +69,8 @@ func NewOvsdbServer(db Database, models ...DatabaseModel) (*OvsdbServer, error) 
 
 // Serve starts the OVSDB server on the given path and protocol
 func (o *OvsdbServer) Serve(protocol string, path string) error {
-	lis, err := net.Listen(protocol, path)
+	var err error
+	o.listener, err = net.Listen(protocol, path)
 	if err != nil {
 		return err
 	}
@@ -77,22 +79,25 @@ func (o *OvsdbServer) Serve(protocol string, path string) error {
 	o.ready = true
 	o.readyMutex.Unlock()
 	for {
-		select {
-		case <-o.done:
-			return nil
-		default:
-			conn, err := lis.Accept()
-			if err != nil {
-				return err
+		conn, err := o.listener.Accept()
+		if err != nil {
+			if !o.Ready() {
+				return nil
 			}
-			// TODO: Need to cleanup when connection is closed
-			go o.srv.ServeCodec(jsonrpc.NewJSONCodec(conn))
+			return err
 		}
+
+		// TODO: Need to cleanup when connection is closed
+		go o.srv.ServeCodec(jsonrpc.NewJSONCodec(conn))
 	}
 }
 
 // Close closes the OvsdbServer
 func (o *OvsdbServer) Close() {
+	o.readyMutex.Lock()
+	o.ready = false
+	o.readyMutex.Unlock()
+	o.listener.Close()
 	close(o.done)
 }
 
