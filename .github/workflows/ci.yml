@@ -13,7 +13,7 @@ jobs:
     steps:
 
     - name: Set up Go 1.16
-      uses: actions/setup-go@v1
+      uses: actions/setup-go@v2
       with:
         go-version: 1.16
       id: go
@@ -27,10 +27,15 @@ jobs:
     - name: Build
       run: make build-local
 
+    # This cannot be run in parallel because we require running go-generate first
+    # We need to skip the go installation and caching to avoid "File exists" errors in tbe logs
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v2
       with:
         version: v1.40.1
+        skip-go-installation: true
+        skip-pkg-cache: true
+        skip-build-cache: true
 
     - name: Check Formatting
       run: make fmt
