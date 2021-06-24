@@ -43,6 +43,12 @@ jobs:
     - name: Test
       run: make test
 
+    - name: Test
+      run: make integration-test
+
+    - name: Generate coverage
+      run: make coverage
+
     - name: Upload test coverage
       uses: shogo82148/actions-goveralls@v1
       with:

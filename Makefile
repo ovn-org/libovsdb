@@ -1,8 +1,8 @@
 .PHONY: all
-all: lint build test
+all: lint build test integration-test coverage
 
 .PHONY: prebuild
-prebuild:
+prebuild: 
 	@echo "+ $@"
 	@mkdir -p bin
 	@go build -v -o ./bin ./cmd/modelgen
@@ -10,19 +10,24 @@ prebuild:
 	@go generate -v ./...
 
 .PHONY: build
-build: prebuild
+build: prebuild 
 	@echo "+ $@"
 	@go build -v ./...
 
 .PHONY: test
-test: build
+test:
 	@echo "+ $@"
-	@go test -race -coverprofile=profile.cov -v ./...
+	@go test -race -coverprofile=unit.cov -test.short -timeout 30s -v ./...
 
 .PHONY: integration-test
 integration-test:
 	@echo "+ $@"
-	@go test -race -count 1 -v ./test/ovs
+	@go test -race -coverprofile=integration.cov -coverpkg=github.com/ovn-org/libovsdb/... -timeout 60s -v ./test/ovs
+
+.PHONY: coverage
+coverage: test integration-test
+	@sed -i '1d' integration.cov
+	@cat unit.cov integration.cov > profile.cov
 
 .PHONY: bench
 bench: install-deps
