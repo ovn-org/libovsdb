@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cenkalti/rpc2"
 	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
@@ -84,6 +85,13 @@ type OpenvSwitch struct {
 	SystemType      []string          `ovsdb:"system_type"`
 	SystemVersion   []string          `ovsdb:"system_version"`
 }
+
+var defDB, _ = model.NewDBModel("Open_vSwitch",
+	map[string]model.Model{
+		"Open_vSwitch": &OpenvSwitch{},
+		"Bridge":       &Bridge{},
+	},
+)
 
 var schema = `{
 	"name": "Open_vSwitch",
@@ -724,6 +732,11 @@ func TestUpdate(t *testing.T) {
 func TestOperationWhenNotConnected(t *testing.T) {
 	ovs, err := newOVSDBClient(defDB)
 	require.NoError(t, err)
+	var s ovsdb.DatabaseSchema
+	err = json.Unmarshal([]byte(schema), &s)
+	require.NoError(t, err)
+	ovs.schema = &s
+
 	tests := []struct {
 		name string
 		fn   func() error
@@ -737,18 +750,13 @@ func TestOperationWhenNotConnected(t *testing.T) {
 		{
 			"transact",
 			func() error {
-				_, err := ovs.Transact(ovsdb.Operation{})
+				comment := "this is only a test"
+				_, err := ovs.Transact(ovsdb.Operation{Op: ovsdb.OperationComment, Comment: &comment})
 				return err
 			},
 		},
 		{
-			"monitor",
-			func() error {
-				return ovs.Monitor("")
-			},
-		},
-		{
-			"monitor all",
+			"monitor/monitor all",
 			func() error {
 				return ovs.MonitorAll("")
 			},
@@ -776,7 +784,7 @@ func TestSetOption(t *testing.T) {
 	err = o.SetOption(WithEndpoint("tcp::6640"))
 	require.NoError(t, err)
 
-	o.connected = true
+	o.rpcClient = &rpc2.Client{}
 
 	err = o.SetOption(WithEndpoint("tcp::6641"))
 	assert.EqualError(t, err, "cannot set option when client is connected")

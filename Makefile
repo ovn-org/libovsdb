@@ -1,46 +1,47 @@
-.PHONY: all local test test-local integration-test-local install-deps lint fmt prebuild-local build-local
+.PHONY: all
+all: lint build test integration-test coverage
 
-all: test
-
-local: install-deps build-local fmt lint test-local bench-local
-
-prebuild-local:
+.PHONY: prebuild
+prebuild: 
 	@echo "+ $@"
 	@mkdir -p bin
 	@go build -v -o ./bin ./cmd/modelgen
 	@[ -f example/play_with_ovs/ovs.ovsschema ] || curl -o example/play_with_ovs/ovs.ovsschema https://raw.githubusercontent.com/openvswitch/ovs/v2.15.0/vswitchd/vswitch.ovsschema
 	@go generate -v ./...
 
-build-local: prebuild-local
+.PHONY: build
+build: prebuild 
 	@echo "+ $@"
 	@go build -v ./...
 
-test-local:
+.PHONY: test
+test:
 	@echo "+ $@"
-	@go test -race -coverprofile=unit.cov -short -v ./...
+	@go test -race -coverprofile=unit.cov -test.short -timeout 30s -v ./...
 
-bench-local:
+.PHONY: integration-test
+integration-test:
+	@echo "+ $@"
+	@go test -race -coverprofile=integration.cov -coverpkg=github.com/ovn-org/libovsdb/... -timeout 60s -v ./test/ovs
+
+.PHONY: coverage
+coverage: test integration-test
+	@sed -i '1d' integration.cov
+	@cat unit.cov integration.cov > profile.cov
+
+.PHONY: bench
+bench: install-deps
 	@echo "+ $@"
 	@go test -run=XXX -count=3 -bench=. ./... | tee bench.out
 	@benchstat bench.out
 
-integration-test-local: prebuild-local
-	@echo "+ $@"
-	@go test -race -v -coverprofile=integration.cov -run Integration ./...
-
-test:
-	@docker-compose pull
-	@docker-compose run --rm test
-
+.PHONY: install-deps
 install-deps:
 	@echo "+ $@"
 	@golangci-lint --version
 	@go install golang.org/x/perf/cmd/benchstat@latest
 
-lint:
+.PHONY: lint
+lint: install-deps prebuild
 	@echo "+ $@"
 	@golangci-lint run
-
-fmt:
-	@echo "+ $@"
-	@test -z "$$(gofmt -s -l . | tee /dev/stderr)"

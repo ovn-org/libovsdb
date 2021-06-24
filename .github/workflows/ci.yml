@@ -24,8 +24,8 @@ jobs:
     - name: Check out code into the Go module directory
       uses: actions/checkout@v2
 
-    - name: Build
-      run: make build-local
+    - name: Generate Code
+      run: make prebuild
 
     # This cannot be run in parallel because we require running go-generate first
     # We need to skip the go installation and caching to avoid "File exists" errors in tbe logs
@@ -37,20 +37,25 @@ jobs:
         skip-pkg-cache: true
         skip-build-cache: true
 
-    - name: Check Formatting
-      run: make fmt
+    - name: Build
+      run: make build
 
     - name: Test
-      run: make test-local
+      run: make test
 
-    - name: Upload Unit Test Coverage
-      uses: actions/upload-artifact@v2
+    - name: Test
+      run: make integration-test
+
+    - name: Generate coverage
+      run: make coverage
+
+    - name: Upload test coverage
+      uses: shogo82148/actions-goveralls@v1
       with:
-        path: unit.cov
-        name: unit.cov
+        path-to-profile: profile.cov
 
     - name: Benchmark
-      run: make bench-local
+      run: make bench
 
     - name: Restore Latest Main Benchmark
       id: old-benchmark
@@ -75,19 +80,12 @@ jobs:
     strategy:
       matrix:
         ovs_version:
-          - latest
           - 2.15.0
           - 2.14.0
           - 2.13.0
 
     runs-on: ubuntu-latest
-    services:
-      ovs:
-        image: libovsdb/ovs:${{ matrix.ovs_version }}
-        options: --tty
-        ports:
-          - 6640:6640
-
+    
     steps:
     - name: Set up Go 1.16
       uses: actions/setup-go@v1
@@ -99,36 +97,6 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Integration Test
-      run: make integration-test-local
+      run: make integration-test
       env:
-        OVS_DB: tcp:127.0.0.1:6640
-
-    - name: Upload Integration Test Coverage
-      uses: actions/upload-artifact@v2
-      with:
-        path: integration.cov
-        name: integration.cov
-
-  coverage:
-    name: Upload Coverage
-    needs: [build, test]
-    runs-on: ubuntu-latest
-    steps:
-    - name: Set up Go 1.16
-      uses: actions/setup-go@v1
-      with:
-        go-version: 1.16
-      id: go
-    - name: Check out code into the Go module directory
-      uses: actions/checkout@v2
-
-    - name: Restore Coverage Files
-      uses: actions/download-artifact@v2
-
-    - name: Combine Reports
-      run: cat unit.cov/unit.cov <(tail -n +2 integration.cov/integration.cov) > profile.cov
-
-    - name: Send coverage
-      uses: shogo82148/actions-goveralls@v1
-      with:
-        path-to-profile: profile.cov
+        OVS_IMAGE_TAG: ${{ matrix.ovs_version }}
