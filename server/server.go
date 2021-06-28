@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -12,7 +13,10 @@ import (
 	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
+	"go.opentelemetry.io/otel"
 )
+
+var tracer = otel.Tracer("libovsdb.ovn.org/server")
 
 // OvsdbServer is an ovsdb server
 type OvsdbServer struct {
@@ -49,7 +53,7 @@ func NewOvsdbServer(db Database, models ...DatabaseModel) (*OvsdbServer, error) 
 	}
 	o.modelsMutex.Unlock()
 	for database, model := range o.models {
-		if err := o.db.CreateDatabase(database, model.Schema); err != nil {
+		if err := o.db.CreateDatabase(context.Background(), database, model.Schema); err != nil {
 			return nil, err
 		}
 	}
@@ -122,6 +126,8 @@ func (o *OvsdbServer) ListDatabases(client *rpc2.Client, args []interface{}, rep
 
 func (o *OvsdbServer) GetSchema(client *rpc2.Client, args []interface{}, reply *ovsdb.DatabaseSchema,
 ) error {
+	_, span := tracer.Start(context.Background(), "GetSchema")
+	defer span.End()
 	db, ok := args[0].(string)
 	if !ok {
 		return fmt.Errorf("database %v is not a string", args[0])
@@ -154,6 +160,8 @@ func NewTransaction(schema *ovsdb.DatabaseSchema, model *model.DBModel) Transact
 
 // Transact issues a new database transaction and returns the results
 func (o *OvsdbServer) Transact(client *rpc2.Client, args []json.RawMessage, reply *[]ovsdb.OperationResult) error {
+	ctx, span := tracer.Start(context.Background(), "Transact")
+	defer span.End()
 	if len(args) < 2 {
 		return fmt.Errorf("not enough args")
 	}
@@ -162,7 +170,7 @@ func (o *OvsdbServer) Transact(client *rpc2.Client, args []json.RawMessage, repl
 	if err != nil {
 		return fmt.Errorf("database %v is not a string", args[0])
 	}
-	if !o.db.Exists(db) {
+	if !o.db.Exists(ctx, db) {
 		return fmt.Errorf("db does not exist")
 	}
 	var ops []ovsdb.Operation
@@ -194,11 +202,11 @@ func (o *OvsdbServer) Transact(client *rpc2.Client, args []json.RawMessage, repl
 		}
 		ops = append(ops, op)
 	}
-	response, updates := o.transact(db, ops)
+	response, updates := o.transact(ctx, db, ops)
 	*reply = response
 	transactionID := uuid.New()
 	o.processMonitors(transactionID, updates)
-	return o.db.Commit(db, transactionID, updates)
+	return o.db.Commit(ctx, db, transactionID, updates)
 }
 
 func deepCopy(a ovsdb.TableUpdates) (ovsdb.TableUpdates, error) {
@@ -228,11 +236,13 @@ func (o *OvsdbServer) Cancel(client *rpc2.Client, args []interface{}, reply *[]i
 
 // Monitor monitors a given database table and provides updates to the client via an RPC callback
 func (o *OvsdbServer) Monitor(client *rpc2.Client, args []json.RawMessage, reply *ovsdb.TableUpdates) error {
+	ctx, span := tracer.Start(context.Background(), "Monitor")
+	defer span.End()
 	var db string
 	if err := json.Unmarshal(args[0], &db); err != nil {
 		return fmt.Errorf("database %v is not a string", args[0])
 	}
-	if !o.db.Exists(db) {
+	if !o.db.Exists(ctx, db) {
 		return fmt.Errorf("db does not exist")
 	}
 	value := string(args[1])
@@ -252,7 +262,7 @@ func (o *OvsdbServer) Monitor(client *rpc2.Client, args []json.RawMessage, reply
 	}
 	tableUpdates := make(ovsdb.TableUpdates)
 	for t, request := range request {
-		rows := o.Select(db, t, nil, request.Columns)
+		rows := o.Select(ctx, db, t, nil, request.Columns)
 		for i := range rows.Rows {
 			tu := make(ovsdb.TableUpdate)
 			uuid := rows.Rows[i]["_uuid"].(ovsdb.UUID).GoUUID
@@ -269,11 +279,13 @@ func (o *OvsdbServer) Monitor(client *rpc2.Client, args []json.RawMessage, reply
 
 // MonitorCond monitors a given database table and provides updates to the client via an RPC callback
 func (o *OvsdbServer) MonitorCond(client *rpc2.Client, args []json.RawMessage, reply *ovsdb.TableUpdates2) error {
+	ctx, span := tracer.Start(context.Background(), "MonitorCond")
+	defer span.End()
 	var db string
 	if err := json.Unmarshal(args[0], &db); err != nil {
 		return fmt.Errorf("database %v is not a string", args[0])
 	}
-	if !o.db.Exists(db) {
+	if !o.db.Exists(ctx, db) {
 		return fmt.Errorf("db does not exist")
 	}
 	value := string(args[1])
@@ -293,7 +305,7 @@ func (o *OvsdbServer) MonitorCond(client *rpc2.Client, args []json.RawMessage, r
 	}
 	tableUpdates := make(ovsdb.TableUpdates2)
 	for t, request := range request {
-		rows := o.Select(db, t, nil, request.Columns)
+		rows := o.Select(ctx, db, t, nil, request.Columns)
 		for i := range rows.Rows {
 			tu := make(ovsdb.TableUpdate2)
 			uuid := rows.Rows[i]["_uuid"].(ovsdb.UUID).GoUUID
@@ -308,11 +320,13 @@ func (o *OvsdbServer) MonitorCond(client *rpc2.Client, args []json.RawMessage, r
 
 // MonitorCondSince monitors a given database table and provides updates to the client via an RPC callback
 func (o *OvsdbServer) MonitorCondSince(client *rpc2.Client, args []json.RawMessage, reply *ovsdb.MonitorCondSinceReply) error {
+	ctx, span := tracer.Start(context.Background(), "MonitorCondSince")
+	defer span.End()
 	var db string
 	if err := json.Unmarshal(args[0], &db); err != nil {
 		return fmt.Errorf("database %v is not a string", args[0])
 	}
-	if !o.db.Exists(db) {
+	if !o.db.Exists(ctx, db) {
 		return fmt.Errorf("db does not exist")
 	}
 	value := string(args[1])
@@ -332,7 +346,7 @@ func (o *OvsdbServer) MonitorCondSince(client *rpc2.Client, args []json.RawMessa
 	}
 	tableUpdates := make(ovsdb.TableUpdates2)
 	for t, request := range request {
-		rows := o.Select(db, t, nil, request.Columns)
+		rows := o.Select(ctx, db, t, nil, request.Columns)
 		for i := range rows.Rows {
 			tu := make(ovsdb.TableUpdate2)
 			uuid := rows.Rows[i]["_uuid"].(ovsdb.UUID).GoUUID

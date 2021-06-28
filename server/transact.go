@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 
@@ -10,34 +11,36 @@ import (
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
-func (o *OvsdbServer) transact(name string, operations []ovsdb.Operation) ([]ovsdb.OperationResult, ovsdb.TableUpdates2) {
+func (o *OvsdbServer) transact(ctx context.Context, name string, operations []ovsdb.Operation) ([]ovsdb.OperationResult, ovsdb.TableUpdates2) {
+	ctx, span := tracer.Start(ctx, "transact")
+	defer span.End()
 	results := []ovsdb.OperationResult{}
 	updates := make(ovsdb.TableUpdates2)
 	for _, op := range operations {
 		switch op.Op {
 		case ovsdb.OperationInsert:
-			r, tu := o.Insert(name, op.Table, op.UUIDName, op.Row)
+			r, tu := o.Insert(ctx, name, op.Table, op.UUIDName, op.Row)
 			results = append(results, r)
 			if tu != nil {
 				updates.Merge(tu)
 			}
 		case ovsdb.OperationSelect:
-			r := o.Select(name, op.Table, op.Where, op.Columns)
+			r := o.Select(ctx, name, op.Table, op.Where, op.Columns)
 			results = append(results, r)
 		case ovsdb.OperationUpdate:
-			r, tu := o.Update(name, op.Table, op.Where, op.Row)
+			r, tu := o.Update(ctx, name, op.Table, op.Where, op.Row)
 			results = append(results, r)
 			if tu != nil {
 				updates.Merge(tu)
 			}
 		case ovsdb.OperationMutate:
-			r, tu := o.Mutate(name, op.Table, op.Where, op.Mutations)
+			r, tu := o.Mutate(ctx, name, op.Table, op.Where, op.Mutations)
 			results = append(results, r)
 			if tu != nil {
 				updates.Merge(tu)
 			}
 		case ovsdb.OperationDelete:
-			r, tu := o.Delete(name, op.Table, op.Where)
+			r, tu := o.Delete(ctx, name, op.Table, op.Where)
 			results = append(results, r)
 			if tu != nil {
 				updates.Merge(tu)
@@ -65,8 +68,10 @@ func (o *OvsdbServer) transact(name string, operations []ovsdb.Operation) ([]ovs
 	return results, updates
 }
 
-func (o *OvsdbServer) Insert(database string, table string, rowUUID string, row ovsdb.Row) (ovsdb.OperationResult, ovsdb.TableUpdates2) {
-	if !o.db.Exists(database) {
+func (o *OvsdbServer) Insert(ctx context.Context, database string, table string, rowUUID string, row ovsdb.Row) (ovsdb.OperationResult, ovsdb.TableUpdates2) {
+	ctx, span := tracer.Start(ctx, "Insert")
+	defer span.End()
+	if !o.db.Exists(ctx, database) {
 		return ovsdb.OperationResult{
 			Error: "database does not exist",
 		}, nil
@@ -118,7 +123,7 @@ func (o *OvsdbServer) Insert(database string, table string, rowUUID string, row 
 	}
 
 	// check for index conflicts
-	if err := o.db.CheckIndexes(database, table, model); err != nil {
+	if err := o.db.CheckIndexes(ctx, database, table, model); err != nil {
 		if indexExists, ok := err.(*cache.ErrIndexExists); ok {
 			e := ovsdb.ConstraintViolation{}
 			return ovsdb.OperationResult{
@@ -145,8 +150,10 @@ func (o *OvsdbServer) Insert(database string, table string, rowUUID string, row 
 	}
 }
 
-func (o *OvsdbServer) Select(database string, table string, where []ovsdb.Condition, columns []string) ovsdb.OperationResult {
-	if !o.db.Exists(database) {
+func (o *OvsdbServer) Select(ctx context.Context, database string, table string, where []ovsdb.Condition, columns []string) ovsdb.OperationResult {
+	ctx, span := tracer.Start(ctx, "Select")
+	defer span.End()
+	if !o.db.Exists(ctx, database) {
 		return ovsdb.OperationResult{
 			Error: "database does not exist",
 		}
@@ -158,7 +165,7 @@ func (o *OvsdbServer) Select(database string, table string, where []ovsdb.Condit
 	m := mapper.NewMapper(dbModel.Schema)
 
 	var results []ovsdb.Row
-	rows, err := o.db.List(database, table, where...)
+	rows, err := o.db.List(ctx, database, table, where...)
 	if err != nil {
 		panic(err)
 	}
@@ -174,8 +181,10 @@ func (o *OvsdbServer) Select(database string, table string, where []ovsdb.Condit
 	}
 }
 
-func (o *OvsdbServer) Update(database, table string, where []ovsdb.Condition, row ovsdb.Row) (ovsdb.OperationResult, ovsdb.TableUpdates2) {
-	if !o.db.Exists(database) {
+func (o *OvsdbServer) Update(ctx context.Context, database, table string, where []ovsdb.Condition, row ovsdb.Row) (ovsdb.OperationResult, ovsdb.TableUpdates2) {
+	ctx, span := tracer.Start(ctx, "Update")
+	defer span.End()
+	if !o.db.Exists(ctx, database) {
 		return ovsdb.OperationResult{
 			Error: "database does not exist",
 		}, nil
@@ -187,7 +196,7 @@ func (o *OvsdbServer) Update(database, table string, where []ovsdb.Condition, ro
 	m := mapper.NewMapper(dbModel.Schema)
 	schema := dbModel.Schema.Table(table)
 	tableUpdate := make(ovsdb.TableUpdate2)
-	rows, err := o.db.List(database, table, where...)
+	rows, err := o.db.List(ctx, database, table, where...)
 	if err != nil {
 		return ovsdb.OperationResult{
 			Error: err.Error(),
@@ -276,7 +285,7 @@ func (o *OvsdbServer) Update(database, table string, where []ovsdb.Condition, ro
 		}
 
 		// check for index conflicts
-		if err := o.db.CheckIndexes(database, table, new); err != nil {
+		if err := o.db.CheckIndexes(ctx, database, table, new); err != nil {
 			if indexExists, ok := err.(*cache.ErrIndexExists); ok {
 				e := ovsdb.ConstraintViolation{}
 				return ovsdb.OperationResult{
@@ -303,8 +312,10 @@ func (o *OvsdbServer) Update(database, table string, where []ovsdb.Condition, ro
 		}
 }
 
-func (o *OvsdbServer) Mutate(database, table string, where []ovsdb.Condition, mutations []ovsdb.Mutation) (ovsdb.OperationResult, ovsdb.TableUpdates2) {
-	if !o.db.Exists(database) {
+func (o *OvsdbServer) Mutate(ctx context.Context, database, table string, where []ovsdb.Condition, mutations []ovsdb.Mutation) (ovsdb.OperationResult, ovsdb.TableUpdates2) {
+	ctx, span := tracer.Start(ctx, "Mutates")
+	defer span.End()
+	if !o.db.Exists(ctx, database) {
 		return ovsdb.OperationResult{
 			Error: "database does not exist",
 		}, nil
@@ -318,7 +329,7 @@ func (o *OvsdbServer) Mutate(database, table string, where []ovsdb.Condition, mu
 
 	tableUpdate := make(ovsdb.TableUpdate2)
 
-	rows, err := o.db.List(database, table, where...)
+	rows, err := o.db.List(ctx, database, table, where...)
 	if err != nil {
 		panic(err)
 	}
@@ -411,7 +422,7 @@ func (o *OvsdbServer) Mutate(database, table string, where []ovsdb.Condition, mu
 		}
 
 		// check indexes
-		if err := o.db.CheckIndexes(database, table, new); err != nil {
+		if err := o.db.CheckIndexes(ctx, database, table, new); err != nil {
 			if indexExists, ok := err.(*cache.ErrIndexExists); ok {
 				e := ovsdb.ConstraintViolation{}
 				return ovsdb.OperationResult{
@@ -443,8 +454,10 @@ func (o *OvsdbServer) Mutate(database, table string, where []ovsdb.Condition, mu
 		}
 }
 
-func (o *OvsdbServer) Delete(database, table string, where []ovsdb.Condition) (ovsdb.OperationResult, ovsdb.TableUpdates2) {
-	if !o.db.Exists(database) {
+func (o *OvsdbServer) Delete(ctx context.Context, database, table string, where []ovsdb.Condition) (ovsdb.OperationResult, ovsdb.TableUpdates2) {
+	ctx, span := tracer.Start(ctx, "Delete")
+	defer span.End()
+	if !o.db.Exists(ctx, database) {
 		return ovsdb.OperationResult{
 			Error: "database does not exist",
 		}, nil
@@ -455,7 +468,7 @@ func (o *OvsdbServer) Delete(database, table string, where []ovsdb.Condition) (o
 	m := mapper.NewMapper(dbModel.Schema)
 	schema := dbModel.Schema.Table(table)
 	tableUpdate := make(ovsdb.TableUpdate2)
-	rows, err := o.db.List(database, table, where...)
+	rows, err := o.db.List(ctx, database, table, where...)
 	if err != nil {
 		panic(err)
 	}
