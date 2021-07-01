@@ -111,7 +111,6 @@ func (r *RowCache) create(uuid string, m model.Model) error {
 		return err
 	}
 	newIndexes := newColumnToValue(r.schema.Indexes)
-	var errs []error
 	for index := range r.indexes {
 
 		val, err := valueFromIndex(info, index)
@@ -120,14 +119,11 @@ func (r *RowCache) create(uuid string, m model.Model) error {
 			return err
 		}
 		if existing, ok := r.indexes[index][val]; ok {
-			errs = append(errs,
-				NewIndexExistsError(r.name, val, index, uuid, existing))
+			return NewIndexExistsError(r.name, val, index, uuid, existing)
 		}
 		newIndexes[index][val] = uuid
 	}
-	if len(errs) != 0 {
-		return fmt.Errorf("%v", errs)
-	}
+
 	// write indexes
 	for k1, v1 := range newIndexes {
 		for k2, v2 := range v1 {

@@ -322,3 +322,58 @@ func TestClientServerInsertAndDelete(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, 1, reply[0].Count)
 }
+
+func TestClientServerInsertDuplicate(t *testing.T) {
+	defDB, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{
+		"Open_vSwitch": &ovsType{},
+		"Bridge":       &bridgeType{}})
+	require.Nil(t, err)
+
+	schema, err := getSchema()
+	require.Nil(t, err)
+
+	ovsDB := NewInMemoryDatabase(map[string]*model.DBModel{"Open_vSwitch": defDB})
+	rand.Seed(time.Now().UnixNano())
+	tmpfile := fmt.Sprintf("/tmp/ovsdb-%d.sock", rand.Intn(10000))
+	defer os.Remove(tmpfile)
+	server, err := NewOvsdbServer(ovsDB, DatabaseModel{
+		Model:  defDB,
+		Schema: schema,
+	})
+	assert.Nil(t, err)
+
+	go func(t *testing.T, o *OvsdbServer) {
+		if err := o.Serve("unix", tmpfile); err != nil {
+			t.Error(err)
+		}
+	}(t, server)
+	defer server.Close()
+	require.Eventually(t, func() bool {
+		return server.Ready()
+	}, 1*time.Second, 10*time.Millisecond)
+
+	ovs, err := client.NewOVSDBClient(defDB, client.WithEndpoint(fmt.Sprintf("unix:%s", tmpfile)))
+	require.NoError(t, err)
+	err = ovs.Connect(context.Background())
+	require.NoError(t, err)
+
+	bridgeRow := &bridgeType{
+		Name:        "foo",
+		ExternalIds: map[string]string{"go": "awesome", "docker": "made-for-each-other"},
+	}
+
+	ops, err := ovs.Create(bridgeRow)
+	require.Nil(t, err)
+	reply, err := ovs.Transact(ops...)
+	require.Nil(t, err)
+	_, err = ovsdb.CheckOperationResults(reply, ops)
+	require.Nil(t, err)
+
+	// duplicate
+	reply, err = ovs.Transact(ops...)
+	require.Nil(t, err)
+	opErrs, err := ovsdb.CheckOperationResults(reply, ops)
+	require.Error(t, err)
+	require.Error(t, opErrs[0])
+	require.IsTypef(t, &ovsdb.ConstraintViolation{}, opErrs[0], opErrs[0].Error())
+}
