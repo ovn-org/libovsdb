@@ -3,7 +3,9 @@ package client
 import (
 	"crypto/tls"
 	"testing"
+	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -101,4 +103,15 @@ func TestWithEndpoint(t *testing.T) {
 			assert.Equal(t, tt.want, opts.endpoints)
 		})
 	}
+}
+
+func TestWithReconnect(t *testing.T) {
+	timeout := 2 * time.Second
+	opts := &options{}
+	fn := WithReconnect(timeout, &backoff.ZeroBackOff{})
+	err := fn(opts)
+	require.NoError(t, err)
+	assert.Equal(t, timeout, opts.timeout)
+	assert.Equal(t, true, opts.reconnect)
+	assert.Equal(t, &backoff.ZeroBackOff{}, opts.backoff)
 }

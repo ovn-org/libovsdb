@@ -226,7 +226,7 @@ func TestClientServerMonitor(t *testing.T) {
 	require.NotEmpty(t, reply[0].UUID.GoUUID)
 	ovsRow.UUID = reply[0].UUID.GoUUID
 
-	err = ovs.MonitorAll("test")
+	_, err = ovs.MonitorAll()
 	require.Nil(t, err)
 	require.Eventually(t, func() bool {
 		seenMutex.RLock()
