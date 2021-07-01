@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestOpRowSerialization(t *testing.T) {
@@ -193,7 +194,7 @@ func TestOperationsMarshalUnmarshalJSON(t *testing.T) {
 	}, op.Mutations[0])
 }
 
-func TestInterfaceToOVSDBNotationInterface(t *testing.T) {
+func TestOvsSliceToGoNotation(t *testing.T) {
 	tests := []struct {
 		name    string
 		value   interface{}
@@ -207,6 +208,12 @@ func TestInterfaceToOVSDBNotationInterface(t *testing.T) {
 			false,
 		},
 		{
+			"empty set",
+			[]interface{}{"set", []interface{}{}},
+			OvsSet{GoSet: []interface{}{}},
+			false,
+		},
+		{
 			"set",
 			[]interface{}{"set", []interface{}{"foo", "bar", "baz"}},
 			OvsSet{GoSet: []interface{}{"foo", "bar", "baz"}},
@@ -216,6 +223,12 @@ func TestInterfaceToOVSDBNotationInterface(t *testing.T) {
 			"uuid set",
 			[]interface{}{"set", []interface{}{[]interface{}{"named-uuid", "foo"}, []interface{}{"named-uuid", "bar"}}},
 			OvsSet{GoSet: []interface{}{UUID{GoUUID: "foo"}, UUID{GoUUID: "bar"}}},
+			false,
+		},
+		{
+			"empty map",
+			[]interface{}{"map", []interface{}{}},
+			OvsMap{GoMap: map[interface{}]interface{}{}},
 			false,
 		},
 		{
@@ -245,12 +258,12 @@ func TestInterfaceToOVSDBNotationInterface(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			v := reflect.ValueOf(tt.value)
-			got, err := interfaceToOVSDBNotationInterface(v)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("interfaceToOVSDBNotationInterface() error = %v, wantErr %v", err, tt.wantErr)
+			got, err := ovsSliceToGoNotation(tt.value)
+			if tt.wantErr {
+				assert.Error(t, err)
 				return
 			}
+			require.NoError(t, err)
 			wantValue := reflect.ValueOf(tt.want)
 			gotValue := reflect.ValueOf(got)
 			assert.Equal(t, wantValue.Type(), gotValue.Type())
