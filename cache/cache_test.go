@@ -179,15 +179,17 @@ func TestRowCacheCreateMultiIndex(t *testing.T) {
 	tc, err := NewTableCache(&schema, db, testData)
 	require.Nil(t, err)
 	tests := []struct {
-		name    string
-		uuid    string
-		model   *testModel
-		wantErr bool
+		name               string
+		uuid               string
+		model              *testModel
+		wantErr            bool
+		wantIndexExistsErr bool
 	}{
 		{
 			"inserts a new row",
 			"foo",
 			&testModel{Foo: "foo", Bar: "foo"},
+			false,
 			false,
 		},
 		{
@@ -195,11 +197,13 @@ func TestRowCacheCreateMultiIndex(t *testing.T) {
 			"bar",
 			&testModel{Foo: "bar", Bar: "bar"},
 			true,
+			false,
 		},
 		{
 			"error duplicate index",
 			"baz",
 			&testModel{Foo: "foo", Bar: "foo"},
+			true,
 			true,
 		},
 		{
@@ -207,11 +211,13 @@ func TestRowCacheCreateMultiIndex(t *testing.T) {
 			"baz",
 			&testModel{Foo: "foo", Bar: "bar"},
 			false,
+			false,
 		},
 		{
 			"new row with other duplicate value",
 			"quux",
 			&testModel{Foo: "bar", Bar: "baz"},
+			false,
 			false,
 		},
 	}
@@ -222,6 +228,9 @@ func TestRowCacheCreateMultiIndex(t *testing.T) {
 			err := rc.Create(tt.uuid, tt.model)
 			if tt.wantErr {
 				assert.Error(t, err)
+				if tt.wantIndexExistsErr {
+					assert.IsType(t, &IndexExistsError{}, err)
+				}
 			} else {
 				assert.Nil(t, err)
 				mapperInfo, err := mapper.NewInfo(tSchema, tt.model)
