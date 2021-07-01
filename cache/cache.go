@@ -88,6 +88,31 @@ func (r *RowCache) Row(uuid string) model.Model {
 	return nil
 }
 
+// RowByModel searches the cache using a the indexes for a provided model
+func (r *RowCache) RowByModel(m model.Model) model.Model {
+	if reflect.TypeOf(m) != r.dataType {
+		return nil
+	}
+	info, _ := mapper.NewInfo(&r.schema, m)
+	uuid, err := info.FieldByColumn("_uuid")
+	if err != nil {
+		return nil
+	}
+	if uuid.(string) != "" {
+		return r.Row(uuid.(string))
+	}
+	for index := range r.indexes {
+		val, err := valueFromIndex(info, index)
+		if err != nil {
+			continue
+		}
+		if uuid, ok := r.indexes[index][val]; ok {
+			return r.Row(uuid)
+		}
+	}
+	return nil
+}
+
 // Create writes the provided content to the cache
 func (r *RowCache) Create(uuid string, m model.Model) error {
 	r.mutex.Lock()
