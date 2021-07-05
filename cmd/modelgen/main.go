@@ -76,13 +76,13 @@ func main() {
 	for name, table := range dbSchema.Tables {
 		tmpl := modelgen.NewTableTemplate()
 		args := modelgen.GetTableTemplateData(pkgName, name, &table)
-		if err := gen.Generate(modelgen.FileName(name), tmpl, args); err != nil {
+		if err := gen.Generate(filepath.Join(outDir, modelgen.FileName(name)), tmpl, args); err != nil {
 			log.Fatal(err)
 		}
 	}
 	dbTemplate := modelgen.NewDBTemplate()
 	dbArgs := modelgen.GetDBTemplateData(pkgName, &dbSchema)
-	if err := gen.Generate("model.go", dbTemplate, dbArgs); err != nil {
+	if err := gen.Generate(filepath.Join(outDir, "model.go"), dbTemplate, dbArgs); err != nil {
 		log.Fatal(err)
 	}
 }
