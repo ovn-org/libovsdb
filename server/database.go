@@ -142,7 +142,7 @@ func (db *inMemoryDatabase) Insert(database string, table string, rowUUID string
 	}
 
 	// insert in to db
-	if err := targetDb.Table(table).Create(rowUUID, model); err != nil {
+	if err := targetDb.Table(table).Create(rowUUID, model, true); err != nil {
 		if indexErr, ok := err.(*cache.IndexExistsError); ok {
 			e := ovsdb.ConstraintViolation{}
 			return ovsdb.OperationResult{
@@ -227,7 +227,7 @@ func (db *inMemoryDatabase) Update(database, table string, where []ovsdb.Conditi
 		if err != nil {
 			panic(err)
 		}
-		if err = targetDb.Table(table).Update(uuid.(string), row); err != nil {
+		if err = targetDb.Table(table).Update(uuid.(string), row, true); err != nil {
 			if indexErr, ok := err.(*cache.IndexExistsError); ok {
 				e := ovsdb.ConstraintViolation{}
 				return ovsdb.OperationResult{
@@ -300,7 +300,7 @@ func (db *inMemoryDatabase) Mutate(database, table string, where []ovsdb.Conditi
 				panic(err)
 			}
 			// the field in old has been set, write back to db
-			err = targetDb.Table(table).Update(uuid.(string), old)
+			err = targetDb.Table(table).Update(uuid.(string), old, true)
 			if err != nil {
 				if indexErr, ok := err.(*cache.IndexExistsError); ok {
 					e := ovsdb.ConstraintViolation{}
