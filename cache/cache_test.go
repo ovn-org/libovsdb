@@ -111,15 +111,17 @@ func TestRowCacheCreate(t *testing.T) {
 	require.Nil(t, err)
 
 	tests := []struct {
-		name    string
-		uuid    string
-		model   *testModel
-		wantErr bool
+		name       string
+		uuid       string
+		model      *testModel
+		checkIndex bool
+		wantErr    bool
 	}{
 		{
 			"inserts a new row",
 			"foo",
 			&testModel{Foo: "foo"},
+			true,
 			false,
 		},
 		{
@@ -127,19 +129,35 @@ func TestRowCacheCreate(t *testing.T) {
 			"bar",
 			&testModel{Foo: "foo"},
 			true,
+			true,
 		},
 		{
 			"error duplicate index",
 			"baz",
 			&testModel{Foo: "bar"},
 			true,
+			true,
+		},
+		{
+			"error duplicate uuid, no index check",
+			"bar",
+			&testModel{Foo: "bar"},
+			false,
+			true,
+		},
+		{
+			"no error duplicate index",
+			"baz",
+			&testModel{Foo: "bar"},
+			false,
+			false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rc := tc.Table("Open_vSwitch")
 			require.NotNil(t, rc)
-			err := rc.Create(tt.uuid, tt.model)
+			err := rc.Create(tt.uuid, tt.model, tt.checkIndex)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -225,7 +243,7 @@ func TestRowCacheCreateMultiIndex(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rc := tc.Table("Open_vSwitch")
 			require.NotNil(t, rc)
-			err := rc.Create(tt.uuid, tt.model)
+			err := rc.Create(tt.uuid, tt.model, true)
 			if tt.wantErr {
 				assert.Error(t, err)
 				if tt.wantIndexExistsErr {
@@ -275,35 +293,46 @@ func TestRowCacheUpdate(t *testing.T) {
 	require.Nil(t, err)
 
 	tests := []struct {
-		name    string
-		uuid    string
-		model   *testModel
-		wantErr bool
+		name       string
+		uuid       string
+		model      *testModel
+		checkIndex bool
+		wantErr    bool
 	}{
 		{
 			"error if row does not exist",
 			"foo",
 			&testModel{Foo: "foo"},
 			true,
+			true,
 		},
 		{
 			"update",
 			"bar",
 			&testModel{Foo: "baz"},
+			true,
 			false,
 		},
 		{
 			"error new index would cause duplicate",
-			"baz",
+			"bar",
 			&testModel{Foo: "foobar"},
 			true,
+			true,
+		},
+		{
+			"no error new index would cause duplicate",
+			"bar",
+			&testModel{Foo: "foobar"},
+			false,
+			false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rc := tc.Table("Open_vSwitch")
 			require.NotNil(t, rc)
-			err := rc.Update(tt.uuid, tt.model)
+			err := rc.Update(tt.uuid, tt.model, tt.checkIndex)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -381,7 +410,7 @@ func TestRowCacheUpdateMultiIndex(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rc := tc.Table("Open_vSwitch")
 			require.NotNil(t, rc)
-			err := rc.Update(tt.uuid, tt.model)
+			err := rc.Update(tt.uuid, tt.model, true)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -792,7 +821,7 @@ func TestIndex(t *testing.T) {
 	}
 	table := tc.Table("Open_vSwitch")
 
-	err = table.Create(obj.UUID, obj)
+	err = table.Create(obj.UUID, obj, true)
 	assert.Nil(t, err)
 	t.Run("Index by single column", func(t *testing.T) {
 		idx, err := table.Index("foo")

@@ -114,7 +114,7 @@ func (r *RowCache) RowByModel(m model.Model) model.Model {
 }
 
 // Create writes the provided content to the cache
-func (r *RowCache) Create(uuid string, m model.Model) error {
+func (r *RowCache) Create(uuid string, m model.Model, checkIndexes bool) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if _, ok := r.cache[uuid]; ok {
@@ -129,15 +129,15 @@ func (r *RowCache) Create(uuid string, m model.Model) error {
 	}
 	newIndexes := newColumnToValue(r.schema.Indexes)
 	for index := range r.indexes {
-
 		val, err := valueFromIndex(info, index)
-
 		if err != nil {
 			return err
 		}
-		if existing, ok := r.indexes[index][val]; ok {
+
+		if existing, ok := r.indexes[index][val]; ok && checkIndexes {
 			return NewIndexExistsError(r.name, val, index, uuid, existing)
 		}
+
 		newIndexes[index][val] = uuid
 	}
 
@@ -152,7 +152,7 @@ func (r *RowCache) Create(uuid string, m model.Model) error {
 }
 
 // Update updates the content in the cache
-func (r *RowCache) Update(uuid string, m model.Model) error {
+func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if _, ok := r.cache[uuid]; !ok {
@@ -188,7 +188,8 @@ func (r *RowCache) Update(uuid string, m model.Model) error {
 		// old and new values are NOT the same
 
 		// check that there are no conflicts
-		if conflict, ok := r.indexes[index][newVal]; ok && conflict != uuid {
+
+		if conflict, ok := r.indexes[index][newVal]; ok && checkIndexes && conflict != uuid {
 			errs = append(errs, NewIndexExistsError(
 				r.name,
 				newVal,
@@ -197,6 +198,7 @@ func (r *RowCache) Update(uuid string, m model.Model) error {
 				conflict,
 			))
 		}
+
 		newIndexes[index][newVal] = uuid
 		oldIndexes[index][oldVal] = ""
 	}
@@ -339,7 +341,7 @@ func NewTableCache(schema *ovsdb.DatabaseSchema, dbModel *model.DBModel, data Da
 			return nil, fmt.Errorf("table %s is not in schema", table)
 		}
 		for uuid, row := range rowData {
-			if err := cache[table].Create(uuid, row); err != nil {
+			if err := cache[table].Create(uuid, row, true); err != nil {
 				return nil, err
 			}
 		}
@@ -414,6 +416,7 @@ func (t *TableCache) Disconnected() {
 func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
+
 	for table := range t.dbModel.Types() {
 		updates, ok := tableUpdates[table]
 		if !ok {
@@ -428,7 +431,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 				}
 				if existing := tCache.Row(uuid); existing != nil {
 					if !reflect.DeepEqual(newModel, existing) {
-						if err := tCache.Update(uuid, newModel); err != nil {
+						if err := tCache.Update(uuid, newModel, false); err != nil {
 							panic(err)
 						}
 						t.eventProcessor.AddEvent(updateEvent, table, existing, newModel)
@@ -436,7 +439,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 					// no diff
 					continue
 				}
-				if err := tCache.Create(uuid, newModel); err != nil {
+				if err := tCache.Create(uuid, newModel, false); err != nil {
 					panic(err)
 				}
 				t.eventProcessor.AddEvent(addEvent, table, nil, newModel)
