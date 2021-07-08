@@ -8,6 +8,7 @@ import (
 
 	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/client"
+	"github.com/ovn-org/libovsdb/example/vswitchd"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
@@ -28,14 +29,14 @@ var connection = flag.String("ovsdb", "unix:/var/run/openvswitch/db.sock", "OVSD
 func play(ovs client.Client) {
 	go processInput(ovs)
 	for model := range update {
-		bridge := model.(*Bridge)
+		bridge := model.(*vswitchd.Bridge)
 		if bridge.Name == "stop" {
 			fmt.Printf("Bridge stop detected: %+v\n", *bridge)
 			ovs.Disconnect()
 			quit <- true
 		} else {
 			fmt.Printf("Current list of bridges:\n")
-			var bridges []Bridge
+			var bridges []vswitchd.Bridge
 			if err := ovs.List(&bridges); err != nil {
 				log.Fatal(err)
 			}
@@ -47,7 +48,7 @@ func play(ovs client.Client) {
 }
 
 func createBridge(ovs client.Client, bridgeName string) {
-	bridge := Bridge{
+	bridge := vswitchd.Bridge{
 		UUID: "gopher",
 		Name: bridgeName,
 	}
@@ -56,7 +57,7 @@ func createBridge(ovs client.Client, bridgeName string) {
 		log.Fatal(err)
 	}
 
-	ovsRow := OpenvSwitch{
+	ovsRow := vswitchd.OpenvSwitch{
 		UUID: rootUUID,
 	}
 	mutateOps, err := ovs.Where(&ovsRow).Mutate(&ovsRow, model.Mutation{
@@ -97,7 +98,7 @@ func main() {
 	update = make(chan model.Model)
 
 	dbModel, err := model.NewDBModel("Open_vSwitch",
-		map[string]model.Model{bridgeTable: &Bridge{}, ovsTable: &OpenvSwitch{}})
+		map[string]model.Model{bridgeTable: &vswitchd.Bridge{}, ovsTable: &vswitchd.OpenvSwitch{}})
 	if err != nil {
 		log.Fatal("Unable to create DB model ", err)
 	}
@@ -120,8 +121,8 @@ func main() {
 		},
 	})
 	_, err = ovs.Monitor(
-		ovs.NewTableMonitor(&OpenvSwitch{}),
-		ovs.NewTableMonitor(&Bridge{}),
+		ovs.NewTableMonitor(&vswitchd.OpenvSwitch{}),
+		ovs.NewTableMonitor(&vswitchd.Bridge{}),
 	)
 	if err != nil {
 		log.Fatal(err)
