@@ -8,110 +8,35 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type marshalSetTestTuple struct {
-	objInput           interface{}
-	jsonExpectedOutput string
-}
-
-type marshalMapsTestTuple struct {
-	objInput           map[string]string
-	jsonExpectedOutput string
-}
-
 var validUUIDStr0 = `00000000-0000-0000-0000-000000000000`
 var validUUIDStr1 = `11111111-1111-1111-1111-111111111111`
 var validUUID0 = UUID{GoUUID: validUUIDStr0}
 var validUUID1 = UUID{GoUUID: validUUIDStr1}
 
-var setTestList = []marshalSetTestTuple{
-	{
-		objInput:           []string{},
-		jsonExpectedOutput: `["set",[]]`,
-	},
-	{
-		objInput:           `aa`,
-		jsonExpectedOutput: `"aa"`,
-	},
-	{
-		objInput:           false,
-		jsonExpectedOutput: `false`,
-	},
-	{
-		objInput:           float64(10),
-		jsonExpectedOutput: `10`,
-	},
-	{
-		objInput:           10.2,
-		jsonExpectedOutput: `10.2`,
-	},
-	{
-		objInput:           []string{`aa`},
-		jsonExpectedOutput: `"aa"`,
-	},
-	{
-		objInput:           [1]string{`aa`},
-		jsonExpectedOutput: `"aa"`,
-	},
-	{
-		objInput:           []string{`aa`, `bb`},
-		jsonExpectedOutput: `["set",["aa","bb"]]`,
-	},
-	{
-		objInput:           [2]string{`aa`, `bb`},
-		jsonExpectedOutput: `["set",["aa","bb"]]`,
-	},
-	{
-		objInput:           []float64{10.2, 15.4},
-		jsonExpectedOutput: `["set",[10.2,15.4]]`,
-	},
-	{
-		objInput:           []UUID{},
-		jsonExpectedOutput: `["set",[]]`,
-	},
-	{
-		objInput:           UUID{GoUUID: `aa`},
-		jsonExpectedOutput: `["named-uuid","aa"]`,
-	},
-	{
-		objInput:           []UUID{{GoUUID: `aa`}},
-		jsonExpectedOutput: `["named-uuid","aa"]`,
-	},
-	{
-		objInput:           []UUID{{GoUUID: `aa`}, {GoUUID: `bb`}},
-		jsonExpectedOutput: `["set",[["named-uuid","aa"],["named-uuid","bb"]]]`,
-	},
-	{
-		objInput:           validUUID0,
-		jsonExpectedOutput: fmt.Sprintf(`["uuid","%v"]`, validUUIDStr0),
-	},
-	{
-		objInput:           []UUID{validUUID0},
-		jsonExpectedOutput: fmt.Sprintf(`["uuid","%v"]`, validUUIDStr0),
-	},
-	{
-		objInput:           []UUID{validUUID0, validUUID1},
-		jsonExpectedOutput: fmt.Sprintf(`["set",[["uuid","%v"],["uuid","%v"]]]`, validUUIDStr0, validUUIDStr1),
-	},
-}
-
-var mapTestList = []marshalMapsTestTuple{
-	{
-		objInput:           map[string]string{},
-		jsonExpectedOutput: `["map",[]]`,
-	},
-	{
-		objInput:           map[string]string{`v0`: `k0`},
-		jsonExpectedOutput: `["map",[["v0","k0"]]]`,
-	},
-	{
-		objInput:           map[string]string{`v0`: `k0`, `v1`: `k1`},
-		jsonExpectedOutput: `["map",[["v0","k0"],["v1","k1"]]]`,
-	},
-}
-
 func TestMap(t *testing.T) {
-	for _, e := range mapTestList {
-		m, err := NewOvsMap(e.objInput)
+	tests := []struct {
+		name     string
+		input    map[string]string
+		expected string
+	}{
+		{
+			"empty map",
+			map[string]string{},
+			`["map",[]]`,
+		},
+		{
+			"single element map",
+			map[string]string{`v0`: `k0`},
+			`["map",[["v0","k0"]]]`,
+		},
+		{
+			"multiple element map",
+			map[string]string{`v0`: `k0`, `v1`: `k1`},
+			`["map",[["v0","k0"],["v1","k1"]]]`,
+		},
+	}
+	for _, tt := range tests {
+		m, err := NewOvsMap(tt.input)
 		assert.Nil(t, err)
 		jsonStr, err := json.Marshal(m)
 		assert.Nil(t, err)
@@ -119,7 +44,7 @@ func TestMap(t *testing.T) {
 		// have been preserved
 		var expectedSlice []interface{}
 		var jsonSlice []interface{}
-		err = json.Unmarshal([]byte(e.jsonExpectedOutput), &expectedSlice)
+		err = json.Unmarshal([]byte(tt.expected), &expectedSlice)
 		assert.Nil(t, err)
 		err = json.Unmarshal(jsonStr, &jsonSlice)
 		assert.Nil(t, err)
@@ -134,16 +59,109 @@ func TestMap(t *testing.T) {
 }
 
 func TestSet(t *testing.T) {
-	for _, e := range setTestList {
-		set, err := NewOvsSet(e.objInput)
-		assert.Nil(t, err)
-		jsonStr, err := json.Marshal(set)
-		assert.Nil(t, err)
-		assert.JSONEqf(t, e.jsonExpectedOutput, string(jsonStr), "they should be equal\n")
+	tests := []struct {
+		name     string
+		input    interface{}
+		expected string
+	}{
+		{
+			"empty set",
+			[]string{},
+			`["set",[]]`,
+		},
+		{
+			"string",
+			`aa`,
+			`"aa"`,
+		},
+		{
+			"bool",
+			false,
+			`false`,
+		},
+		{
+			"float 64",
+			float64(10),
+			`10`,
+		},
+		{
+			"float",
+			10.2,
+			`10.2`,
+		},
+		{
+			"string slice",
+			[]string{`aa`},
+			`"aa"`,
+		},
+		{
+			"string array",
+			[1]string{`aa`},
+			`"aa"`,
+		},
+		{
+			"string slice with multiple elements",
+			[]string{`aa`, `bb`},
+			`["set",["aa","bb"]]`,
+		},
+		{
+			"string array multiple elements",
+			[2]string{`aa`, `bb`},
+			`["set",["aa","bb"]]`,
+		},
+		{
+			"float slice",
+			[]float64{10.2, 15.4},
+			`["set",[10.2,15.4]]`,
+		},
+		{
+			"empty uuid",
+			[]UUID{},
+			`["set",[]]`,
+		},
+		{
+			"uuid",
+			UUID{GoUUID: `aa`},
+			`["named-uuid","aa"]`,
+		},
+		{
+			"uuid slice single element",
+			[]UUID{{GoUUID: `aa`}},
+			`["named-uuid","aa"]`,
+		},
+		{
+			"uuid slice multiple elements",
+			[]UUID{{GoUUID: `aa`}, {GoUUID: `bb`}},
+			`["set",[["named-uuid","aa"],["named-uuid","bb"]]]`,
+		},
+		{
+			"valud uuid",
+			validUUID0,
+			fmt.Sprintf(`["uuid","%v"]`, validUUIDStr0),
+		},
+		{
+			"valid uuid set single element",
+			[]UUID{validUUID0},
+			fmt.Sprintf(`["uuid","%v"]`, validUUIDStr0),
+		},
+		{
+			"valid uuid set multiple elements",
+			[]UUID{validUUID0, validUUID1},
+			fmt.Sprintf(`["set",[["uuid","%v"],["uuid","%v"]]]`, validUUIDStr0, validUUIDStr1),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			set, err := NewOvsSet(tt.input)
+			assert.Nil(t, err)
+			jsonStr, err := json.Marshal(set)
+			assert.Nil(t, err)
+			assert.JSONEqf(t, tt.expected, string(jsonStr), "they should be equal\n")
 
-		var res OvsSet
-		err = json.Unmarshal(jsonStr, &res)
-		assert.Nil(t, err)
-		assert.Equal(t, set.GoSet, res.GoSet, "they should have the same elements\n")
+			var res OvsSet
+			err = json.Unmarshal(jsonStr, &res)
+			assert.Nil(t, err)
+			assert.Equal(t, set.GoSet, res.GoSet, "they should have the same elements\n")
+		})
 	}
 }
