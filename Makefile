@@ -6,7 +6,7 @@ prebuild:
 	@echo "+ $@"
 	@mkdir -p bin
 	@go build -v -o ./bin ./cmd/modelgen
-	@[ -f example/play_with_ovs/ovs.ovsschema ] || curl -o example/play_with_ovs/ovs.ovsschema https://raw.githubusercontent.com/openvswitch/ovs/v2.15.0/vswitchd/vswitch.ovsschema
+	@[ -f example/vswitchd/ovs.ovsschema ] || curl -o example/vswitchd/ovs.ovsschema https://raw.githubusercontent.com/openvswitch/ovs/v2.15.0/vswitchd/vswitch.ovsschema
 	@go generate -v ./...
 
 .PHONY: build

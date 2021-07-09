@@ -11,12 +11,6 @@ _obj
 _test
 bin
 
-# Generated files
-example/play_with_ovs/ovs.ovsschema
-example/play_with_ovs/*.go
-!example/play_with_ovs/gen.go
-!example/play_with_ovs/play_with_ovs.go
-
 # Architecture specific extensions/prefixes
 *.[568vq]
 [568vq].out
@@ -64,4 +58,6 @@ Temporary Items
 ### Project-Specific
 *.out
 *.cov
-
+example/vswitchd/ovs.ovsschema
+example/vswitchd/*.go
+!example/vswitchd/gen.go
