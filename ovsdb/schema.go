@@ -528,10 +528,10 @@ func (c *ColumnSchema) UnmarshalJSON(data []byte) error {
 	// Infer the ExtendedType from the TypeObj
 	if c.TypeObj.Value != nil {
 		c.Type = TypeMap
-	} else if c.TypeObj.Min() != 1 || c.TypeObj.Max() != 1 {
-		c.Type = TypeSet
 	} else if len(c.TypeObj.Key.Enum) > 0 {
 		c.Type = TypeEnum
+	} else if c.TypeObj.Min() != 1 || c.TypeObj.Max() != 1 {
+		c.Type = TypeSet
 	} else {
 		c.Type = c.TypeObj.Key.Type
 	}
