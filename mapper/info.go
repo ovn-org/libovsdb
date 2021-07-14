@@ -40,6 +40,18 @@ func (i *Info) SetField(column string, value interface{}) error {
 	fieldValue := reflect.ValueOf(i.obj).Elem().FieldByName(fieldName)
 	v := reflect.ValueOf(value)
 	if !fieldValue.Type().AssignableTo(reflect.TypeOf(value)) {
+		if fieldValue.Kind() == reflect.Ptr {
+			if v.Kind() == reflect.Ptr && fieldValue.Type().AssignableTo(reflect.TypeOf(v.Elem())) {
+				v = v.Elem()
+			} else {
+				schema := i.table.Column(column)
+				native, err := ovsdb.OvsToNative(schema, value)
+				if err != nil {
+					return err
+				}
+				v = reflect.ValueOf(native)
+			}
+		}
 		if v.Type().ConvertibleTo(fieldValue.Type()) {
 			// handle enum
 			v = v.Convert(fieldValue.Type())
@@ -153,7 +165,9 @@ func NewInfo(table *ovsdb.TableSchema, obj interface{}) (*Info, error) {
 		if expType.Kind() == reflect.Slice && expType.Elem().Kind() == reflect.String {
 			// it's a slice of enums
 		} else if expType.Kind() == reflect.String && field.Type.Kind() == reflect.String {
-			// it' an enum
+			// it's an enum
+		} else if expType.Kind() == reflect.Ptr && expType.Elem().Kind() == reflect.String && field.Type.Kind() == reflect.Ptr && field.Type.Elem().Kind() == reflect.String {
+			// it's a pointer to an enum
 		} else if expType != field.Type {
 			return nil, &ErrMapper{
 				objType:   objType.String(),
