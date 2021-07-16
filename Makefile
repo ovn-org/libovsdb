@@ -15,7 +15,7 @@ build: prebuild
 	@go build -v ./...
 
 .PHONY: test
-test:
+test: prebuild
 	@echo "+ $@"
 	@go test -race -coverprofile=unit.cov -test.short -timeout 30s -v ./...
 
