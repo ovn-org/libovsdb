@@ -1,6 +1,8 @@
 package server
 
 import (
+	"fmt"
+
 	"github.com/google/uuid"
 	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/mapper"
@@ -192,16 +194,45 @@ func (o *OvsdbServer) Update(database, table string, where []ovsdb.Condition, ro
 	for _, old := range rows {
 		info, _ := mapper.NewInfo(schema, old)
 		uuid, _ := info.FieldByColumn("_uuid")
+
 		oldRow, err := m.NewRow(table, old)
 		if err != nil {
 			panic(err)
 		}
-		newRow, err := m.NewRow(table, row)
+
+		for column, value := range row {
+			colSchema := schema.Column(column)
+			if colSchema == nil {
+				e := ovsdb.ConstraintViolation{}
+				return ovsdb.OperationResult{
+					Error:   e.Error(),
+					Details: fmt.Sprintf("%s is not a valid column in the %s table", column, table),
+				}, nil
+			}
+			if !colSchema.Mutable() {
+				e := ovsdb.ConstraintViolation{}
+				return ovsdb.OperationResult{
+					Error:   e.Error(),
+					Details: fmt.Sprintf("column %s is of table %s not mutable", column, table),
+				}, nil
+			}
+			native, err := ovsdb.OvsToNative(colSchema, value)
+			if err != nil {
+				panic(err)
+			}
+			err = info.SetField(column, native)
+			if err != nil {
+				panic(err)
+			}
+		}
+
+		newRow, err := m.NewRow(table, old)
 		if err != nil {
 			panic(err)
 		}
 
-		if err := o.db.CheckIndexes(database, table, row); err != nil {
+		// check for index conflicts
+		if err := o.db.CheckIndexes(database, table, old); err != nil {
 			if indexExists, ok := err.(*cache.ErrIndexExists); ok {
 				e := ovsdb.ConstraintViolation{}
 				return ovsdb.OperationResult{
