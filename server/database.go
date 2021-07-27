@@ -16,6 +16,7 @@ type Database interface {
 	Commit(database string, updates ovsdb.TableUpdates) error
 	CheckIndexes(database string, table string, m model.Model) error
 	List(database, table string, conditions ...ovsdb.Condition) ([]model.Model, error)
+	Get(database, table string, uuid string) (model.Model, error)
 }
 
 type inMemoryDatabase struct {
@@ -91,4 +92,19 @@ func (db *inMemoryDatabase) List(database, table string, conditions ...ovsdb.Con
 	}
 
 	return targetTable.RowsByCondition(conditions)
+}
+
+func (db *inMemoryDatabase) Get(database, table string, uuid string) (model.Model, error) {
+	if !db.Exists(database) {
+		return nil, fmt.Errorf("db does not exist")
+	}
+	db.mutex.RLock()
+	targetDb := db.databases[database]
+	db.mutex.RLock()
+
+	targetTable := targetDb.Table(table)
+	if targetTable == nil {
+		return nil, fmt.Errorf("table does not exist")
+	}
+	return targetTable.Row(uuid), nil
 }

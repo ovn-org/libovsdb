@@ -231,7 +231,7 @@ func (r *RowCache) IndexExists(row model.Model) error {
 		if err != nil {
 			continue
 		}
-		if existing, ok := r.indexes[index][val]; ok {
+		if existing, ok := r.indexes[index][val]; ok && existing != uuid.(string) {
 			return NewIndexExistsError(
 				r.name,
 				val,
