@@ -58,13 +58,13 @@ func cleanup(ctx context.Context) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = ovs.Connect(context.Background())
+	err = ovs.Connect(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer ovs.Disconnect()
 
-	if _, err := ovs.MonitorAll(); err != nil {
+	if _, err := ovs.MonitorAll(ctx); err != nil {
 		log.Fatal(err)
 	}
 
@@ -100,7 +100,7 @@ func run(ctx context.Context, resultsChan chan result, wg *sync.WaitGroup) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = ovs.Connect(context.Background())
+	err = ovs.Connect(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func run(ctx context.Context, resultsChan chan result, wg *sync.WaitGroup) {
 		},
 	)
 
-	if _, err := ovs.MonitorAll(); err != nil {
+	if _, err := ovs.MonitorAll(ctx); err != nil {
 		log.Fatal(err)
 	}
 
@@ -166,7 +166,7 @@ func run(ctx context.Context, resultsChan chan result, wg *sync.WaitGroup) {
 }
 
 func transact(ctx context.Context, ovs client.Client, operations []ovsdb.Operation) (bool, string) {
-	reply, err := ovs.Transact(operations...)
+	reply, err := ovs.Transact(ctx, operations...)
 	if err != nil {
 		return false, ""
 	}

@@ -70,7 +70,7 @@ func createBridge(ovs client.Client, bridgeName string) {
 	}
 
 	operations := append(insertOp, mutateOps...)
-	reply, err := ovs.Transact(operations...)
+	reply, err := ovs.Transact(context.TODO(), operations...)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -121,6 +121,7 @@ func main() {
 		},
 	})
 	_, err = ovs.Monitor(
+		context.TODO(),
 		ovs.NewTableMonitor(&vswitchd.OpenvSwitch{}),
 		ovs.NewTableMonitor(&vswitchd.Bridge{}),
 	)
