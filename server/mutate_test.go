@@ -246,10 +246,17 @@ func TestMutateInsert(t *testing.T) {
 			[]string{"foo", "bar", "baz"},
 		},
 		{
+			"insert existing string",
+			[]string{"foo", "bar", "baz"},
+			ovsdb.MutateOperationInsert,
+			"baz",
+			[]string{"foo", "bar", "baz"},
+		},
+		{
 			"insert multiple string",
 			[]string{"foo", "bar"},
 			ovsdb.MutateOperationInsert,
-			[]string{"baz", "quux"},
+			[]string{"baz", "quux", "foo"},
 			[]string{"foo", "bar", "baz", "quux"},
 		},
 	}
