@@ -85,7 +85,7 @@ func (suite *OVSIntegrationSuite) SetupSuite() {
 
 	// give ovsdb-server some time to start up
 
-	_, err = suite.client.MonitorAll()
+	_, err = suite.client.MonitorAll(context.TODO())
 	require.NoError(suite.T(), err)
 }
 
@@ -127,7 +127,7 @@ var defDB, _ = model.NewDBModel("Open_vSwitch", map[string]model.Model{
 
 func (suite *OVSIntegrationSuite) TestConnectReconnect() {
 	assert.True(suite.T(), suite.client.Connected())
-	err := suite.client.Echo()
+	err := suite.client.Echo(context.TODO())
 	require.NoError(suite.T(), err)
 
 	bridgeName := "br-discoreco"
@@ -176,7 +176,7 @@ func (suite *OVSIntegrationSuite) TestConnectReconnect() {
 
 	assert.Equal(suite.T(), false, suite.client.Connected())
 
-	err = suite.client.Echo()
+	err = suite.client.Echo(context.TODO())
 	require.EqualError(suite.T(), err, client.ErrNotConnected.Error())
 
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
@@ -193,10 +193,10 @@ func (suite *OVSIntegrationSuite) TestConnectReconnect() {
 	err = suite.client.Get(br)
 	require.Error(suite.T(), err, client.ErrNotFound)
 
-	err = suite.client.Echo()
+	err = suite.client.Echo(context.TODO())
 	assert.NoError(suite.T(), err)
 
-	_, err = suite.client.MonitorAll()
+	_, err = suite.client.MonitorAll(context.TODO())
 	require.NoError(suite.T(), err)
 
 	// assert cache has been re-populated
@@ -209,7 +209,7 @@ func (suite *OVSIntegrationSuite) TestConnectReconnect() {
 
 func (suite *OVSIntegrationSuite) TestWithReconnect() {
 	assert.Equal(suite.T(), true, suite.client.Connected())
-	err := suite.client.Echo()
+	err := suite.client.Echo(context.TODO())
 	require.NoError(suite.T(), err)
 
 	// Disconnect client
@@ -238,14 +238,14 @@ func (suite *OVSIntegrationSuite) TestWithReconnect() {
 	require.NoError(suite.T(), err)
 
 	// check the connection is working
-	err = suite.client.Echo()
+	err = suite.client.Echo(context.TODO())
 	require.NoError(suite.T(), err)
 
 	// check the cache is purged
 	require.True(suite.T(), suite.client.Cache().Table("Bridge").Len() == 0)
 
 	// set up the monitor again
-	_, err = suite.client.MonitorAll()
+	_, err = suite.client.MonitorAll(context.TODO())
 	require.NoError(suite.T(), err)
 
 	// add a bridge and verify our handler gets called
@@ -276,7 +276,7 @@ func (suite *OVSIntegrationSuite) TestWithReconnect() {
 		return suite.client.Connected()
 	}, 2*time.Second, 500*time.Millisecond)
 
-	err = suite.client.Echo()
+	err = suite.client.Echo(context.TODO())
 	require.NoError(suite.T(), err)
 
 	// check our original bridge is in the cache
@@ -324,7 +324,7 @@ LOOP:
 
 	assert.Equal(suite.T(), false, suite.client.Connected())
 
-	err = suite.client.Echo()
+	err = suite.client.Echo(context.TODO())
 	require.EqualError(suite.T(), err, client.ErrNotConnected.Error())
 
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
@@ -332,10 +332,10 @@ LOOP:
 	err = suite.client.Connect(ctx)
 	require.NoError(suite.T(), err)
 
-	err = suite.client.Echo()
+	err = suite.client.Echo(context.TODO())
 	assert.NoError(suite.T(), err)
 
-	_, err = suite.client.MonitorAll()
+	_, err = suite.client.MonitorAll(context.TODO())
 	require.NoError(suite.T(), err)
 }
 
@@ -375,7 +375,7 @@ func (suite *OVSIntegrationSuite) TestInsertAndDeleteTransactIntegration() {
 	require.NoError(suite.T(), err)
 
 	delOperations := append(deleteOp, delMutateOp...)
-	delReply, err := suite.client.Transact(delOperations...)
+	delReply, err := suite.client.Transact(context.TODO(), delOperations...)
 	require.NoError(suite.T(), err)
 
 	delOperationErrs, err := ovsdb.CheckOperationResults(delReply, delOperations)
@@ -393,7 +393,7 @@ func (suite *OVSIntegrationSuite) TestTableSchemaValidationIntegration() {
 		Table: "InvalidTable",
 		Row:   ovsdb.Row(map[string]interface{}{"name": "docker-ovs"}),
 	}
-	_, err := suite.client.Transact(operation)
+	_, err := suite.client.Transact(context.TODO(), operation)
 	assert.Error(suite.T(), err)
 }
 
@@ -404,7 +404,7 @@ func (suite *OVSIntegrationSuite) TestColumnSchemaInRowValidationIntegration() {
 		Row:   ovsdb.Row(map[string]interface{}{"name": "docker-ovs", "invalid_column": "invalid_column"}),
 	}
 
-	_, err := suite.client.Transact(operation)
+	_, err := suite.client.Transact(context.TODO(), operation)
 	assert.Error(suite.T(), err)
 }
 
@@ -418,7 +418,7 @@ func (suite *OVSIntegrationSuite) TestColumnSchemaInMultipleRowsValidationIntegr
 		Table: "Bridge",
 		Rows:  rows,
 	}
-	_, err := suite.client.Transact(operation)
+	_, err := suite.client.Transact(context.TODO(), operation)
 	assert.Error(suite.T(), err)
 }
 
@@ -428,7 +428,7 @@ func (suite *OVSIntegrationSuite) TestColumnSchemaValidationIntegration() {
 		Table:   "Bridge",
 		Columns: []string{"name", "invalidColumn"},
 	}
-	_, err := suite.client.Transact(operation)
+	_, err := suite.client.Transact(context.TODO(), operation)
 	assert.Error(suite.T(), err)
 }
 
@@ -440,12 +440,13 @@ func (suite *OVSIntegrationSuite) TestMonitorCancelIntegration() {
 	}
 
 	monitorID, err := suite.client.Monitor(
+		context.TODO(),
 		suite.client.NewTableMonitor(&ovsType{}),
 		suite.client.NewTableMonitor(&bridgeType{}),
 	)
 	require.NoError(suite.T(), err)
 
-	err = suite.client.MonitorCancel(monitorID)
+	err = suite.client.MonitorCancel(context.TODO(), monitorID)
 	assert.NoError(suite.T(), err)
 
 	uuid, err := suite.createBridge("br-monitor")
@@ -515,7 +516,7 @@ func (suite *OVSIntegrationSuite) TestUpdate() {
 	bridgeRow.Name = "br-update2"
 	ops, err := suite.client.Where(bridgeRow).Update(bridgeRow)
 	require.NoError(suite.T(), err)
-	reply, err := suite.client.Transact(ops...)
+	reply, err := suite.client.Transact(context.TODO(), ops...)
 	require.NoError(suite.T(), err)
 	_, err = ovsdb.CheckOperationResults(reply, ops)
 	require.Error(suite.T(), err)
@@ -526,7 +527,7 @@ func (suite *OVSIntegrationSuite) TestUpdate() {
 	bridgeRow.ExternalIds = newExternalIds
 	ops, err = suite.client.Where(bridgeRow).Update(bridgeRow, &bridgeRow.ExternalIds)
 	require.NoError(suite.T(), err)
-	reply, err = suite.client.Transact(ops...)
+	reply, err = suite.client.Transact(context.TODO(), ops...)
 	require.NoError(suite.T(), err)
 	_, err = ovsdb.CheckOperationResults(reply, ops)
 	require.NoError(suite.T(), err)
@@ -567,7 +568,7 @@ func (suite *OVSIntegrationSuite) createBridge(bridgeName string) (string, error
 	require.NoError(suite.T(), err)
 
 	operations := append(insertOp, mutateOp...)
-	reply, err := suite.client.Transact(operations...)
+	reply, err := suite.client.Transact(context.TODO(), operations...)
 	require.NoError(suite.T(), err)
 
 	_, err = ovsdb.CheckOperationResults(reply, operations)
