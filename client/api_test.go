@@ -260,8 +260,6 @@ func TestAPIListFields(t *testing.T) {
 	}
 	tcache := apiTestCache(t, testData)
 
-	testObj := testLogicalSwitchPort{}
-
 	test := []struct {
 		name    string
 		fields  []interface{}
@@ -270,9 +268,10 @@ func TestAPIListFields(t *testing.T) {
 		err     bool
 	}{
 		{
-			name:    "empty object must match everything",
+			name:    "empty object and no explicit conditions must fail",
+			prepare: func(t *testLogicalSwitchPort) {},
 			content: lspcacheList,
-			err:     false,
+			err:     true,
 		},
 		{
 			name: "List unique by UUID",
@@ -296,7 +295,8 @@ func TestAPIListFields(t *testing.T) {
 		t.Run(fmt.Sprintf("ApiListFields: %s", tt.name), func(t *testing.T) {
 			var result []testLogicalSwitchPort
 			// Clean object
-			testObj = testLogicalSwitchPort{}
+			testObj := testLogicalSwitchPort{}
+			tt.prepare(&testObj)
 			api := newAPI(tcache)
 			err := api.Where(&testObj).List(&result)
 			if tt.err {

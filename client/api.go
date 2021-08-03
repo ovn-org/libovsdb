@@ -124,22 +124,28 @@ func (a api) List(result interface{}) error {
 	}
 	i := resultVal.Len()
 
-	for _, row := range tableCache.Rows() {
-		elem := tableCache.Row(row)
-		if i >= resultVal.Cap() {
-			break
+	var conditions [][]ovsdb.Condition
+	if a.cond != nil {
+		conditions, err = a.cond.Generate()
+		if err != nil {
+			return err
 		}
+	} else {
+		conditions = append(conditions, []ovsdb.Condition{})
+	}
 
-		if a.cond != nil {
-			if matches, err := a.cond.Matches(elem); err != nil {
-				return err
-			} else if !matches {
-				continue
+	for _, condition := range conditions {
+		matchingRows, err := tableCache.RowsByCondition(condition)
+		if err != nil {
+			return err
+		}
+		for _, row := range matchingRows {
+			if i >= resultVal.Cap() {
+				break
 			}
+			resultVal.Set(reflect.Append(resultVal, reflect.Indirect(reflect.ValueOf(row))))
+			i++
 		}
-
-		resultVal.Set(reflect.Append(resultVal, reflect.Indirect(reflect.ValueOf(elem))))
-		i++
 	}
 	return nil
 }
