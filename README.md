@@ -22,6 +22,16 @@ The API to interact with OVSDB is based on tagged golang structs. We call it a M
         Config map[string]string `ovsdb:"other_config"`
     }
 
+libovsdb is able to translate a Model in to OVSDB format.
+To make the API use go idioms, the following mappings occur:
+
+1. OVSDB Set with min 0 and max unlimited = Slice
+1. OVSDB Set with min 0 and max 1 = Pointer to scalar type
+1. OVSDB Set with min 0 and max N = Array of N
+1. OVSDB Enum = Type-aliased Enum Type
+1. OVSDB Map = Map
+1. OVSDB Scalar Type = Equivalent scalar Go type
+
 A Open vSwitch Database is modeled using a DBModel which is a created by assigning table names to pointers to these structs:
 
     dbModel, _ := model.NewDBModel("OVN_Northbound", map[string]model.Model{
