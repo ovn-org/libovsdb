@@ -147,23 +147,28 @@ func (a api) List(ctx context.Context, result interface{}) error {
 	}
 	i := resultVal.Len()
 
-	for _, row := range tableCache.RowsShallow() {
-		if i >= resultVal.Cap() {
-			break
+	var conditions [][]ovsdb.Condition
+	if a.cond != nil {
+		conditions, err = a.cond.Generate()
+		if err != nil {
+			return err
 		}
+	} else {
+		conditions = append(conditions, []ovsdb.Condition{})
+	}
 
-		if a.cond != nil {
-			if matches, err := a.cond.Matches(row); err != nil {
-				return err
-			} else if !matches {
-				continue
+	for _, condition := range conditions {
+		matchingRows, err := tableCache.RowsByCondition(condition)
+		if err != nil {
+			return err
+		}
+		for _, row := range matchingRows {
+			if i >= resultVal.Cap() {
+				return nil
 			}
+			appendValue(reflect.ValueOf(row))
+			i++
 		}
-		// clone only the models that match the predicate
-		m := model.Clone(row)
-
-		appendValue(reflect.ValueOf(m))
-		i++
 	}
 	return nil
 }

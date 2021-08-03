@@ -158,7 +158,7 @@ func (c *predicateConditional) Generate() ([][]ovsdb.Condition, error) {
 	if tableCache == nil {
 		return nil, ErrNotFound
 	}
-	for _, row := range tableCache.Rows() {
+	for _, row := range tableCache.RowsShallow() {
 		match, err := c.Matches(row)
 		if err != nil {
 			return nil, err
