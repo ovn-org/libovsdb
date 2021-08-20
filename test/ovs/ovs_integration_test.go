@@ -2,7 +2,6 @@ package ovs
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -43,7 +42,10 @@ func (suite *OVSIntegrationSuite) SetupSuite() {
 		Repository:   "libovsdb/ovs",
 		Tag:          tag,
 		ExposedPorts: []string{"6640/tcp"},
-		Tty:          true,
+		PortBindings: map[docker.Port][]docker.PortBinding{
+			"6640/tcp": {{HostPort: "56640"}},
+		},
+		Tty: true,
 	}
 	hostConfig := func(config *docker.HostConfig) {
 		// set AutoRemove to true so that stopped container goes away by itself
@@ -56,8 +58,8 @@ func (suite *OVSIntegrationSuite) SetupSuite() {
 	suite.resource, err = suite.pool.RunWithOptions(options, hostConfig)
 	require.NoError(suite.T(), err)
 
-	// set expiry to 60 seconds so containers are cleaned up on test panic
-	err = suite.resource.Expire(60)
+	// set expiry to 90 seconds so containers are cleaned up on test panic
+	err = suite.resource.Expire(90)
 	require.NoError(suite.T(), err)
 
 	// let the container start before we attempt connection
@@ -66,7 +68,7 @@ func (suite *OVSIntegrationSuite) SetupSuite() {
 	err = suite.pool.Retry(func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-		endpoint := fmt.Sprintf("tcp::%s", suite.resource.GetPort("6640/tcp"))
+		endpoint := "tcp::56640"
 		ovs, err := client.NewOVSDBClient(
 			defDB,
 			client.WithEndpoint(endpoint),
@@ -230,7 +232,7 @@ func (suite *OVSIntegrationSuite) TestWithReconnect() {
 
 	// Reconfigure
 	err = suite.client.SetOption(
-		client.WithReconnect(2*time.Second, backoff.NewExponentialBackOff()),
+		client.WithReconnect(500*time.Millisecond, &backoff.ZeroBackOff{}),
 	)
 	require.NoError(suite.T(), err)
 
@@ -278,12 +280,13 @@ func (suite *OVSIntegrationSuite) TestWithReconnect() {
 	require.Equal(suite.T(), bridgeName, br.Name)
 
 	// trigger reconnect
-	suite.client.Disconnect()
+	err = suite.pool.Client.RestartContainer(suite.resource.Container.ID, 0)
+	require.NoError(suite.T(), err)
 
 	// check that we are automatically reconnected
 	require.Eventually(suite.T(), func() bool {
 		return suite.client.Connected()
-	}, 2*time.Second, 500*time.Millisecond)
+	}, 20*time.Second, 1*time.Second)
 
 	err = suite.client.Echo(context.TODO())
 	require.NoError(suite.T(), err)
