@@ -20,6 +20,8 @@ var (
 	aUUID2   = "2f77b348-9768-4866-b761-89d5177ecda2"
 	aUUID3   = "2f77b348-9768-4866-b761-89d5177ecda3"
 
+	aSingleUUIDSet, _ = NewOvsSet(UUID{GoUUID: aUUID0})
+
 	aUUIDSet = []string{
 		aUUID0,
 		aUUID1,
@@ -374,6 +376,23 @@ func TestOvsToNativeAndNativeToOvs(t *testing.T) {
 			input:  singleStringSet,
 			native: &aString,
 			ovs:    singleStringSet,
+		},
+		{
+			name: "UUID set with min 0 max 1",
+			schema: []byte(`{
+			"type":{
+				"key": {
+					"refTable": "SomeOtherTAble",
+					"refType": "weak",
+					"type": "uuid"
+				},
+				"min": 0,
+				"max": 1
+			}
+			}`),
+			input:  aSingleUUIDSet,
+			native: &aUUID0,
+			ovs:    aSingleUUIDSet,
 		},
 		{
 			name: "A string with min 0 max 1",
