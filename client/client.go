@@ -48,30 +48,50 @@ type Client interface {
 	DisconnectNotify() chan struct{}
 	Echo(context.Context) error
 	Transact(context.Context, ...ovsdb.Operation) ([]ovsdb.OperationResult, error)
-	Monitor(context.Context, ...TableMonitor) (string, error)
-	MonitorAll(context.Context) (string, error)
-	MonitorCancel(ctx context.Context, id string) error
+	Monitor(context.Context, ...TableMonitor) (MonitorCookie, error)
+	MonitorAll(context.Context) (MonitorCookie, error)
+	MonitorCancel(ctx context.Context, cookie MonitorCookie) error
 	NewTableMonitor(m model.Model, fields ...interface{}) TableMonitor
 	API
 }
 
+// MonitorCookie is the struct we pass to correlate from updates back to their
+// originating Monitor request.
+type MonitorCookie struct {
+	DatabaseName string `json:"databaseName"`
+	ID           string `json:"id"`
+}
+
 // ovsdbClient is an OVSDB client
 type ovsdbClient struct {
-	options       *options
-	rpcClient     *rpc2.Client
-	rpcMutex      sync.RWMutex
-	dbModel       *model.DBModel
-	schema        *ovsdb.DatabaseSchema
-	schemaMutex   sync.RWMutex
-	cache         *cache.TableCache
-	cacheMutex    sync.RWMutex
+	options   *options
+	rpcClient *rpc2.Client
+	rpcMutex  sync.RWMutex
+
+	// The name of the "primary" database - that is to say, the DB
+	// that the user expects to interact with.
+	primaryDBName string
+	databases     map[string]*database
+
 	stopCh        chan struct{}
 	disconnect    chan struct{}
-	api           API
-	monitors      map[string][]TableMonitor
-	monitorsMutex sync.Mutex
 	shutdown      bool
 	shutdownMutex sync.Mutex
+}
+
+// database is everything needed to map between go types and an ovsdb Database
+type database struct {
+	model       *model.DBModel
+	schema      *ovsdb.DatabaseSchema
+	schemaMutex sync.RWMutex
+	cache       *cache.TableCache
+	cacheMutex  sync.RWMutex
+
+	api API
+
+	// any ongoing monitors, so we can re-create them if we disconnect
+	monitors      map[string][]TableMonitor
+	monitorsMutex sync.Mutex
 }
 
 // NewOVSDBClient creates a new OVSDB Client with the provided
@@ -85,12 +105,14 @@ func NewOVSDBClient(databaseModel *model.DBModel, opts ...Option) (Client, error
 // newOVSDBClient creates a new ovsdbClient
 func newOVSDBClient(databaseModel *model.DBModel, opts ...Option) (*ovsdbClient, error) {
 	ovs := &ovsdbClient{
-		dbModel:       databaseModel,
-		disconnect:    make(chan struct{}),
-		rpcMutex:      sync.RWMutex{},
-		schemaMutex:   sync.RWMutex{},
-		monitorsMutex: sync.Mutex{},
-		shutdownMutex: sync.Mutex{},
+		primaryDBName: databaseModel.Name(),
+		databases: map[string]*database{
+			databaseModel.Name(): {
+				model:    databaseModel,
+				monitors: make(map[string][]TableMonitor),
+			},
+		},
+		disconnect: make(chan struct{}),
 	}
 	var err error
 	ovs.options, err = newOptions(opts...)
@@ -150,82 +172,93 @@ func (o *ovsdbClient) connect(ctx context.Context, reconnect bool) error {
 		return err
 	}
 
-	dbs, err := o.listDbs(ctx)
-	if err != nil {
-		o.rpcClient.Close()
-		o.rpcClient = nil
-		return err
-	}
-
-	found := false
-	for _, db := range dbs {
-		if db == o.dbModel.Name() {
-			found = true
-			break
-		}
-	}
-	if !found {
-		o.rpcClient.Close()
-		o.rpcClient = nil
-		return fmt.Errorf("target database not found")
-	}
-
-	schema, err := o.getSchema(ctx, o.dbModel.Name())
-	errors := o.dbModel.Validate(schema)
-	if len(errors) > 0 {
-		var combined []string
-		for _, err := range errors {
-			combined = append(combined, err.Error())
-		}
-		return fmt.Errorf("database validation error (%d): %s", len(errors),
-			strings.Join(combined, ". "))
-	}
-
-	if err != nil {
-		o.rpcClient.Close()
-		o.rpcClient = nil
-		return err
-	}
-
-	o.schemaMutex.Lock()
-	o.schema = schema
-	o.schemaMutex.Unlock()
-	if o.cache == nil {
-		o.cacheMutex.Lock()
-		if cache, err := cache.NewTableCache(schema, o.dbModel, nil); err == nil {
-			o.cache = cache
-			o.api = newAPI(o.cache)
-		} else {
+	// from now on, if err is nil, always tear down the RPC session
+	defer func() {
+		if err != nil {
 			o.rpcClient.Close()
 			o.rpcClient = nil
-			return err
 		}
-		o.cacheMutex.Unlock()
-	} else {
-		// purge cache contents and ensure we are using latest schema
-		// cache event handlers are untouched
-		o.cache.Purge(schema)
+	}()
+
+	serverDBNames, err := o.listDbs(ctx)
+	if err != nil {
+		return err
 	}
 
-	if reconnect {
-		o.monitorsMutex.Lock()
-		defer o.monitorsMutex.Unlock()
-		for id, request := range o.monitors {
-			err = o.monitor(ctx, id, reconnect, request...)
-			if err != nil {
-				o.rpcClient.Close()
-				o.rpcClient = nil
-				return err
+	// for every requested database, ensure the DB exists in the server and
+	// that the schema matches what we expect.
+	for dbName, db := range o.databases {
+		// check the server has what we want
+		found := false
+		for _, name := range serverDBNames {
+			if name == dbName {
+				found = true
+				break
 			}
 		}
-	} else {
-		o.monitorsMutex.Lock()
-		defer o.monitorsMutex.Unlock()
-		o.monitors = make(map[string][]TableMonitor)
+		if !found {
+			err = fmt.Errorf("target database %s not found", dbName)
+			return err
+		}
+
+		// load and validate the schema
+		schema, err := o.getSchema(ctx, dbName)
+		if err != nil {
+			return err
+		}
+
+		errors := db.model.Validate(schema)
+		if len(errors) > 0 {
+			var combined []string
+			for _, err := range errors {
+				combined = append(combined, err.Error())
+			}
+			err = fmt.Errorf("database %s validation error (%d): %s", dbName, len(errors),
+				strings.Join(combined, ". "))
+			return err
+		}
+
+		db.schemaMutex.Lock()
+		db.schema = schema
+		db.schemaMutex.Unlock()
+
+		db.cacheMutex.Lock()
+		if db.cache == nil {
+			db.cache, err = cache.NewTableCache(schema, db.model, nil)
+			if err != nil {
+				db.cacheMutex.Unlock()
+				return err
+			}
+			db.api = newAPI(db.cache)
+		} else {
+			db.cache.Purge(db.schema)
+		}
+		db.cacheMutex.Unlock()
+	}
+
+	// if we're reconnecting, re-start all the monitors
+	if reconnect {
+		for dbName, db := range o.databases {
+			db.monitorsMutex.Lock()
+			defer db.monitorsMutex.Unlock()
+			for id, request := range db.monitors {
+				// TODO: should err here just be treated as failure to connect?
+				cookie := MonitorCookie{
+					DatabaseName: dbName,
+					ID:           id,
+				}
+				err = o.monitor(ctx, cookie, true, request...)
+				if err != nil {
+					return err
+				}
+			}
+		}
 	}
 
 	go o.handleDisconnectNotification()
-	go o.cache.Run(o.stopCh)
+	for _, db := range o.databases {
+		go db.cache.Run(o.stopCh)
+	}
 	return nil
 }
 
@@ -246,21 +279,27 @@ func (o *ovsdbClient) createRPC2Client(conn net.Conn) error {
 	return nil
 }
 
+func (o *ovsdbClient) primaryDB() *database {
+	return o.databases[o.primaryDBName]
+}
+
 // Schema returns the DatabaseSchema that is being used by the client
 // it will be nil until a connection has been established
 func (o *ovsdbClient) Schema() *ovsdb.DatabaseSchema {
-	o.schemaMutex.RLock()
-	defer o.schemaMutex.RUnlock()
-	return o.schema
+	db := o.primaryDB()
+	db.schemaMutex.RLock()
+	defer db.schemaMutex.RUnlock()
+	return db.schema
 }
 
 // Cache returns the TableCache that is populated from
 // ovsdb update notifications. It will be nil until a connection
 // has been established, and empty unless you call Monitor
 func (o *ovsdbClient) Cache() *cache.TableCache {
-	o.cacheMutex.RLock()
-	defer o.cacheMutex.RUnlock()
-	return o.cache
+	db := o.primaryDB()
+	db.cacheMutex.RLock()
+	defer db.cacheMutex.RUnlock()
+	return db.cache
 }
 
 // SetOption sets a new value for an option.
@@ -294,24 +333,31 @@ func (o *ovsdbClient) echo(args []interface{}, reply *[]interface{}) error {
 }
 
 // RFC 7047 : Update Notification Section 4.1.6
-func (o *ovsdbClient) update(args []json.RawMessage, reply *[]interface{}) error {
-	var value string
-	if len(args) > 2 {
+// params is an array of length 2: [json-value, table-updates]
+// - json-value: the arbitrary json-value passed when creating the Monitor, i.e. the "cookie"
+// - table-updates: map of table name to table-update. Table-update is a map of uuid to (old, new) row paris
+func (o *ovsdbClient) update(params []json.RawMessage, reply *[]interface{}) error {
+	cookie := MonitorCookie{}
+	if len(params) > 2 {
 		return fmt.Errorf("update requires exactly 2 args")
 	}
-	err := json.Unmarshal(args[0], &value)
+	err := json.Unmarshal(params[0], &cookie)
 	if err != nil {
 		return err
 	}
 	var updates ovsdb.TableUpdates
-	err = json.Unmarshal(args[1], &updates)
+	err = json.Unmarshal(params[1], &updates)
 	if err != nil {
 		return err
 	}
+	db := o.databases[cookie.DatabaseName]
+	if db == nil {
+		return fmt.Errorf("update: invalid database name: %s unknown", cookie.DatabaseName)
+	}
 	// Update the local DB cache with the tableUpdates
-	o.cacheMutex.RLock()
-	o.cache.Update(value, updates)
-	o.cacheMutex.RUnlock()
+	db.cacheMutex.RLock()
+	db.cache.Update(cookie.ID, updates)
+	db.cacheMutex.RUnlock()
 	*reply = []interface{}{}
 	return nil
 }
@@ -354,7 +400,8 @@ func (o *ovsdbClient) Transact(ctx context.Context, operation ...ovsdb.Operation
 	if ok := o.Schema().ValidateOperations(operation...); !ok {
 		return nil, fmt.Errorf("validation failed for the operation")
 	}
-	args := ovsdb.NewTransactArgs(o.schema.Name, operation...)
+
+	args := ovsdb.NewTransactArgs(o.primaryDBName, operation...)
 
 	o.rpcMutex.Lock()
 	if o.rpcClient == nil {
@@ -373,9 +420,9 @@ func (o *ovsdbClient) Transact(ctx context.Context, operation ...ovsdb.Operation
 }
 
 // MonitorAll is a convenience method to monitor every table/column
-func (o *ovsdbClient) MonitorAll(ctx context.Context) (string, error) {
+func (o *ovsdbClient) MonitorAll(ctx context.Context) (MonitorCookie, error) {
 	var options []TableMonitor
-	for name := range o.dbModel.Types() {
+	for name := range o.primaryDB().model.Types() {
 		options = append(options, TableMonitor{Table: name})
 	}
 	return o.Monitor(ctx, options...)
@@ -383,9 +430,9 @@ func (o *ovsdbClient) MonitorAll(ctx context.Context) (string, error) {
 
 // MonitorCancel will request cancel a previously issued monitor request
 // RFC 7047 : monitor_cancel
-func (o *ovsdbClient) MonitorCancel(ctx context.Context, id string) error {
+func (o *ovsdbClient) MonitorCancel(ctx context.Context, cookie MonitorCookie) error {
 	var reply ovsdb.OperationResult
-	args := ovsdb.NewMonitorCancelArgs(id)
+	args := ovsdb.NewMonitorCancelArgs(cookie)
 	o.rpcMutex.Lock()
 	defer o.rpcMutex.Unlock()
 	if o.rpcClient == nil {
@@ -401,9 +448,9 @@ func (o *ovsdbClient) MonitorCancel(ctx context.Context, id string) error {
 	if reply.Error != "" {
 		return fmt.Errorf("error while executing transaction: %s", reply.Error)
 	}
-	o.monitorsMutex.Lock()
-	defer o.monitorsMutex.Unlock()
-	delete(o.monitors, id)
+	o.primaryDB().monitorsMutex.Lock()
+	defer o.primaryDB().monitorsMutex.Unlock()
+	delete(o.primaryDB().monitors, cookie.ID)
 	return nil
 }
 
@@ -419,7 +466,7 @@ type TableMonitor struct {
 }
 
 func (o *ovsdbClient) NewTableMonitor(m model.Model, fields ...interface{}) TableMonitor {
-	tableName := o.dbModel.FindTable(reflect.TypeOf(m))
+	tableName := o.primaryDB().model.FindTable(reflect.TypeOf(m))
 	if tableName == "" {
 		return TableMonitor{
 			Error: fmt.Errorf("object of type %s is not part of the DBModel", reflect.TypeOf(m)),
@@ -431,22 +478,33 @@ func (o *ovsdbClient) NewTableMonitor(m model.Model, fields ...interface{}) Tabl
 	}
 }
 
+func newMonitorCookie(dbName string) MonitorCookie {
+	return MonitorCookie{
+		DatabaseName: dbName,
+		ID:           uuid.NewString(),
+	}
+}
+
 // Monitor will provide updates for a given table/column
 // and populate the cache with them. Subsequent updates will be processed
 // by the Update Notifications
 // RFC 7047 : monitor
-func (o *ovsdbClient) Monitor(ctx context.Context, options ...TableMonitor) (string, error) {
-	id := uuid.NewString()
-	return id, o.monitor(ctx, id, false, options...)
+func (o *ovsdbClient) Monitor(ctx context.Context, options ...TableMonitor) (MonitorCookie, error) {
+	cookie := newMonitorCookie(o.primaryDBName)
+	return cookie, o.monitor(ctx, cookie, false, options...)
 }
 
-func (o *ovsdbClient) monitor(ctx context.Context, id string, reconnect bool, options ...TableMonitor) error {
+func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconnecting bool, options ...TableMonitor) error {
 	if len(options) == 0 {
 		return fmt.Errorf("no monitor options provided")
 	}
 	var reply ovsdb.TableUpdates
-	mapper := mapper.NewMapper(o.Schema())
-	typeMap := o.dbModel.Types()
+	dbName := cookie.DatabaseName
+	db := o.databases[dbName]
+	db.schemaMutex.RLock()
+	mapper := mapper.NewMapper(db.schema)
+	db.schemaMutex.RUnlock()
+	typeMap := o.databases[dbName].model.Types()
 	requests := make(map[string]ovsdb.MonitorRequest)
 	for _, o := range options {
 		if o.Error != nil {
@@ -454,7 +512,7 @@ func (o *ovsdbClient) monitor(ctx context.Context, id string, reconnect bool, op
 		}
 		m, ok := typeMap[o.Table]
 		if !ok {
-			return fmt.Errorf("type for table %s does not exist in dbModel", o.Table)
+			return fmt.Errorf("type for table %s does not exist in model", o.Table)
 		}
 		request, err := mapper.NewMonitorRequest(o.Table, m, o.Fields)
 		if err != nil {
@@ -462,14 +520,17 @@ func (o *ovsdbClient) monitor(ctx context.Context, id string, reconnect bool, op
 		}
 		requests[o.Table] = *request
 	}
-	args := ovsdb.NewMonitorArgs(o.Schema().Name, id, requests)
-	if !reconnect {
+	args := ovsdb.NewMonitorArgs(dbName, cookie, requests)
+
+	// if we're reconnecting, we already hold the rpcMutex
+	if !reconnecting {
 		o.rpcMutex.RLock()
 		defer o.rpcMutex.RUnlock()
 	}
 	if o.rpcClient == nil {
 		return ErrNotConnected
 	}
+
 	err := o.rpcClient.CallWithContext(ctx, "monitor", args, &reply)
 	if err != nil {
 		if err == rpc2.ErrShutdown {
@@ -477,12 +538,13 @@ func (o *ovsdbClient) monitor(ctx context.Context, id string, reconnect bool, op
 		}
 		return err
 	}
-	if !reconnect {
-		o.monitorsMutex.Lock()
-		defer o.monitorsMutex.Unlock()
-		o.monitors[id] = options
+	if !reconnecting {
+		db := o.databases[dbName]
+		db.monitorsMutex.Lock()
+		db.monitors[cookie.ID] = options
+		db.monitorsMutex.Unlock()
 	}
-	o.cache.Populate(reply)
+	o.databases[dbName].cache.Populate(reply)
 	return nil
 }
 
@@ -534,17 +596,19 @@ func (o *ovsdbClient) handleDisconnectNotification() {
 	o.rpcClient = nil
 	o.rpcMutex.Unlock()
 
-	o.cacheMutex.Lock()
-	defer o.cacheMutex.Unlock()
-	o.cache = nil
+	for _, db := range o.databases {
+		db.cacheMutex.Lock()
+		defer db.cacheMutex.Unlock()
+		db.cache = nil
 
-	o.schemaMutex.Lock()
-	defer o.schemaMutex.Unlock()
-	o.schema = nil
+		db.schemaMutex.Lock()
+		defer db.schemaMutex.Unlock()
+		db.schema = nil
 
-	o.monitorsMutex.Lock()
-	defer o.monitorsMutex.Unlock()
-	o.monitors = nil
+		db.monitorsMutex.Lock()
+		defer db.monitorsMutex.Unlock()
+		db.monitors = make(map[string][]TableMonitor)
+	}
 
 	o.shutdownMutex.Lock()
 	defer o.shutdownMutex.Unlock()
@@ -591,30 +655,30 @@ func (o *ovsdbClient) Close() {
 
 //Get implements the API interface's Get function
 func (o *ovsdbClient) Get(model model.Model) error {
-	return o.api.Get(model)
+	return o.primaryDB().api.Get(model)
 }
 
 //Create implements the API interface's Create function
 func (o *ovsdbClient) Create(models ...model.Model) ([]ovsdb.Operation, error) {
-	return o.api.Create(models...)
+	return o.primaryDB().api.Create(models...)
 }
 
 //List implements the API interface's List function
 func (o *ovsdbClient) List(result interface{}) error {
-	return o.api.List(result)
+	return o.primaryDB().api.List(result)
 }
 
 //Where implements the API interface's Where function
 func (o *ovsdbClient) Where(m model.Model, conditions ...model.Condition) ConditionalAPI {
-	return o.api.Where(m, conditions...)
+	return o.primaryDB().api.Where(m, conditions...)
 }
 
 //WhereAll implements the API interface's WhereAll function
 func (o *ovsdbClient) WhereAll(m model.Model, conditions ...model.Condition) ConditionalAPI {
-	return o.api.WhereAll(m, conditions...)
+	return o.primaryDB().api.WhereAll(m, conditions...)
 }
 
 //WhereCache implements the API interface's WhereCache function
 func (o *ovsdbClient) WhereCache(predicate interface{}) ConditionalAPI {
-	return o.api.WhereCache(predicate)
+	return o.primaryDB().api.WhereCache(predicate)
 }

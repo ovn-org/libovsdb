@@ -491,7 +491,7 @@ func testOvsMap(t *testing.T, set interface{}) ovsdb.OvsMap {
 
 func updateBenchmark(ovs *ovsdbClient, updates []byte, b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		params := []json.RawMessage{[]byte(`"v1"`), updates}
+		params := []json.RawMessage{[]byte(`["Open_vSwitch","v1"]`), updates}
 		var reply []interface{}
 		err := ovs.update(params, &reply)
 		if err != nil {
@@ -564,7 +564,7 @@ func BenchmarkUpdate1(b *testing.B) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	ovs.cache, err = cache.NewTableCache(&s, dbModel, nil)
+	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil)
 	require.NoError(b, err)
 	update := []byte(`{
 		"Open_vSwitch": {
@@ -588,7 +588,7 @@ func BenchmarkUpdate2(b *testing.B) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	ovs.cache, err = cache.NewTableCache(&s, dbModel, nil)
+	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil)
 	require.NoError(b, err)
 	update := []byte(`{
 		"Open_vSwitch": {
@@ -613,7 +613,7 @@ func BenchmarkUpdate3(b *testing.B) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	ovs.cache, err = cache.NewTableCache(&s, dbModel, nil)
+	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil)
 	require.NoError(b, err)
 	update := []byte(`{
 		"Open_vSwitch": {
@@ -639,7 +639,7 @@ func BenchmarkUpdate5(b *testing.B) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	ovs.cache, err = cache.NewTableCache(&s, dbModel, nil)
+	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil)
 	require.NoError(b, err)
 	update := []byte(`{
 		"Open_vSwitch": {
@@ -667,7 +667,7 @@ func BenchmarkUpdate8(b *testing.B) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	ovs.cache, err = cache.NewTableCache(&s, dbModel, nil)
+	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil)
 	require.NoError(b, err)
 	update := []byte(`{
 		"Open_vSwitch": {
@@ -712,7 +712,7 @@ func TestUpdate(t *testing.T) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(t, err)
-	ovs.cache, err = cache.NewTableCache(&s, dbModel, nil)
+	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil)
 	require.NoError(t, err)
 	var reply []interface{}
 	update := []byte(`{
@@ -723,7 +723,7 @@ func TestUpdate(t *testing.T) {
 			"foo": {"new": ` + newBridgeRow("foo") + `}
 		}
 	}`)
-	params := []json.RawMessage{[]byte(`"v1"`), update}
+	params := []json.RawMessage{[]byte(`{"databaseName":"Open_vSwitch","id":"v1"}`), update}
 	err = ovs.update(params, &reply)
 	if err != nil {
 		t.Error(err)
@@ -736,7 +736,7 @@ func TestOperationWhenNotConnected(t *testing.T) {
 	var s ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(schema), &s)
 	require.NoError(t, err)
-	ovs.schema = &s
+	ovs.primaryDB().schema = &s
 
 	tests := []struct {
 		name string
@@ -766,7 +766,7 @@ func TestOperationWhenNotConnected(t *testing.T) {
 		{
 			"monitor cancel",
 			func() error {
-				return ovs.MonitorCancel(context.TODO(), "")
+				return ovs.MonitorCancel(context.TODO(), newMonitorCookie(s.Name))
 			},
 		},
 	}
