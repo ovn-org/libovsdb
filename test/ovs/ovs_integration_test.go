@@ -72,6 +72,7 @@ func (suite *OVSIntegrationSuite) SetupSuite() {
 		ovs, err := client.NewOVSDBClient(
 			defDB,
 			client.WithEndpoint(endpoint),
+			client.WithLeaderOnly(true),
 		)
 		if err != nil {
 			return err

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/url"
 	"reflect"
@@ -20,6 +21,7 @@ import (
 	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
+	"github.com/ovn-org/libovsdb/ovsdb/serverdb"
 )
 
 // Constants defined for libovsdb
@@ -28,6 +30,8 @@ const (
 	TCP  = "tcp"
 	UNIX = "unix"
 )
+
+const serverDB = "_Server"
 
 // ErrNotConnected is an error returned when the client is not connected
 var ErrNotConnected = errors.New("not connected")
@@ -119,6 +123,18 @@ func newOVSDBClient(databaseModel *model.DBModel, opts ...Option) (*ovsdbClient,
 	if err != nil {
 		return nil, err
 	}
+
+	// if we should only connect to the leader, then add the special "_Server" database as well
+	if ovs.options.leaderOnly {
+		sm, err := serverdb.FullDatabaseModel()
+		if err != nil {
+			return nil, fmt.Errorf("could not initialize model _Server: %w", err)
+		}
+		ovs.databases[serverDB] = &database{
+			model:    sm,
+			monitors: make(map[string][]TableMonitor),
+		}
+	}
 	return ovs, nil
 }
 
@@ -136,40 +152,82 @@ func (o *ovsdbClient) connect(ctx context.Context, reconnect bool) error {
 	if o.rpcClient != nil {
 		return nil
 	}
-	var c net.Conn
-	var dialer net.Dialer
-	var err error
-	var u *url.URL
+
 	connected := false
+	connectErrors := []error{}
 	for _, endpoint := range o.options.endpoints {
-		if u, err = url.Parse(endpoint); err != nil {
+		u, err := url.Parse(endpoint)
+		if err != nil {
 			return err
 		}
-		switch u.Scheme {
-		case UNIX:
-			c, err = dialer.DialContext(ctx, u.Scheme, u.Path)
-		case TCP:
-			c, err = dialer.DialContext(ctx, u.Scheme, u.Opaque)
-		case SSL:
-			dialer := tls.Dialer{
-				Config: o.options.tlsConfig,
-			}
-			c, err = dialer.DialContext(ctx, "tcp", u.Opaque)
-		default:
-			err = fmt.Errorf("unknown network protocol %s", u.Scheme)
-		}
-		if err == nil {
+		if err := o.tryEndpoint(ctx, u); err != nil {
+			connectErrors = append(connectErrors,
+				fmt.Errorf("failed to connect to %s: %w", endpoint, err))
+			continue
+		} else {
 			connected = true
 			break
 		}
 	}
+
 	if !connected {
-		// FIXME: This only emits the error from the last attempted connection
-		return fmt.Errorf("failed to connect to endpoints %q: %v", o.options.endpoints, err)
+		if len(connectErrors) == 1 {
+			return connectErrors[0]
+		}
+		combined := []string{}
+		for _, e := range connectErrors {
+			combined = append(combined, e.Error())
+		}
+
+		return fmt.Errorf("unable to connect to any endpoints: %s", strings.Join(combined, ". "))
 	}
 
-	if err := o.createRPC2Client(c); err != nil {
-		return err
+	// if we're reconnecting, re-start all the monitors
+	if reconnect {
+		for dbName, db := range o.databases {
+			db.monitorsMutex.Lock()
+			defer db.monitorsMutex.Unlock()
+			for id, request := range db.monitors {
+				err := o.monitor(ctx, MonitorCookie{DatabaseName: dbName, ID: id}, true, request...)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	go o.handleDisconnectNotification()
+	for _, db := range o.databases {
+		go db.cache.Run(o.stopCh)
+	}
+	return nil
+}
+
+func (o *ovsdbClient) tryEndpoint(ctx context.Context, u *url.URL) error {
+	var dialer net.Dialer
+	var err error
+	var c net.Conn
+
+	switch u.Scheme {
+	case UNIX:
+		c, err = dialer.DialContext(ctx, u.Scheme, u.Path)
+	case TCP:
+		c, err = dialer.DialContext(ctx, u.Scheme, u.Opaque)
+	case SSL:
+		dialer := tls.Dialer{
+			Config: o.options.tlsConfig,
+		}
+		c, err = dialer.DialContext(ctx, "tcp", u.Opaque)
+	default:
+		err = fmt.Errorf("unknown network protocol %s", u.Scheme)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to open connection: %w", err)
+	}
+
+	if err = o.createRPC2Client(c); err != nil {
+		return fmt.Errorf("failed to open RPC connection: %w", err)
 	}
 
 	// from now on, if err is nil, always tear down the RPC session
@@ -236,28 +294,17 @@ func (o *ovsdbClient) connect(ctx context.Context, reconnect bool) error {
 		db.cacheMutex.Unlock()
 	}
 
-	// if we're reconnecting, re-start all the monitors
-	if reconnect {
-		for dbName, db := range o.databases {
-			db.monitorsMutex.Lock()
-			defer db.monitorsMutex.Unlock()
-			for id, request := range db.monitors {
-				// TODO: should err here just be treated as failure to connect?
-				cookie := MonitorCookie{
-					DatabaseName: dbName,
-					ID:           id,
-				}
-				err = o.monitor(ctx, cookie, true, request...)
-				if err != nil {
-					return err
-				}
-			}
+	// check that this is the leader
+	if o.options.leaderOnly {
+		var leader bool
+		leader, err = o.isEndpointLeader(ctx)
+		if err != nil {
+			return err
 		}
-	}
-
-	go o.handleDisconnectNotification()
-	for _, db := range o.databases {
-		go db.cache.Run(o.stopCh)
+		if !leader {
+			err = fmt.Errorf("endpoint is not leader")
+			return err
+		}
 	}
 	return nil
 }
@@ -277,6 +324,60 @@ func (o *ovsdbClient) createRPC2Client(conn net.Conn) error {
 	})
 	go o.rpcClient.Run()
 	return nil
+}
+
+// isEndpointLeader returns true if the currently connected endpoint is leader.
+// assumes rpcMutex is held
+func (o *ovsdbClient) isEndpointLeader(ctx context.Context) (bool, error) {
+	op := ovsdb.Operation{
+		Op:      ovsdb.OperationSelect,
+		Table:   "Database",
+		Columns: []string{"name", "model", "leader"},
+	}
+	results, err := o.transact(ctx, serverDB, op)
+	if err != nil {
+		return false, fmt.Errorf("could not check if server was leader: %w", err)
+	}
+	// for now, if no rows are returned, just accept this server
+	if len(results) != 1 {
+		return true, nil
+	}
+	result := results[0]
+	if len(result.Rows) == 0 {
+		return true, nil
+	}
+
+	for _, row := range result.Rows {
+		dbName, ok := row["name"].(string)
+		if !ok {
+			return false, fmt.Errorf("could not parse name")
+		}
+		if dbName != o.primaryDBName {
+			continue
+		}
+
+		model, ok := row["model"].(string)
+		if !ok {
+			return false, fmt.Errorf("could not parse model")
+		}
+
+		// the database reports whether or not it is part of a cluster via the
+		// "model" column. If it's not clustered, it is by definition leader.
+		if model != serverdb.DatabaseModelClustered {
+			return true, nil
+		}
+
+		leader, ok := row["leader"].(bool)
+		if !ok {
+			return false, fmt.Errorf("could not parse leader")
+		}
+		return leader, nil
+	}
+
+	// Extremely unlikely: there is no _Server row for the desired DB (which we made sure existed)
+	// for now, just continue
+	log.Println("libovsdb: couldn't find a matching entry in _Server!")
+	return true, nil
 }
 
 func (o *ovsdbClient) primaryDB() *database {
@@ -396,20 +497,30 @@ func (o *ovsdbClient) listDbs(ctx context.Context) ([]string, error) {
 // Transact performs the provided Operations on the database
 // RFC 7047 : transact
 func (o *ovsdbClient) Transact(ctx context.Context, operation ...ovsdb.Operation) ([]ovsdb.OperationResult, error) {
+	o.rpcMutex.Lock()
+	defer o.rpcMutex.Unlock()
+	return o.transact(ctx, o.primaryDBName, operation...)
+}
+
+func (o *ovsdbClient) transact(ctx context.Context, dbName string, operation ...ovsdb.Operation) ([]ovsdb.OperationResult, error) {
 	var reply []ovsdb.OperationResult
-	if ok := o.Schema().ValidateOperations(operation...); !ok {
+	db := o.databases[dbName]
+	db.schemaMutex.RLock()
+	schema := o.databases[dbName].schema
+	db.schemaMutex.RUnlock()
+	if schema == nil {
+		return nil, fmt.Errorf("cannot transact to database %s: schema unknown", dbName)
+	}
+	if ok := schema.ValidateOperations(operation...); !ok {
 		return nil, fmt.Errorf("validation failed for the operation")
 	}
 
 	args := ovsdb.NewTransactArgs(o.primaryDBName, operation...)
 
-	o.rpcMutex.Lock()
 	if o.rpcClient == nil {
-		o.rpcMutex.Unlock()
 		return nil, ErrNotConnected
 	}
 	err := o.rpcClient.CallWithContext(ctx, "transact", args, &reply)
-	o.rpcMutex.Unlock()
 	if err != nil {
 		if err == rpc2.ErrShutdown {
 			return nil, ErrNotConnected
