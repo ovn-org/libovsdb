@@ -89,7 +89,12 @@ func (suite *OVSIntegrationSuite) SetupSuite() {
 
 	// give ovsdb-server some time to start up
 
-	_, err = suite.client.MonitorAll(context.TODO())
+	_, err = suite.client.Monitor(context.TODO(),
+		suite.client.NewMonitor(
+			client.WithTable(&ovsType{}),
+			client.WithTable(&bridgeType{}),
+		),
+	)
 	require.NoError(suite.T(), err)
 }
 
@@ -138,6 +143,12 @@ type ovsType struct {
 type ipfixType struct {
 	UUID    string   `ovsdb:"_uuid"`
 	Targets []string `ovsdb:"targets"`
+}
+
+// queueType is the simplified ORM model of the Queue table
+type queueType struct {
+	UUID string `ovsdb:"_uuid"`
+	DSCP *int   `ovsdb:"dscp"`
 }
 
 var defDB, _ = model.NewDBModel("Open_vSwitch", map[string]model.Model{
@@ -216,7 +227,12 @@ func (suite *OVSIntegrationSuite) TestConnectReconnect() {
 	err = suite.client.Echo(context.TODO())
 	assert.NoError(suite.T(), err)
 
-	_, err = suite.client.MonitorAll(context.TODO())
+	_, err = suite.client.Monitor(context.TODO(),
+		suite.client.NewMonitor(
+			client.WithTable(&ovsType{}),
+			client.WithTable(&bridgeType{}),
+		),
+	)
 	require.NoError(suite.T(), err)
 
 	// assert cache has been re-populated
@@ -454,28 +470,30 @@ func (suite *OVSIntegrationSuite) TestColumnSchemaValidationIntegration() {
 }
 
 func (suite *OVSIntegrationSuite) TestMonitorCancelIntegration() {
-	requests := make(map[string]ovsdb.MonitorRequest)
-	requests["Bridge"] = ovsdb.MonitorRequest{
-		Columns: []string{"name"},
-		Select:  ovsdb.NewDefaultMonitorSelect(),
-	}
-
 	monitorID, err := suite.client.Monitor(
 		context.TODO(),
-		suite.client.NewTableMonitor(&ovsType{}),
-		suite.client.NewTableMonitor(&bridgeType{}),
+		suite.client.NewMonitor(
+			client.WithTable(&queueType{}),
+		),
 	)
 	require.NoError(suite.T(), err)
+
+	uuid, err := suite.createQueue("test1", 0)
+	require.NoError(suite.T(), err)
+	require.Eventually(suite.T(), func() bool {
+		q := &queueType{UUID: uuid}
+		err = suite.client.Get(q)
+		return err == nil
+	}, 2*time.Second, 500*time.Millisecond)
 
 	err = suite.client.MonitorCancel(context.TODO(), monitorID)
 	assert.NoError(suite.T(), err)
 
-	uuid, err := suite.createBridge("br-monitor")
+	uuid, err = suite.createQueue("test2", 1)
 	require.NoError(suite.T(), err)
-
-	assert.Eventually(suite.T(), func() bool {
-		br := &bridgeType{UUID: uuid}
-		err = suite.client.Get(br)
+	assert.Never(suite.T(), func() bool {
+		q := &queueType{UUID: uuid}
+		err = suite.client.Get(q)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 }
@@ -637,4 +655,18 @@ func (suite *OVSIntegrationSuite) TestCreateIPFIX() {
 	require.NoError(suite.T(), err)
 	require.Empty(suite.T(), ipfixes)
 
+}
+
+func (suite *OVSIntegrationSuite) createQueue(queueName string, dscp int) (string, error) {
+	q := queueType{
+		DSCP: &dscp,
+	}
+
+	insertOp, err := suite.client.Create(&q)
+	require.NoError(suite.T(), err)
+	reply, err := suite.client.Transact(context.TODO(), insertOp...)
+	require.NoError(suite.T(), err)
+
+	_, err = ovsdb.CheckOperationResults(reply, insertOp)
+	return reply[0].UUID.GoUUID, err
 }

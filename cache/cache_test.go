@@ -1,9 +1,8 @@
 package cache
 
 import (
-	"testing"
-
 	"encoding/json"
+	"testing"
 
 	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/model"
@@ -750,6 +749,88 @@ func TestTableCache_populate(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestTableCachePopulate2(t *testing.T) {
+	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	assert.Nil(t, err)
+	var schema ovsdb.DatabaseSchema
+	err = json.Unmarshal([]byte(`
+		 {"name": "TestDB",
+		  "tables": {
+		    "Open_vSwitch": {
+			  "indexes": [["foo"]],
+		      "columns": {
+		        "foo": {
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
+		      }
+		    }
+		 }
+	     }
+	`), &schema)
+	assert.Nil(t, err)
+	tc, err := NewTableCache(&schema, db, nil)
+	assert.Nil(t, err)
+
+	testRow := ovsdb.Row(map[string]interface{}{"_uuid": "test", "foo": "bar"})
+	testRowModel := &testModel{UUID: "test", Foo: "bar"}
+	updates := ovsdb.TableUpdates2{
+		"Open_vSwitch": {
+			"test": &ovsdb.RowUpdate2{
+				Initial: &testRow,
+			},
+		},
+	}
+
+	t.Log("Initial")
+	tc.Populate2(updates)
+	got := tc.Table("Open_vSwitch").Row("test")
+	assert.Equal(t, testRowModel, got)
+
+	t.Log("Insert")
+	testRow2 := ovsdb.Row(map[string]interface{}{"_uuid": "test2", "foo": "bar2"})
+	testRowModel2 := &testModel{UUID: "test2", Foo: "bar2"}
+	updates = ovsdb.TableUpdates2{
+		"Open_vSwitch": {
+			"test2": &ovsdb.RowUpdate2{
+				Insert: &testRow2,
+			},
+		},
+	}
+	tc.Populate2(updates)
+	got = tc.Table("Open_vSwitch").Row("test2")
+	assert.Equal(t, testRowModel2, got)
+
+	t.Log("Update")
+	updatedRow := ovsdb.Row(map[string]interface{}{"foo": "quux"})
+	updatedRowModel := &testModel{UUID: "test", Foo: "quux"}
+	updates = ovsdb.TableUpdates2{
+		"Open_vSwitch": {
+			"test": &ovsdb.RowUpdate2{
+				Modify: &updatedRow,
+			},
+		},
+	}
+	tc.Populate2(updates)
+	got = tc.cache["Open_vSwitch"].cache["test"]
+	assert.Equal(t, updatedRowModel, got)
+
+	t.Log("Delete")
+	deletedRow := ovsdb.Row(map[string]interface{}{"_uuid": "test", "foo": "quux"})
+	updates = ovsdb.TableUpdates2{
+		"Open_vSwitch": {
+			"test": &ovsdb.RowUpdate2{
+				Delete: &deletedRow,
+			},
+		},
+	}
+	tc.Populate2(updates)
+	_, ok := tc.cache["Open_vSwitch"].cache["test"]
+	assert.False(t, ok)
+}
+
 func TestEventProcessor_AddEvent(t *testing.T) {
 	ep := newEventProcessor(16)
 	var events []event
@@ -1024,4 +1105,95 @@ func TestTableCacheRowByModelMultiIndex(t *testing.T) {
 		baz := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "baz", Bar: "baz"})
 		assert.Nil(t, baz)
 	})
+}
+
+func TestTableCacheApplyModifications(t *testing.T) {
+	type testDBModel struct {
+		Value string            `ovsdb:"value"`
+		Set   []string          `ovsdb:"set"`
+		Map   map[string]string `ovsdb:"map"`
+	}
+	aFooSet, _ := ovsdb.NewOvsSet([]string{"foo"})
+	aFooBarSet, _ := ovsdb.NewOvsSet([]string{"foo", "bar"})
+	aFooMap, _ := ovsdb.NewOvsMap(map[string]string{"foo": "bar"})
+	aBarMap, _ := ovsdb.NewOvsMap(map[string]string{"bar": "baz"})
+	tests := []struct {
+		name     string
+		update   ovsdb.Row
+		base     *testDBModel
+		expected *testDBModel
+	}{
+		{
+			"replace value",
+			ovsdb.Row{"value": "bar"},
+			&testDBModel{Value: "foo"},
+			&testDBModel{Value: "bar"},
+		},
+
+		{
+			"add to set",
+			ovsdb.Row{"set": aFooSet},
+			&testDBModel{Set: []string{}},
+			&testDBModel{Set: []string{"foo"}},
+		},
+		{
+			"remove from set",
+			ovsdb.Row{"set": aFooSet},
+			&testDBModel{Set: []string{"foo"}},
+			&testDBModel{Set: []string{}},
+		},
+		{
+			"add and remove from set",
+			ovsdb.Row{"set": aFooBarSet},
+			&testDBModel{Set: []string{"foo"}},
+			&testDBModel{Set: []string{"bar"}},
+		},
+
+		{
+			"replace map value",
+			ovsdb.Row{"map": aFooMap},
+			&testDBModel{Map: map[string]string{"foo": "baz"}},
+			&testDBModel{Map: map[string]string{"foo": "bar"}},
+		},
+		{
+			"add map key",
+			ovsdb.Row{"map": aBarMap},
+			&testDBModel{Map: map[string]string{"foo": "bar"}},
+			&testDBModel{Map: map[string]string{"foo": "bar", "bar": "baz"}},
+		},
+		{
+			"delete map key",
+			ovsdb.Row{"map": aFooMap},
+			&testDBModel{Map: map[string]string{"foo": "bar"}},
+			&testDBModel{Map: map[string]string{}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+			assert.Nil(t, err)
+			var schema ovsdb.DatabaseSchema
+			err = json.Unmarshal([]byte(`
+			  {
+				"name": "TestDB",
+				"tables": {
+				  "Open_vSwitch": {
+				    "indexes": [["foo"]],
+					"columns": {
+					  "value": { "type": "string" },
+					  "set": { "type": { "key": { "type": "string" }, "min": 0,	"max": "unlimited" } },
+					  "map": { "type": { "key": "string", "max": "unlimited", "min": 0, "value": "string" } }
+					}
+				  }
+				}
+			  }
+			`), &schema)
+			require.NoError(t, err)
+			tc, err := NewTableCache(&schema, db, nil)
+			assert.Nil(t, err)
+			err = tc.ApplyModifications("Open_vSwitch", tt.base, tt.update)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, tt.base)
+		})
+	}
 }

@@ -487,6 +487,15 @@ func (t *TableCache) Update(context interface{}, tableUpdates ovsdb.TableUpdates
 	t.Populate(tableUpdates)
 }
 
+// Update2 implements the update method of the NotificationHandler interface
+// this populates the cache with new updates
+func (t *TableCache) Update2(context interface{}, tableUpdates ovsdb.TableUpdates2) {
+	if len(tableUpdates) == 0 {
+		return
+	}
+	t.Populate2(tableUpdates)
+}
+
 // Locked implements the locked method of the NotificationHandler interface
 func (t *TableCache) Locked([]interface{}) {
 }
@@ -545,6 +554,66 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 				}
 				t.eventProcessor.AddEvent(deleteEvent, table, oldModel, nil)
 				continue
+			}
+		}
+	}
+}
+
+// Populate2 adds data to the cache and places an event on the channel
+func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	for table := range t.dbModel.Types() {
+		updates, ok := tableUpdates[table]
+		if !ok {
+			continue
+		}
+		tCache := t.cache[table]
+		for uuid, row := range updates {
+			switch {
+			case row.Initial != nil:
+				m, err := t.CreateModel(table, row.Initial, uuid)
+				if err != nil {
+					panic(err)
+				}
+				if err := tCache.Create(uuid, m, false); err != nil {
+					panic(err)
+				}
+				t.eventProcessor.AddEvent(addEvent, table, nil, m)
+			case row.Insert != nil:
+				m, err := t.CreateModel(table, row.Insert, uuid)
+				if err != nil {
+					panic(err)
+				}
+				if err := tCache.Create(uuid, m, false); err != nil {
+					panic(err)
+				}
+				t.eventProcessor.AddEvent(addEvent, table, nil, m)
+			case row.Modify != nil:
+				existing := tCache.Row(uuid)
+				if existing == nil {
+					panic(fmt.Errorf("row with uuid %s does not exist", uuid))
+				}
+				modified := model.Clone(existing)
+				err := t.ApplyModifications(table, modified, *row.Modify)
+				if err != nil {
+					panic(err)
+				}
+				if !reflect.DeepEqual(modified, existing) {
+					if err := tCache.Update(uuid, modified, false); err != nil {
+						panic(err)
+					}
+					t.eventProcessor.AddEvent(updateEvent, table, existing, modified)
+				}
+			case row.Delete != nil:
+				m, err := t.CreateModel(table, row.Delete, uuid)
+				if err != nil {
+					panic(err)
+				}
+				if err := tCache.Delete(uuid); err != nil {
+					panic(err)
+				}
+				t.eventProcessor.AddEvent(deleteEvent, table, m, nil)
 			}
 		}
 	}
@@ -708,6 +777,107 @@ func (t *TableCache) CreateModel(tableName string, row *ovsdb.Row, uuid string) 
 	}
 
 	return model, nil
+}
+
+// ApplyModifications applies the contents of a RowUpdate2.Modify to a model
+func (t *TableCache) ApplyModifications(tableName string, base model.Model, update ovsdb.Row) error {
+	table := t.mapper.Schema.Table(tableName)
+	if table == nil {
+		return fmt.Errorf("table %s not found", tableName)
+	}
+	schema := t.schema.Table(tableName)
+	if schema == nil {
+		return fmt.Errorf("no schema for table %s", tableName)
+	}
+	info, err := mapper.NewInfo(schema, base)
+	if err != nil {
+		return err
+	}
+	for k, v := range update {
+		value, err := ovsdb.OvsToNative(schema.Column(k), v)
+		if err != nil {
+			return err
+		}
+		nv := reflect.ValueOf(value)
+
+		switch nv.Kind() {
+		case reflect.Slice, reflect.Array:
+			// The difference between two sets are all elements that only belong to one of the sets.
+
+			// Iterate new values
+			for i := 0; i < nv.Len(); i++ {
+
+				// search for match in base values
+				baseValue, err := info.FieldByColumn(k)
+				if err != nil {
+					return err
+				}
+				bv := reflect.ValueOf(baseValue)
+				var found bool
+				for j := 0; j < bv.Len(); j++ {
+					if bv.Index(j).Interface() == nv.Index(i).Interface() {
+						// found a match, delete from slice
+						found = true
+						newValue := reflect.AppendSlice(bv.Slice(0, j), bv.Slice(j+1, bv.Len()))
+						err = info.SetField(k, newValue.Interface())
+						if err != nil {
+							return err
+						}
+						break
+					}
+				}
+				if !found {
+					newValue := reflect.Append(bv, nv.Index(i))
+					err = info.SetField(k, newValue.Interface())
+					if err != nil {
+						return err
+					}
+				}
+			}
+
+		case reflect.Map:
+			// The difference between two maps are all key-value pairs whose keys appears in only one of the maps,
+			// plus the key-value pairs whose keys appear in both maps but with different values.
+			// For the latter elements, <row> includes the value from the new column.
+			iter := nv.MapRange()
+			for iter.Next() {
+				mk := iter.Key()
+				mv := iter.Value()
+
+				baseValue, err := info.FieldByColumn(k)
+				if err != nil {
+					return err
+				}
+				bv := reflect.ValueOf(baseValue)
+
+				existingValue := bv.MapIndex(mk)
+
+				// key does not exist, add it
+				if !existingValue.IsValid() {
+					bv.SetMapIndex(mk, mv)
+				} else if reflect.DeepEqual(mv.Interface(), existingValue.Interface()) {
+					// delete it
+					bv.SetMapIndex(mk, reflect.Value{})
+				} else {
+					// set new value
+					bv.SetMapIndex(mk, mv)
+				}
+
+				err = info.SetField(k, bv.Interface())
+				if err != nil {
+					return err
+				}
+			}
+
+		default:
+			// For columns with single value, the difference is the value of the new column.
+			err = info.SetField(k, v)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func valueFromIndex(info *mapper.Info, index index) (interface{}, error) {

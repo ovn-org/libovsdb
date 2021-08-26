@@ -24,6 +24,17 @@ import (
 //}
 type Model interface{}
 
+func Clone(i Model) Model {
+	new := reflect.New(reflect.TypeOf(i).Elem())
+	val := reflect.ValueOf(i).Elem()
+	newVal := new.Elem()
+	for i := 0; i < val.NumField(); i++ {
+		nvField := newVal.Field(i)
+		nvField.Set(val.Field(i))
+	}
+	return new.Interface()
+}
+
 // DBModel is a Database model
 type DBModel struct {
 	name  string

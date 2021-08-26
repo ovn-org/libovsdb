@@ -58,6 +58,8 @@ func NewOvsdbServer(db Database, models ...DatabaseModel) (*OvsdbServer, error) 
 	o.srv.Handle("transact", o.Transact)
 	o.srv.Handle("cancel", o.Cancel)
 	o.srv.Handle("monitor", o.Monitor)
+	o.srv.Handle("monitor_cond", o.MonitorCond)
+	o.srv.Handle("monitor_cond_since", o.MonitorCondSince)
 	o.srv.Handle("monitor_cancel", o.MonitorCancel)
 	o.srv.Handle("steal", o.Steal)
 	o.srv.Handle("unlock", o.Unlock)
@@ -233,6 +235,84 @@ func (o *OvsdbServer) Monitor(client *rpc2.Client, args []json.RawMessage, reply
 		}
 	}
 	*reply = tableUpdates
+	o.monitors[client].monitors[value] = newMonitor(value, request, client)
+	return nil
+}
+
+// MonitorCond monitors a given database table and provides updates to the client via an RPC callback
+func (o *OvsdbServer) MonitorCond(client *rpc2.Client, args []json.RawMessage, reply *ovsdb.TableUpdates2) error {
+	var db string
+	if err := json.Unmarshal(args[0], &db); err != nil {
+		return fmt.Errorf("database %v is not a string", args[0])
+	}
+	if !o.db.Exists(db) {
+		return fmt.Errorf("db does not exist")
+	}
+	value := string(args[1])
+	var request map[string]*ovsdb.MonitorRequest
+	if err := json.Unmarshal(args[2], &request); err != nil {
+		return err
+	}
+	o.monitorMutex.Lock()
+	defer o.monitorMutex.Unlock()
+	clientMonitors, ok := o.monitors[client]
+	if !ok {
+		o.monitors[client] = newConnectionMonitors()
+	} else {
+		if _, ok := clientMonitors.monitors[value]; ok {
+			return fmt.Errorf("monitor with that value already exists")
+		}
+	}
+	tableUpdates := make(ovsdb.TableUpdates2)
+	for t, request := range request {
+		rows := o.Select(db, t, nil, request.Columns)
+		for i := range rows.Rows {
+			tu := make(ovsdb.TableUpdate2)
+			uuid := rows.Rows[i]["_uuid"].(ovsdb.UUID).GoUUID
+			tu[uuid] = &ovsdb.RowUpdate2{Initial: &rows.Rows[i]}
+			tableUpdates.AddTableUpdate(t, tu)
+		}
+	}
+	*reply = tableUpdates
+	o.monitors[client].monitors[value] = newMonitor(value, request, client)
+	return nil
+}
+
+// MonitorCondSince monitors a given database table and provides updates to the client via an RPC callback
+func (o *OvsdbServer) MonitorCondSince(client *rpc2.Client, args []json.RawMessage, reply *ovsdb.MonitorCondSinceReply) error {
+	var db string
+	if err := json.Unmarshal(args[0], &db); err != nil {
+		return fmt.Errorf("database %v is not a string", args[0])
+	}
+	if !o.db.Exists(db) {
+		return fmt.Errorf("db does not exist")
+	}
+	value := string(args[1])
+	var request map[string]*ovsdb.MonitorRequest
+	if err := json.Unmarshal(args[2], &request); err != nil {
+		return err
+	}
+	o.monitorMutex.Lock()
+	defer o.monitorMutex.Unlock()
+	clientMonitors, ok := o.monitors[client]
+	if !ok {
+		o.monitors[client] = newConnectionMonitors()
+	} else {
+		if _, ok := clientMonitors.monitors[value]; ok {
+			return fmt.Errorf("monitor with that value already exists")
+		}
+	}
+	tableUpdates := make(ovsdb.TableUpdates2)
+	for t, request := range request {
+		rows := o.Select(db, t, nil, request.Columns)
+		for i := range rows.Rows {
+			tu := make(ovsdb.TableUpdate2)
+			uuid := rows.Rows[i]["_uuid"].(ovsdb.UUID).GoUUID
+			tu[uuid] = &ovsdb.RowUpdate2{Initial: &rows.Rows[i]}
+			tableUpdates.AddTableUpdate(t, tu)
+		}
+	}
+	*reply = ovsdb.MonitorCondSinceReply{Found: false, LastTransactionID: "00000000-0000-0000-000000000000", Updates: tableUpdates}
 	o.monitors[client].monitors[value] = newMonitor(value, request, client)
 	return nil
 }
