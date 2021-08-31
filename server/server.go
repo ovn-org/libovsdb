@@ -206,10 +206,7 @@ func (o *OvsdbServer) Monitor(client *rpc2.Client, args []json.RawMessage, reply
 	if !o.db.Exists(db) {
 		return fmt.Errorf("db does not exist")
 	}
-	var value string
-	if err := json.Unmarshal(args[1], &value); err != nil {
-		return fmt.Errorf("values %v is not a string", args[1])
-	}
+	value := string(args[1])
 	var request map[string]*ovsdb.MonitorRequest
 	if err := json.Unmarshal(args[2], &request); err != nil {
 		return err

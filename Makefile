@@ -1,12 +1,16 @@
+OVS_VERSION ?= v2.16.0
+
 .PHONY: all
 all: lint build test integration-test coverage
 
-.PHONY: prebuild
-prebuild: 
-	@echo "+ $@"
+.PHONY: modelgen
+modelgen:
 	@mkdir -p bin
 	@go build -v -o ./bin ./cmd/modelgen
-	@[ -f example/vswitchd/ovs.ovsschema ] || curl -o example/vswitchd/ovs.ovsschema https://raw.githubusercontent.com/openvswitch/ovs/v2.15.0/vswitchd/vswitch.ovsschema
+
+.PHONY: prebuild
+prebuild: modelgen ovsdb/serverdb/_server.ovsschema example/vswitchd/ovs.ovsschema
+	@echo "+ $@"
 	@go generate -v ./...
 
 .PHONY: build
@@ -45,3 +49,9 @@ install-deps:
 lint: install-deps prebuild
 	@echo "+ $@"
 	@golangci-lint run
+
+ovsdb/serverdb/_server.ovsschema:
+	@curl -sSL https://raw.githubusercontent.com/openvswitch/ovs/${OVS_VERSION}/ovsdb/_server.ovsschema -o $@
+
+example/vswitchd/ovs.ovsschema:
+	@curl -sSL https://raw.githubusercontent.com/openvswitch/ovs/${OVS_VERSION}/vswitchd/vswitch.ovsschema -o $@
