@@ -2,10 +2,14 @@ package client
 
 import (
 	"crypto/tls"
+	stdlog "log"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/go-logr/logr"
+	"github.com/go-logr/stdr"
 )
 
 const (
@@ -21,6 +25,7 @@ type options struct {
 	leaderOnly bool
 	timeout    time.Duration
 	backoff    backoff.BackOff
+	logger     *logr.Logger
 }
 
 type Option func(o *options) error
@@ -35,6 +40,11 @@ func newOptions(opts ...Option) (*options, error) {
 	// if no endpoints are supplied, use the default unix socket
 	if len(o.endpoints) == 0 {
 		o.endpoints = []string{defaultUnixEndpoint}
+	}
+
+	if o.logger == nil {
+		l := stdr.NewWithOptions(stdlog.New(os.Stderr, "", stdlog.LstdFlags), stdr.Options{LogCaller: stdr.All}).WithName("libovsdb")
+		o.logger = &l
 	}
 	return o, nil
 }
@@ -98,6 +108,15 @@ func WithReconnect(timeout time.Duration, backoff backoff.BackOff) Option {
 		o.reconnect = true
 		o.timeout = timeout
 		o.backoff = backoff
+		return nil
+	}
+}
+
+// WithLogger allows setting a specific log sink. Otherwise, the default
+// go log package is used.
+func WithLogger(l *logr.Logger) Option {
+	return func(o *options) error {
+		o.logger = l
 		return nil
 	}
 }
