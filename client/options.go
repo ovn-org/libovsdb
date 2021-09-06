@@ -10,6 +10,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/stdr"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -19,13 +20,15 @@ const (
 )
 
 type options struct {
-	endpoints  []string
-	tlsConfig  *tls.Config
-	reconnect  bool
-	leaderOnly bool
-	timeout    time.Duration
-	backoff    backoff.BackOff
-	logger     *logr.Logger
+	endpoints             []string
+	tlsConfig             *tls.Config
+	reconnect             bool
+	leaderOnly            bool
+	timeout               time.Duration
+	backoff               backoff.BackOff
+	logger                *logr.Logger
+	registry              prometheus.Registerer
+	shouldRegisterMetrics bool // in case metrics are changed after-the-fact
 }
 
 type Option func(o *options) error
@@ -117,6 +120,16 @@ func WithReconnect(timeout time.Duration, backoff backoff.BackOff) Option {
 func WithLogger(l *logr.Logger) Option {
 	return func(o *options) error {
 		o.logger = l
+		return nil
+	}
+}
+
+// WithMetricsRegistry allows the user to specify a Prometheus metrics registry.
+// If supplied, the metrics as defined in metrics.go will be registered.
+func WithMetricsRegistry(r prometheus.Registerer) Option {
+	return func(o *options) error {
+		o.registry = r
+		o.shouldRegisterMetrics = (r != nil)
 		return nil
 	}
 }

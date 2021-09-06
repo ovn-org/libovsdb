@@ -68,6 +68,7 @@ type Client interface {
 // ovsdbClient is an OVSDB client
 type ovsdbClient struct {
 	options        *options
+	metrics        metrics
 	rpcClient      *rpc2.Client
 	rpcMutex       sync.RWMutex
 	activeEndpoint string
@@ -135,6 +136,7 @@ func newOVSDBClient(databaseModel *model.DBModel, opts ...Option) (*ovsdbClient,
 			monitors: make(map[string]*Monitor),
 		}
 	}
+	ovs.metrics.init(databaseModel.Name())
 
 	return ovs, nil
 }
@@ -148,6 +150,7 @@ func (o *ovsdbClient) Connect(ctx context.Context) error {
 	// to make it easier to tell between different DBs (e.g. ovn nbdb vs. sbdb)
 	l := o.options.logger.WithValues("model", o.primaryDB().model.Name())
 	o.options.logger = &l
+	o.registerMetrics()
 
 	if err := o.connect(ctx, false); err != nil {
 		if err == ErrAlreadyConnected {
@@ -496,6 +499,10 @@ func (o *ovsdbClient) update(params []json.RawMessage, reply *[]interface{}) err
 	if db == nil {
 		return fmt.Errorf("update: invalid database name: %s unknown", cookie.DatabaseName)
 	}
+	o.metrics.numUpdates.WithLabelValues(cookie.DatabaseName).Inc()
+	for tableName := range updates {
+		o.metrics.numTableUpdates.WithLabelValues(cookie.DatabaseName, tableName).Inc()
+	}
 	// Update the local DB cache with the tableUpdates
 	db.cacheMutex.RLock()
 	db.cache.Update(cookie.ID, updates)
@@ -667,6 +674,7 @@ func (o *ovsdbClient) MonitorCancel(ctx context.Context, cookie MonitorCookie) e
 	o.primaryDB().monitorsMutex.Lock()
 	defer o.primaryDB().monitorsMutex.Unlock()
 	delete(o.primaryDB().monitors, cookie.ID)
+	o.metrics.numMonitors.Dec()
 	return nil
 }
 
@@ -775,6 +783,7 @@ func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconne
 		db.monitorsMutex.Lock()
 		db.monitors[cookie.ID] = monitor
 		db.monitorsMutex.Unlock()
+		o.metrics.numMonitors.Inc()
 	}
 
 	if monitor.Method == ovsdb.MonitorRPC {
@@ -858,6 +867,7 @@ func (o *ovsdbClient) handleDisconnectNotification() {
 	<-o.rpcClient.DisconnectNotify()
 	// close the stopCh, which will stop the cache event processor
 	close(o.stopCh)
+	o.metrics.numDisconnects.Inc()
 	o.rpcMutex.Lock()
 	if o.options.reconnect && !o.shutdown {
 		o.rpcClient = nil
@@ -899,6 +909,7 @@ func (o *ovsdbClient) handleDisconnectNotification() {
 		defer db.monitorsMutex.Unlock()
 		db.monitors = make(map[string]*Monitor)
 	}
+	o.metrics.numMonitors.Set(0)
 
 	o.shutdownMutex.Lock()
 	defer o.shutdownMutex.Unlock()
