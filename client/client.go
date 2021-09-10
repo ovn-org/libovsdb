@@ -540,7 +540,7 @@ func (o *ovsdbClient) transact(ctx context.Context, dbName string, operation ...
 		return nil, fmt.Errorf("validation failed for the operation")
 	}
 
-	args := ovsdb.NewTransactArgs(o.primaryDBName, operation...)
+	args := ovsdb.NewTransactArgs(dbName, operation...)
 
 	if o.rpcClient == nil {
 		return nil, ErrNotConnected
