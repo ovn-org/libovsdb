@@ -177,9 +177,8 @@ func (o *OvsdbServer) Transact(client *rpc2.Client, args []json.RawMessage, repl
 	}
 	response, updates := o.transact(db, ops)
 	*reply = response
-	dbUpdates, _ := deepCopy(updates)
-	o.processMonitors(dbUpdates)
-	return o.db.Commit(db, dbUpdates)
+	o.processMonitors(updates)
+	return o.db.Commit(db, updates)
 }
 
 func deepCopy(a ovsdb.TableUpdates) (ovsdb.TableUpdates, error) {
@@ -270,7 +269,11 @@ func (o *OvsdbServer) processMonitors(update ovsdb.TableUpdates) {
 	o.monitorMutex.RLock()
 	for _, c := range o.monitors {
 		for _, m := range c.monitors {
-			m.Send(update)
+			// Deep copy for every monitor since each one filters
+			// the update for relevant tables and removes items
+			// from the update array
+			dbUpdates, _ := deepCopy(update)
+			m.Send(dbUpdates)
 		}
 	}
 	o.monitorMutex.RUnlock()
