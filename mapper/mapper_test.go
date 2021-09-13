@@ -983,12 +983,21 @@ func TestMapperMutation(t *testing.T) {
 			err:      false,
 		},
 		{
-			name:     "Delete elements from map ",
+			name:     "Delete keys from map ",
 			column:   "map",
 			obj:      testType{},
 			mutator:  ovsdb.MutateOperationDelete,
 			value:    []string{"foo", "bar"},
 			expected: ovsdb.NewMutation("map", ovsdb.MutateOperationDelete, testOvsSet(t, []string{"foo", "bar"})),
+			err:      false,
+		},
+		{
+			name:     "Delete key value pairs from map ",
+			column:   "map",
+			obj:      testType{},
+			mutator:  ovsdb.MutateOperationDelete,
+			value:    map[string]string{"foo": "bar"},
+			expected: ovsdb.NewMutation("map", ovsdb.MutateOperationDelete, testOvsMap(t, map[string]string{"foo": "bar"})),
 			err:      false,
 		},
 		{

@@ -259,6 +259,21 @@ func TestMutateInsert(t *testing.T) {
 			[]string{"baz", "quux", "foo"},
 			[]string{"foo", "bar", "baz", "quux"},
 		},
+		{
+			"insert key value pairs",
+			map[string]string{
+				"foo": "bar",
+			},
+			ovsdb.MutateOperationInsert,
+			map[string]string{
+				"foo": "ignored",
+				"baz": "quux",
+			},
+			map[string]string{
+				"foo": "bar",
+				"baz": "quux",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -291,6 +306,33 @@ func TestMutateDelete(t *testing.T) {
 			ovsdb.MutateOperationDelete,
 			[]string{"bar", "baz"},
 			[]string{"foo"},
+		},
+		{
+			"delete key value pairs",
+			map[string]string{
+				"foo": "bar",
+				"baz": "quux",
+			},
+			ovsdb.MutateOperationDelete,
+			map[string]string{
+				"foo": "ignored",
+				"baz": "quux",
+			},
+			map[string]string{
+				"foo": "bar",
+			},
+		},
+		{
+			"delete keys",
+			map[string]string{
+				"foo": "bar",
+				"baz": "quux",
+			},
+			ovsdb.MutateOperationDelete,
+			[]string{"foo"},
+			map[string]string{
+				"baz": "quux",
+			},
 		},
 	}
 	for _, tt := range tests {
