@@ -38,6 +38,11 @@ func TestMutateOp(t *testing.T) {
 
 	bridge := bridgeType{
 		Name: "foo",
+		ExternalIds: map[string]string{
+			"foo":   "bar",
+			"baz":   "qux",
+			"waldo": "fred",
+		},
 	}
 	bridgeRow, err := m.NewRow("Bridge", &bridge)
 	require.Nil(t, err)
@@ -77,6 +82,44 @@ func TestMutateOp(t *testing.T) {
 				New: &ovsdb.Row{
 					"_uuid":   ovsdb.UUID{GoUUID: ovsUUID},
 					"bridges": bridgeSet,
+				},
+			},
+		},
+	}, gotUpdate)
+
+	keyDelete, err := ovsdb.NewOvsSet([]string{"foo"})
+	assert.Nil(t, err)
+	keyValueDelete, err := ovsdb.NewOvsMap(map[string]string{"baz": "qux"})
+	assert.Nil(t, err)
+	gotResult, gotUpdate = o.Mutate(
+		"Open_vSwitch",
+		"Bridge",
+		[]ovsdb.Condition{
+			ovsdb.NewCondition("_uuid", ovsdb.ConditionEqual, ovsdb.UUID{GoUUID: bridgeUUID}),
+		},
+		[]ovsdb.Mutation{
+			*ovsdb.NewMutation("external_ids", ovsdb.MutateOperationDelete, keyDelete),
+			*ovsdb.NewMutation("external_ids", ovsdb.MutateOperationDelete, keyValueDelete),
+		},
+	)
+	assert.Equal(t, ovsdb.OperationResult{Count: 1}, gotResult)
+
+	oldExternalIds, err := ovsdb.NewOvsMap(bridge.ExternalIds)
+	assert.Nil(t, err)
+	newExternalIds, err := ovsdb.NewOvsMap(map[string]string{"waldo": "fred"})
+	assert.Nil(t, err)
+	assert.Equal(t, ovsdb.TableUpdates{
+		"Bridge": ovsdb.TableUpdate{
+			bridgeUUID: &ovsdb.RowUpdate{
+				Old: &ovsdb.Row{
+					"_uuid":        ovsdb.UUID{GoUUID: bridgeUUID},
+					"name":         "foo",
+					"external_ids": oldExternalIds,
+				},
+				New: &ovsdb.Row{
+					"_uuid":        ovsdb.UUID{GoUUID: bridgeUUID},
+					"name":         "foo",
+					"external_ids": newExternalIds,
 				},
 			},
 		},
