@@ -11,6 +11,7 @@ jobs:
 
   build:
     name: Build
+    if: github.repository == 'ovn-org/libovsdb'
     runs-on: ubuntu-latest
     strategy:
       matrix:
