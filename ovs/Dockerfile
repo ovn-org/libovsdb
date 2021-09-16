@@ -13,7 +13,7 @@ RUN ./boot.sh
 RUN ./configure
 RUN make && make install
 
-FROM debian:sid-slim
+FROM debian:bullseye-slim
 
 COPY --from=build /usr/local/bin/ovs* /usr/local/bin/
 COPY --from=build /usr/local/bin/vtep* /usr/local/bin/
