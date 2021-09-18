@@ -288,7 +288,7 @@ func TestSchema(t *testing.T) {
 		      "columns": {
 		        "wrongType": {
 			  "type": {
-			    "key": "uknown"
+			    "key": "unknown"
 			  }
 			}
 		      }
@@ -317,7 +317,7 @@ func TestSchema(t *testing.T) {
 			}
 			if !reflect.DeepEqual(test.expectedSchema, schema) {
 				t.Errorf("expected schema to be %+#v, but got: %+#v", test.expectedSchema, schema)
-				// Struct Instrospection for debugging purpuses
+				// Struct Introspection for debugging purposes
 				for tname, table := range schema.Tables {
 					for n, c := range table.Columns {
 						ec := test.expectedSchema.Tables[tname].Columns[n]
@@ -602,7 +602,7 @@ func TestColumnSchemaEphemeral(t *testing.T) {
 
 func TestColumnSchemaMarshalUnmarshalJSON(t *testing.T) {
 	datapath := "Datapath"
-	unlimted := -1
+	unlimited := -1
 	zero := 0
 	one := 1
 	tests := []struct {
@@ -629,7 +629,7 @@ func TestColumnSchemaMarshalUnmarshalJSON(t *testing.T) {
 					Key:   &BaseType{Type: TypeString},
 					Value: &BaseType{Type: TypeUUID, refTable: &datapath},
 					min:   &zero,
-					max:   &unlimted,
+					max:   &unlimited,
 				},
 			},
 			[]byte(`{"type":{"key": {"type": "string"},"value": {"type": "uuid","refTable": "Datapath"},"min": 0, "max": "unlimited"}}`),
@@ -642,7 +642,7 @@ func TestColumnSchemaMarshalUnmarshalJSON(t *testing.T) {
 				TypeObj: &ColumnType{
 					Key: &BaseType{Type: TypeUUID, refTable: &datapath},
 					min: &zero,
-					max: &unlimted,
+					max: &unlimited,
 				}},
 			[]byte(`{"type": {"key": {"type": "uuid","refTable": "Datapath"},"min": 0, "max": "unlimited"}}`),
 		},
@@ -1004,7 +1004,7 @@ func TestBaseTypeRefType(t *testing.T) {
 
 func TestColumnSchema_String(t *testing.T) {
 	datapath := "Connection"
-	unlimted := -1
+	unlimited := -1
 	zero := 0
 	strong := "strong"
 	weak := "weak"
@@ -1048,7 +1048,7 @@ func TestColumnSchema_String(t *testing.T) {
 				TypeObj: &ColumnType{
 					Key: &BaseType{Type: TypeUUID, refTable: &datapath},
 					min: &zero,
-					max: &unlimted,
+					max: &unlimited,
 				},
 			},
 			"[] [Connection (strong)] (min: 0, max: -1) [M]",
@@ -1060,7 +1060,7 @@ func TestColumnSchema_String(t *testing.T) {
 				TypeObj: &ColumnType{
 					Key: &BaseType{Type: TypeUUID, refTable: &datapath, refType: &strong},
 					min: &zero,
-					max: &unlimted,
+					max: &unlimited,
 				},
 			},
 			"[] [Connection (strong)] (min: 0, max: -1) [M]",
@@ -1072,7 +1072,7 @@ func TestColumnSchema_String(t *testing.T) {
 				TypeObj: &ColumnType{
 					Key: &BaseType{Type: TypeUUID, refTable: &datapath, refType: &weak},
 					min: &zero,
-					max: &unlimted,
+					max: &unlimited,
 				},
 			},
 			"[] [Connection (weak)] (min: 0, max: -1) [M]",
@@ -1083,7 +1083,7 @@ func TestColumnSchema_String(t *testing.T) {
 				Type: TypeEnum,
 				TypeObj: &ColumnType{
 					Key: &BaseType{Type: TypeString, Enum: []interface{}{"permit", "deny"}},
-					max: &unlimted,
+					max: &unlimited,
 					min: &zero,
 				},
 			},

@@ -1,4 +1,4 @@
-name: libovsb-ci
+name: libovsdb-ci
 
 on:
   push:

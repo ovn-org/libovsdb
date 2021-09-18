@@ -346,7 +346,7 @@ func TestMapperNewRow(t *testing.T) {
 				assert.NotNil(t, err)
 			} else {
 				assert.Nil(t, err)
-				assert.Equalf(t, test.expectedRow, row, "NewRow should match expeted")
+				assert.Equalf(t, test.expectedRow, row, "NewRow should match expected")
 			}
 		})
 	}
@@ -437,7 +437,7 @@ func TestMapperNewRowFields(t *testing.T) {
 				assert.NotNil(t, err)
 			} else {
 				assert.Nil(t, err)
-				assert.Equalf(t, test.expectedRow, row, "NewRow should match expeted")
+				assert.Equalf(t, test.expectedRow, row, "NewRow should match expected")
 			}
 		})
 	}
@@ -965,7 +965,7 @@ func TestMapperMutation(t *testing.T) {
 			err:     true,
 		},
 		{
-			name:     "Add elemet to set ",
+			name:     "Add element to set ",
 			column:   "set",
 			obj:      testType{},
 			mutator:  ovsdb.MutateOperationInsert,
