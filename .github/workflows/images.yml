@@ -1,4 +1,4 @@
-name: libovsb-images
+name: libovsdb-images
 
 on:
   push:

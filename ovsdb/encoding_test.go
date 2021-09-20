@@ -135,7 +135,7 @@ func TestSet(t *testing.T) {
 			`["set",[["named-uuid","aa"],["named-uuid","bb"]]]`,
 		},
 		{
-			"valud uuid",
+			"valid uuid",
 			validUUID0,
 			fmt.Sprintf(`["uuid","%v"]`, validUUIDStr0),
 		},

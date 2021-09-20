@@ -44,7 +44,7 @@ func NewLockArgs(id interface{}) []interface{} {
 	return []interface{}{id}
 }
 
-// NotificationHandler is the interface that must be implemented to receive notifcations
+// NotificationHandler is the interface that must be implemented to receive notifications
 type NotificationHandler interface {
 	// RFC 7047 section 4.1.6 Update Notification
 	Update(context interface{}, tableUpdates TableUpdates)

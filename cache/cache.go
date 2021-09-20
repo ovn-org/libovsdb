@@ -401,7 +401,7 @@ func (e *EventHandlerFuncs) OnDelete(table string, row model.Model) {
 
 // TableCache contains a collection of RowCaches, hashed by name,
 // and an array of EventHandlers that respond to cache updates
-// It implements the ovsdb.NotifcationHandler interface so it may
+// It implements the ovsdb.NotificationHandler interface so it may
 // handle update notifications
 type TableCache struct {
 	cache          map[string]*RowCache
@@ -413,7 +413,7 @@ type TableCache struct {
 	mutex sync.RWMutex
 }
 
-// Data is the type for data that can be prepoulated in the cache
+// Data is the type for data that can be prepopulated in the cache
 type Data map[string]map[string]model.Model
 
 // NewTableCache creates a new TableCache
@@ -589,7 +589,7 @@ func newColumnToValue(schemaIndexes [][]string) columnToValue {
 	// RFC 7047 says that Indexes is a [<column-set>] and "Each <column-set> is a set of
 	// columns whose values, taken together within any given row, must be
 	// unique within the table". We'll store the column names, separated by comma
-	// as we'll assuume (RFC is not clear), that comma isn't valid in a <id>
+	// as we'll assume (RFC is not clear), that comma isn't valid in a <id>
 	var indexes []index
 	for i := range schemaIndexes {
 		indexes = append(indexes, newIndex(schemaIndexes[i]...))
