@@ -154,7 +154,9 @@ type queueType struct {
 var defDB, _ = model.NewDBModel("Open_vSwitch", map[string]model.Model{
 	"Open_vSwitch": &ovsType{},
 	"Bridge":       &bridgeType{},
-	"IPFIX":        &ipfixType{}})
+	"IPFIX":        &ipfixType{},
+	"Queue":        &queueType{},
+})
 
 func (suite *OVSIntegrationSuite) TestConnectReconnect() {
 	assert.True(suite.T(), suite.client.Connected())

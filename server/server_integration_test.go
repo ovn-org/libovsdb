@@ -478,6 +478,7 @@ func TestClientServerInsertAndUpdate(t *testing.T) {
 		if err != nil {
 			return false
 		}
+		fmt.Printf("got %+v\nwant %+v\n", br, bridgeRow)
 		return reflect.DeepEqual(br, bridgeRow)
 	}, 2*time.Second, 50*time.Millisecond)
 
@@ -492,6 +493,7 @@ func TestClientServerInsertAndUpdate(t *testing.T) {
 
 	assert.Eventually(t, func() bool {
 		br := &bridgeType{UUID: uuid}
+		fmt.Printf("need: %+v\ngot: %+v\n", bridgeRow.ExternalIds, br.ExternalIds)
 		err = ovs.Get(br)
 		if err != nil {
 			return false

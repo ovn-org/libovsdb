@@ -179,12 +179,23 @@ func (o *OvsdbServer) Transact(client *rpc2.Client, args []json.RawMessage, repl
 	}
 	response, updates := o.transact(db, ops)
 	*reply = response
-	o.processMonitors(updates)
-	return o.db.Commit(db, updates)
+	transactionID := uuid.New()
+	o.processMonitors(transactionID, updates)
+	return o.db.Commit(db, transactionID, updates)
 }
 
 func deepCopy(a ovsdb.TableUpdates) (ovsdb.TableUpdates, error) {
 	var b ovsdb.TableUpdates
+	raw, err := json.Marshal(a)
+	if err != nil {
+		return b, err
+	}
+	err = json.Unmarshal(raw, &b)
+	return b, err
+}
+
+func deepCopy2(a ovsdb.TableUpdates2) (ovsdb.TableUpdates2, error) {
+	var b ovsdb.TableUpdates2
 	raw, err := json.Marshal(a)
 	if err != nil {
 		return b, err
@@ -274,7 +285,7 @@ func (o *OvsdbServer) MonitorCond(client *rpc2.Client, args []json.RawMessage, r
 		}
 	}
 	*reply = tableUpdates
-	o.monitors[client].monitors[value] = newMonitor(value, request, client)
+	o.monitors[client].monitors[value] = newConditionalMonitor(value, request, client)
 	return nil
 }
 
@@ -313,7 +324,7 @@ func (o *OvsdbServer) MonitorCondSince(client *rpc2.Client, args []json.RawMessa
 		}
 	}
 	*reply = ovsdb.MonitorCondSinceReply{Found: false, LastTransactionID: "00000000-0000-0000-000000000000", Updates: tableUpdates}
-	o.monitors[client].monitors[value] = newMonitor(value, request, client)
+	o.monitors[client].monitors[value] = newConditionalSinceMonitor(value, request, client)
 	return nil
 }
 
@@ -345,15 +356,26 @@ func (o *OvsdbServer) Echo(client *rpc2.Client, args []interface{}, reply *[]int
 	return nil
 }
 
-func (o *OvsdbServer) processMonitors(update ovsdb.TableUpdates) {
+func (o *OvsdbServer) processMonitors(id uuid.UUID, update ovsdb.TableUpdates2) {
 	o.monitorMutex.RLock()
 	for _, c := range o.monitors {
 		for _, m := range c.monitors {
-			// Deep copy for every monitor since each one filters
-			// the update for relevant tables and removes items
-			// from the update array
-			dbUpdates, _ := deepCopy(update)
-			m.Send(dbUpdates)
+			switch m.kind {
+			case monitorKindOriginal:
+				var updates ovsdb.TableUpdates
+				updates.FromTableUpdates2(update)
+				// Deep copy for every monitor since each one filters
+				// the update for relevant tables and removes items
+				// from the update array
+				dbUpdates, _ := deepCopy(updates)
+				m.Send(dbUpdates)
+			case monitorKindConditional:
+				dbUpdates, _ := deepCopy2(update)
+				m.Send2(dbUpdates)
+			case monitorKindConditionalSince:
+				dbUpdates, _ := deepCopy2(update)
+				m.Send3(id, dbUpdates)
+			}
 		}
 	}
 	o.monitorMutex.RUnlock()

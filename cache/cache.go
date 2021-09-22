@@ -794,6 +794,9 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 		return err
 	}
 	for k, v := range update {
+		if k == "_uuid" {
+			continue
+		}
 		value, err := ovsdb.OvsToNative(schema.Column(k), v)
 		if err != nil {
 			return err
@@ -848,7 +851,11 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 				if err != nil {
 					return err
 				}
+
 				bv := reflect.ValueOf(baseValue)
+				if bv.IsNil() {
+					bv = reflect.MakeMap(nv.Type())
+				}
 
 				existingValue := bv.MapIndex(mk)
 
@@ -871,7 +878,7 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 
 		default:
 			// For columns with single value, the difference is the value of the new column.
-			err = info.SetField(k, v)
+			err = info.SetField(k, value)
 			if err != nil {
 				return err
 			}

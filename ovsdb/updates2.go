@@ -14,6 +14,8 @@ type RowUpdate2 struct {
 	Insert  *Row `json:"insert,omitempty"`
 	Modify  *Row `json:"modify,omitempty"`
 	Delete  *Row `json:"delete,omitempty"`
+	Old     *Row `json:"-"`
+	New     *Row `json:"-"`
 }
 
 // AddTableUpdate adds a new TableUpdate to a TableUpdates

@@ -56,7 +56,7 @@ func TestMutateOp(t *testing.T) {
 	require.Nil(t, err)
 
 	updates.Merge(update2)
-	err = o.db.Commit("Open_vSwitch", updates)
+	err = o.db.Commit("Open_vSwitch", uuid.New(), updates)
 	require.NoError(t, err)
 
 	gotResult, gotUpdate := o.Mutate(
@@ -73,13 +73,11 @@ func TestMutateOp(t *testing.T) {
 
 	bridgeSet, err := ovsdb.NewOvsSet([]ovsdb.UUID{{GoUUID: bridgeUUID}})
 	assert.Nil(t, err)
-	assert.Equal(t, ovsdb.TableUpdates{
-		"Open_vSwitch": ovsdb.TableUpdate{
-			ovsUUID: &ovsdb.RowUpdate{
-				Old: &ovsdb.Row{
-					"_uuid": ovsdb.UUID{GoUUID: ovsUUID},
-				},
-				New: &ovsdb.Row{
+	assert.Equal(t, ovsdb.TableUpdates2{
+		"Open_vSwitch": ovsdb.TableUpdate2{
+			ovsUUID: &ovsdb.RowUpdate2{
+				Modify: &ovsdb.Row{
+					// TODO: _uuid should be filtered
 					"_uuid":   ovsdb.UUID{GoUUID: ovsUUID},
 					"bridges": bridgeSet,
 				},
@@ -104,19 +102,14 @@ func TestMutateOp(t *testing.T) {
 	)
 	assert.Equal(t, ovsdb.OperationResult{Count: 1}, gotResult)
 
-	oldExternalIds, err := ovsdb.NewOvsMap(bridge.ExternalIds)
+	// oldExternalIds, err := ovsdb.NewOvsMap(bridge.ExternalIds)
 	assert.Nil(t, err)
 	newExternalIds, err := ovsdb.NewOvsMap(map[string]string{"waldo": "fred"})
 	assert.Nil(t, err)
-	assert.Equal(t, ovsdb.TableUpdates{
-		"Bridge": ovsdb.TableUpdate{
-			bridgeUUID: &ovsdb.RowUpdate{
-				Old: &ovsdb.Row{
-					"_uuid":        ovsdb.UUID{GoUUID: bridgeUUID},
-					"name":         "foo",
-					"external_ids": oldExternalIds,
-				},
-				New: &ovsdb.Row{
+	assert.Equal(t, ovsdb.TableUpdates2{
+		"Bridge": ovsdb.TableUpdate2{
+			bridgeUUID: &ovsdb.RowUpdate2{
+				Modify: &ovsdb.Row{
 					"_uuid":        ovsdb.UUID{GoUUID: bridgeUUID},
 					"name":         "foo",
 					"external_ids": newExternalIds,
@@ -124,4 +117,69 @@ func TestMutateOp(t *testing.T) {
 			},
 		},
 	}, gotUpdate)
+}
+
+func TestDiff(t *testing.T) {
+	originSet, _ := ovsdb.NewOvsSet([]interface{}{"foo"})
+
+	originSetAdd, _ := ovsdb.NewOvsSet([]interface{}{"bar"})
+	setAddDiff, _ := ovsdb.NewOvsSet([]interface{}{"foo", "bar"})
+
+	originSetDel, _ := ovsdb.NewOvsSet([]interface{}{})
+	setDelDiff, _ := ovsdb.NewOvsSet([]interface{}{"foo"})
+
+	originMap, _ := ovsdb.NewOvsMap(map[interface{}]interface{}{"foo": "bar"})
+
+	originMapAdd, _ := ovsdb.NewOvsMap(map[interface{}]interface{}{"foo": "bar", "baz": "quux"})
+	originMapAddDiff, _ := ovsdb.NewOvsMap(map[interface{}]interface{}{"baz": "quux"})
+
+	originMapDel, _ := ovsdb.NewOvsMap(map[interface{}]interface{}{})
+	originMapDelDiff, _ := ovsdb.NewOvsMap(map[interface{}]interface{}{"foo": "bar"})
+
+	originMapReplace, _ := ovsdb.NewOvsMap(map[interface{}]interface{}{"foo": "baz"})
+	originMapReplaceDiff, _ := ovsdb.NewOvsMap(map[interface{}]interface{}{"foo": "baz"})
+
+	tests := []struct {
+		name     string
+		a        interface{}
+		b        interface{}
+		expected interface{}
+	}{
+		{
+			"add to set",
+			originSet,
+			originSetAdd,
+			setAddDiff,
+		},
+		{
+			"delete from set",
+			originSet,
+			originSetDel,
+			setDelDiff,
+		},
+		{
+			"add to map",
+			originMap,
+			originMapAdd,
+			originMapAddDiff,
+		},
+		{
+			"delete from map",
+			originMap,
+			originMapDel,
+			originMapDelDiff,
+		},
+		{
+			"replace in map",
+			originMap,
+			originMapReplace,
+			originMapReplaceDiff,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res := diff(tt.a, tt.b)
+			assert.Equal(t, tt.expected, res)
+		})
+	}
 }
