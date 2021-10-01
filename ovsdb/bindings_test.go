@@ -395,6 +395,23 @@ func TestOvsToNativeAndNativeToOvs(t *testing.T) {
 			ovs:    aSingleUUIDSet,
 		},
 		{
+			name: "null UUID set with min 0 max 1",
+			schema: []byte(`{
+			"type":{
+				"key": {
+					"refTable": "SomeOtherTAble",
+					"refType": "weak",
+					"type": "uuid"
+				},
+				"min": 0,
+				"max": 1
+			}
+			}`),
+			input:  es,
+			native: (*string)(nil),
+			ovs:    es,
+		},
+		{
 			name: "A string with min 0 max 1",
 			schema: []byte(`{
 			"type":{
