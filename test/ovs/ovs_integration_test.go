@@ -509,37 +509,29 @@ func (suite *OVSIntegrationSuite) TestUpdate() {
 	err = suite.client.Get(bridgeRow)
 	require.NoError(suite.T(), err)
 
-	// FIXME: https://github.com/ovn-org/libovsdb/issues/203
-	/*
-		// update many fields
-		bridgeRow.UUID = uuid
-		bridgeRow.ExternalIds["baz"] = "foobar"
-		bridgeRow.OtherConfig = map[string]string{"foo": "bar"}
-		ops, err = suite.client.Where(bridgeRow).Update(bridgeRow)
-		require.NoError(suite.T(), err)
-		reply, err = suite.client.Transact(ops...)
-		require.NoError(suite.T(), err)
-		opErrs, err := ovsdb.CheckOperationResults(reply, ops)
-		require.NoErrorf(suite.T(), err, "%+v", opErrs)
-
-		require.Eventually(suite.T(), func() bool {
-			br := &bridgeType{UUID: uuid}
-			err = suite.client.Get(br)
-			if err != nil {
-				return false
-			}
-			return reflect.DeepEqual(bridgeRow, br)
-		}, 2*time.Second, 500*time.Millisecond)
-
-	*/
-
-	// try to modify immutable field
-	bridgeRow.Name = "br-update2"
+	// update many fields
+	bridgeRow.UUID = uuid
+	bridgeRow.ExternalIds["baz"] = "foobar"
+	bridgeRow.OtherConfig = map[string]string{"foo": "bar"}
 	ops, err := suite.client.Where(bridgeRow).Update(bridgeRow)
 	require.NoError(suite.T(), err)
 	reply, err := suite.client.Transact(context.TODO(), ops...)
 	require.NoError(suite.T(), err)
-	_, err = ovsdb.CheckOperationResults(reply, ops)
+	opErrs, err := ovsdb.CheckOperationResults(reply, ops)
+	require.NoErrorf(suite.T(), err, "%+v", opErrs)
+
+	require.Eventually(suite.T(), func() bool {
+		br := &bridgeType{UUID: uuid}
+		err = suite.client.Get(br)
+		if err != nil {
+			return false
+		}
+		return reflect.DeepEqual(bridgeRow, br)
+	}, 2*time.Second, 500*time.Millisecond)
+
+	// try to modify immutable field
+	bridgeRow.Name = "br-update2"
+	_, err = suite.client.Where(bridgeRow).Update(bridgeRow, &bridgeRow.Name)
 	require.Error(suite.T(), err)
 	// set name back again
 	bridgeRow.Name = "br-update"

@@ -456,15 +456,10 @@ func TestClientServerInsertAndUpdate(t *testing.T) {
 	// try to modify immutable field
 	bridgeRow.UUID = uuid
 	bridgeRow.Name = "br-update2"
-	ops, err = ovs.Where(bridgeRow).Update(bridgeRow)
-	require.NoError(t, err)
-	reply, err = ovs.Transact(context.Background(), ops...)
-	require.NoError(t, err)
-	_, err = ovsdb.CheckOperationResults(reply, ops)
+	_, err = ovs.Where(bridgeRow).Update(bridgeRow, &bridgeRow.Name)
 	require.Error(t, err)
 	bridgeRow.Name = "br-update"
 
-	/* FIXME: https://github.com/ovn-org/libovsdb/issues/203
 	// update many fields
 	bridgeRow.UUID = uuid
 	bridgeRow.Name = "br-update"
@@ -485,7 +480,6 @@ func TestClientServerInsertAndUpdate(t *testing.T) {
 		}
 		return reflect.DeepEqual(br, bridgeRow)
 	}, 2*time.Second, 50*time.Millisecond)
-	*/
 
 	newExternalIds := map[string]string{"foo": "bar"}
 	bridgeRow.ExternalIds = newExternalIds

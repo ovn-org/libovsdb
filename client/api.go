@@ -320,13 +320,31 @@ func (a api) Mutate(model model.Model, mutationObjs ...model.Mutation) ([]ovsdb.
 	return operations, nil
 }
 
-// Update is a generic function capable of updating any field in any row in the database
+// Update is a generic function capable of updating any mutable field in any row in the database
 // Additional fields can be passed (variadic opts) to indicate fields to be updated
+// All immutable fields will be ignored
 func (a api) Update(model model.Model, fields ...interface{}) ([]ovsdb.Operation, error) {
 	var operations []ovsdb.Operation
 	table, err := a.getTableFromModel(model)
 	if err != nil {
 		return nil, err
+	}
+	tableSchema := a.cache.Mapper().Schema.Table(table)
+
+	if len(fields) > 0 {
+		info, err := mapper.NewInfo(tableSchema, model)
+		if err != nil {
+			return nil, err
+		}
+		for _, f := range fields {
+			colName, err := info.ColumnByPtr(f)
+			if err != nil {
+				return nil, err
+			}
+			if !tableSchema.Columns[colName].Mutable() {
+				return nil, fmt.Errorf("unable to update field %s of table %s as it is not mutable", colName, table)
+			}
+		}
 	}
 
 	conditions, err := a.cond.Generate()
@@ -337,6 +355,17 @@ func (a api) Update(model model.Model, fields ...interface{}) ([]ovsdb.Operation
 	row, err := a.cache.Mapper().NewRow(table, model, fields...)
 	if err != nil {
 		return nil, err
+	}
+
+	for colName, column := range tableSchema.Columns {
+		if !column.Mutable() {
+			delete(row, colName)
+		}
+	}
+	delete(row, "_uuid")
+
+	if len(row) == 0 {
+		return nil, fmt.Errorf("attempted to update using an empty row. please check that all fields you wish to update are mutable")
 	}
 
 	for _, condition := range conditions {
