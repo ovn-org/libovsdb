@@ -125,6 +125,7 @@ type bridgeType struct {
 	Ports          []string          `ovsdb:"ports"`
 	Status         map[string]string `ovsdb:"status"`
 	BridgeFailMode *BridgeFailMode   `ovsdb:"fail_mode"`
+	IPFIX          *string           `ovsdb:"ipfix"`
 }
 
 // ovsType is the simplified ORM model of the Bridge table
@@ -133,9 +134,16 @@ type ovsType struct {
 	Bridges []string `ovsdb:"bridges"`
 }
 
+// ipfixType is a simplified ORM model for the IPFIX table
+type ipfixType struct {
+	UUID    string   `ovsdb:"_uuid"`
+	Targets []string `ovsdb:"targets"`
+}
+
 var defDB, _ = model.NewDBModel("Open_vSwitch", map[string]model.Model{
 	"Open_vSwitch": &ovsType{},
-	"Bridge":       &bridgeType{}})
+	"Bridge":       &bridgeType{},
+	"IPFIX":        &ipfixType{}})
 
 func (suite *OVSIntegrationSuite) TestConnectReconnect() {
 	assert.True(suite.T(), suite.client.Connected())
@@ -587,4 +595,54 @@ func (suite *OVSIntegrationSuite) createBridge(bridgeName string) (string, error
 
 	_, err = ovsdb.CheckOperationResults(reply, operations)
 	return reply[0].UUID.GoUUID, err
+}
+
+func (suite *OVSIntegrationSuite) TestCreateIPFIX() {
+	// Create a IPFIX row and update the bridge in the same transaction
+	uuid, err := suite.createBridge("br-ipfix")
+	require.NoError(suite.T(), err)
+	namedUUID := "gopher"
+	ipfix := ipfixType{
+		UUID:    namedUUID,
+		Targets: []string{"127.0.0.1:6650"},
+	}
+	insertOp, err := suite.client.Create(&ipfix)
+	require.NoError(suite.T(), err)
+
+	bridge := bridgeType{
+		UUID:  uuid,
+		IPFIX: &namedUUID,
+	}
+	updateOps, err := suite.client.Where(&bridge).Update(&bridge, &bridge.IPFIX)
+	require.NoError(suite.T(), err)
+	operations := append(insertOp, updateOps...)
+	reply, err := suite.client.Transact(context.TODO(), operations...)
+	require.NoError(suite.T(), err)
+	opErrs, err := ovsdb.CheckOperationResults(reply, operations)
+	if err != nil {
+		for _, oe := range opErrs {
+			suite.T().Error(oe)
+		}
+	}
+
+	// Delete the IPFIX row by removing it's strong reference
+	bridge.IPFIX = nil
+	updateOps, err = suite.client.Where(&bridge).Update(&bridge, &bridge.IPFIX)
+	require.NoError(suite.T(), err)
+	reply, err = suite.client.Transact(context.TODO(), updateOps...)
+	require.NoError(suite.T(), err)
+	opErrs, err = ovsdb.CheckOperationResults(reply, updateOps)
+	if err != nil {
+		for _, oe := range opErrs {
+			suite.T().Error(oe)
+		}
+	}
+	require.NoError(suite.T(), err)
+
+	//Assert the IPFIX table is empty
+	ipfixes := []ipfixType{}
+	err = suite.client.List(&ipfixes)
+	require.NoError(suite.T(), err)
+	require.Empty(suite.T(), ipfixes)
+
 }
