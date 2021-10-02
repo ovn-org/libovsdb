@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 
@@ -24,15 +25,13 @@ import (
 //}
 type Model interface{}
 
-func Clone(i Model) Model {
-	new := reflect.New(reflect.TypeOf(i).Elem())
-	val := reflect.ValueOf(i).Elem()
-	newVal := new.Elem()
-	for i := 0; i < val.NumField(); i++ {
-		nvField := newVal.Field(i)
-		nvField.Set(val.Field(i))
-	}
-	return new.Interface()
+// Clone creates a deep copy of a model
+func Clone(a Model) Model {
+	val := reflect.Indirect(reflect.ValueOf(a))
+	b := reflect.New(val.Type()).Interface()
+	aBytes, _ := json.Marshal(a)
+	_ = json.Unmarshal(aBytes, b)
+	return b
 }
 
 // DBModel is a Database model

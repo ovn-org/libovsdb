@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"sync"
 
@@ -133,7 +132,6 @@ func (m *monitor) filter(update ovsdb.TableUpdates) {
 	if len(m.request) != 0 {
 		for table, u := range update {
 			if _, ok := m.request[table]; !ok {
-				fmt.Println("dropping table update")
 				delete(update, table)
 				continue
 			}
@@ -183,7 +181,6 @@ func (m *monitor) filter2(update ovsdb.TableUpdates2) {
 	if len(m.request) != 0 {
 		for table, u := range update {
 			if _, ok := m.request[table]; !ok {
-				fmt.Println("dropping table update")
 				delete(update, table)
 				continue
 			}

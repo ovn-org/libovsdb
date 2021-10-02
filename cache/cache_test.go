@@ -2,6 +2,7 @@ package cache
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/ovn-org/libovsdb/mapper"
@@ -749,6 +750,71 @@ func TestTableCache_populate(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestTableCachePopulate(t *testing.T) {
+	t.Log("Create")
+	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	assert.Nil(t, err)
+	var schema ovsdb.DatabaseSchema
+	err = json.Unmarshal([]byte(`
+		 {"name": "TestDB",
+		  "tables": {
+		    "Open_vSwitch": {
+			  "indexes": [["foo"]],
+		      "columns": {
+		        "foo": {
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
+		      }
+		    }
+		 }
+	     }
+	`), &schema)
+	assert.Nil(t, err)
+	tc, err := NewTableCache(&schema, db, nil)
+	assert.Nil(t, err)
+
+	testRow := ovsdb.Row(map[string]interface{}{"_uuid": "test", "foo": "bar"})
+	testRowModel := &testModel{UUID: "test", Foo: "bar"}
+	updates := ovsdb.TableUpdates{
+		"Open_vSwitch": {
+			"test": &ovsdb.RowUpdate{
+				Old: nil,
+				New: &testRow,
+			},
+		},
+	}
+	tc.Populate(updates)
+
+	got := tc.Table("Open_vSwitch").Row("test")
+	assert.Equal(t, testRowModel, got)
+
+	t.Log("Update")
+	updatedRow := ovsdb.Row(map[string]interface{}{"_uuid": "test", "foo": "quux"})
+	updatedRowModel := &testModel{UUID: "test", Foo: "quux"}
+	updates["Open_vSwitch"]["test"] = &ovsdb.RowUpdate{
+		Old: &testRow,
+		New: &updatedRow,
+	}
+	tc.Populate(updates)
+
+	got = tc.cache["Open_vSwitch"].cache["test"]
+	assert.Equal(t, updatedRowModel, got)
+
+	t.Log("Delete")
+	updates["Open_vSwitch"]["test"] = &ovsdb.RowUpdate{
+		Old: &updatedRow,
+		New: nil,
+	}
+
+	tc.Populate(updates)
+
+	_, ok := tc.cache["Open_vSwitch"].cache["test"]
+	assert.False(t, ok)
+}
+
 func TestTableCachePopulate2(t *testing.T) {
 	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
 	assert.Nil(t, err)
@@ -1112,11 +1178,16 @@ func TestTableCacheApplyModifications(t *testing.T) {
 		Value string            `ovsdb:"value"`
 		Set   []string          `ovsdb:"set"`
 		Map   map[string]string `ovsdb:"map"`
+		Map2  map[string]string `ovsdb:"map2"`
 	}
 	aFooSet, _ := ovsdb.NewOvsSet([]string{"foo"})
 	aFooBarSet, _ := ovsdb.NewOvsSet([]string{"foo", "bar"})
 	aFooMap, _ := ovsdb.NewOvsMap(map[string]string{"foo": "bar"})
 	aBarMap, _ := ovsdb.NewOvsMap(map[string]string{"bar": "baz"})
+	aBarBazMap, _ := ovsdb.NewOvsMap(map[string]string{
+		"bar": "baz",
+		"baz": "quux",
+	})
 	tests := []struct {
 		name     string
 		update   ovsdb.Row
@@ -1167,6 +1238,15 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			&testDBModel{Map: map[string]string{"foo": "bar"}},
 			&testDBModel{Map: map[string]string{}},
 		},
+		{
+			"multiple map operations",
+			ovsdb.Row{"map": aBarBazMap, "map2": aFooMap},
+			&testDBModel{Map: map[string]string{"foo": "bar"}},
+			&testDBModel{
+				Map:  map[string]string{"foo": "bar", "bar": "baz", "baz": "quux"},
+				Map2: map[string]string{"foo": "bar"},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1182,7 +1262,8 @@ func TestTableCacheApplyModifications(t *testing.T) {
 					"columns": {
 					  "value": { "type": "string" },
 					  "set": { "type": { "key": { "type": "string" }, "min": 0,	"max": "unlimited" } },
-					  "map": { "type": { "key": "string", "max": "unlimited", "min": 0, "value": "string" } }
+					  "map": { "type": { "key": "string", "max": "unlimited", "min": 0, "value": "string" } },
+					  "map2": { "type": { "key": "string", "max": "unlimited", "min": 0, "value": "string" } }
 					}
 				  }
 				}
@@ -1191,9 +1272,13 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			require.NoError(t, err)
 			tc, err := NewTableCache(&schema, db, nil)
 			assert.Nil(t, err)
-			err = tc.ApplyModifications("Open_vSwitch", tt.base, tt.update)
+			original := model.Clone(tt.base).(*testDBModel)
+			err = tc.ApplyModifications("Open_vSwitch", original, tt.update)
 			require.NoError(t, err)
-			assert.Equal(t, tt.expected, tt.base)
+			require.Equal(t, tt.expected, original)
+			if reflect.DeepEqual(original, tt.base) {
+				t.Error("original and base are equal")
+			}
 		})
 	}
 }

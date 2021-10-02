@@ -35,7 +35,7 @@ const serverDB = "_Server"
 // ErrNotConnected is an error returned when the client is not connected
 var ErrNotConnected = errors.New("not connected")
 
-// ErrAlreadyConnected is an error returned whtn the client is already connected
+// ErrAlreadyConnected is an error returned when the client is already connected
 var ErrAlreadyConnected = errors.New("already connected")
 
 // ErrUnsupportedRPC is an error returned when an unsupported RPC method is called
@@ -243,9 +243,7 @@ func (o *ovsdbClient) tryEndpoint(ctx context.Context, u *url.URL) error {
 		return fmt.Errorf("failed to open connection: %w", err)
 	}
 
-	if err = o.createRPC2Client(c); err != nil {
-		return fmt.Errorf("failed to open RPC connection: %w", err)
-	}
+	o.createRPC2Client(c)
 
 	// from now on, if err is nil, always tear down the RPC session
 	defer func() {
@@ -329,7 +327,7 @@ func (o *ovsdbClient) tryEndpoint(ctx context.Context, u *url.URL) error {
 // createRPC2Client creates an rpcClient using the provided connection
 // It is also responsible for setting up go routines for client-side event handling
 // Should only be called when the mutex is held
-func (o *ovsdbClient) createRPC2Client(conn net.Conn) error {
+func (o *ovsdbClient) createRPC2Client(conn net.Conn) {
 	o.stopCh = make(chan struct{})
 	o.rpcClient = rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
 	o.rpcClient.SetBlocking(true)
@@ -346,7 +344,6 @@ func (o *ovsdbClient) createRPC2Client(conn net.Conn) error {
 		return o.update3(args, reply)
 	})
 	go o.rpcClient.Run()
-	return nil
 }
 
 // isEndpointLeader returns true if the currently connected endpoint is leader.

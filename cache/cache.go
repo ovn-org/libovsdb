@@ -78,7 +78,7 @@ func (r *RowCache) Row(uuid string) model.Model {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 	if row, ok := r.cache[uuid]; ok {
-		return row.(model.Model)
+		return model.Clone(row)
 	}
 	return nil
 }
@@ -144,7 +144,7 @@ func (r *RowCache) Create(uuid string, m model.Model, checkIndexes bool) error {
 			r.indexes[k1][k2] = v2
 		}
 	}
-	r.cache[uuid] = m
+	r.cache[uuid] = model.Clone(m)
 	return nil
 }
 
@@ -155,7 +155,7 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) error {
 	if _, ok := r.cache[uuid]; !ok {
 		return fmt.Errorf("row %s does not exist", uuid)
 	}
-	oldRow := r.cache[uuid]
+	oldRow := model.Clone(r.cache[uuid])
 	oldInfo, err := mapper.NewInfo(&r.schema, oldRow)
 	if err != nil {
 		return err
@@ -213,7 +213,7 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) error {
 			delete(r.indexes[k1], k2)
 		}
 	}
-	r.cache[uuid] = m
+	r.cache[uuid] = model.Clone(m)
 	return nil
 }
 
@@ -590,15 +590,15 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) {
 				}
 				t.eventProcessor.AddEvent(addEvent, table, nil, m)
 			case row.Modify != nil:
-				existing := tCache.Row(uuid)
-				if existing == nil {
+				modified := tCache.Row(uuid)
+				if modified == nil {
 					panic(fmt.Errorf("row with uuid %s does not exist", uuid))
 				}
-				modified := model.Clone(existing)
 				err := t.ApplyModifications(table, modified, *row.Modify)
 				if err != nil {
 					panic(err)
 				}
+				existing := tCache.Row(uuid)
 				if !reflect.DeepEqual(modified, existing) {
 					if err := tCache.Update(uuid, modified, false); err != nil {
 						panic(err)
@@ -843,19 +843,20 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 			// plus the key-value pairs whose keys appear in both maps but with different values.
 			// For the latter elements, <row> includes the value from the new column.
 			iter := nv.MapRange()
+
+			baseValue, err := info.FieldByColumn(k)
+			if err != nil {
+				return err
+			}
+
+			bv := reflect.ValueOf(baseValue)
+			if bv.IsNil() {
+				bv = reflect.MakeMap(nv.Type())
+			}
+
 			for iter.Next() {
 				mk := iter.Key()
 				mv := iter.Value()
-
-				baseValue, err := info.FieldByColumn(k)
-				if err != nil {
-					return err
-				}
-
-				bv := reflect.ValueOf(baseValue)
-				if bv.IsNil() {
-					bv = reflect.MakeMap(nv.Type())
-				}
 
 				existingValue := bv.MapIndex(mk)
 
@@ -869,11 +870,10 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 					// set new value
 					bv.SetMapIndex(mk, mv)
 				}
-
-				err = info.SetField(k, bv.Interface())
-				if err != nil {
-					return err
-				}
+			}
+			err = info.SetField(k, bv.Interface())
+			if err != nil {
+				return err
 			}
 
 		default:
