@@ -46,7 +46,7 @@ func TestMutateAdd(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := mutate(tt.current, tt.mutator, tt.value)
+			got, _ := mutate(tt.current, tt.mutator, tt.value)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("mutate() = %v, want %v", got, tt.want)
 			}
@@ -94,7 +94,7 @@ func TestMutateSubtract(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := mutate(tt.current, tt.mutator, tt.value)
+			got, _ := mutate(tt.current, tt.mutator, tt.value)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("mutate() = %v, want %v", got, tt.want)
 			}
@@ -142,7 +142,7 @@ func TestMutateMultiply(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := mutate(tt.current, tt.mutator, tt.value)
+			got, _ := mutate(tt.current, tt.mutator, tt.value)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("mutate() = %v, want %v", got, tt.want)
 			}
@@ -189,7 +189,7 @@ func TestMutateDivide(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := mutate(tt.current, tt.mutator, tt.value)
+			got, _ := mutate(tt.current, tt.mutator, tt.value)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("mutate() = %v, want %v", got, tt.want)
 			}
@@ -222,7 +222,7 @@ func TestMutateModulo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := mutate(tt.current, tt.mutator, tt.value)
+			got, _ := mutate(tt.current, tt.mutator, tt.value)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("mutate() = %v, want %v", got, tt.want)
 			}
@@ -277,7 +277,7 @@ func TestMutateInsert(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := mutate(tt.current, tt.mutator, tt.value)
+			got, _ := mutate(tt.current, tt.mutator, tt.value)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("mutate() = %v, want %v", got, tt.want)
 			}
@@ -337,7 +337,7 @@ func TestMutateDelete(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := mutate(tt.current, tt.mutator, tt.value)
+			got, _ := mutate(tt.current, tt.mutator, tt.value)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("mutate() = %v, want %v", got, tt.want)
 			}

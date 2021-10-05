@@ -104,7 +104,7 @@ func TestOvsdbServerMonitor(t *testing.T) {
 	updates.Merge(update3)
 	_, update4 := o.Insert("Open_vSwitch", "Bridge", quuxUUID, ovsdb.Row{"name": "quux"})
 	updates.Merge(update4)
-	err = o.db.Commit("Open_vSwitch", updates)
+	err = o.db.Commit("Open_vSwitch", uuid.New(), updates)
 	require.NoError(t, err)
 
 	db, err := json.Marshal("Open_vSwitch")

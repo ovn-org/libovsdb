@@ -122,8 +122,10 @@ func main() {
 	})
 	_, err = ovs.Monitor(
 		context.TODO(),
-		ovs.NewTableMonitor(&vswitchd.OpenvSwitch{}),
-		ovs.NewTableMonitor(&vswitchd.Bridge{}),
+		ovs.NewMonitor(
+			client.WithTable(&vswitchd.OpenvSwitch{}),
+			client.WithTable(&vswitchd.Bridge{}),
+		),
 	)
 	if err != nil {
 		log.Fatal(err)
