@@ -251,7 +251,13 @@ func (o *OvsdbServer) Update(database, table string, where []ovsdb.Condition, ro
 			if err != nil {
 				panic(err)
 			}
-			rowDelta[column] = diff(oldValue, value)
+			// convert the native to an ovs value
+			// since the value in the RowUpdate hasn't been normalized
+			newValue, err := ovsdb.NativeToOvs(colSchema, native)
+			if err != nil {
+				panic(err)
+			}
+			rowDelta[column] = diff(oldValue, newValue)
 		}
 
 		newRow, err := m.NewRow(table, new)
