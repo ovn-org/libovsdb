@@ -215,7 +215,6 @@ func TestClientServerMonitor(t *testing.T) {
 			}
 		},
 		UpdateFunc: func(table string, old, new model.Model) {
-			fmt.Println("got an update")
 			if table == "Open_vSwitch" {
 				ov := new.(*ovsType)
 				assert.Equal(t, 1, len(ov.Bridges))
@@ -344,7 +343,8 @@ func TestClientServerInsertAndDelete(t *testing.T) {
 func TestClientServerInsertDuplicate(t *testing.T) {
 	defDB, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
-		"Bridge":       &bridgeType{}})
+		"Bridge":       &bridgeType{},
+	})
 	require.Nil(t, err)
 
 	schema, err := getSchema()
@@ -496,6 +496,6 @@ func TestClientServerInsertAndUpdate(t *testing.T) {
 		if err != nil {
 			return false
 		}
-		return reflect.DeepEqual(br, bridgeRow)
+		return reflect.DeepEqual(br.ExternalIds, bridgeRow.ExternalIds)
 	}, 2*time.Second, 500*time.Millisecond)
 }

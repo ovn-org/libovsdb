@@ -1,8 +1,10 @@
 package client
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"reflect"
 
 	"github.com/ovn-org/libovsdb/cache"
@@ -220,7 +222,10 @@ func (a api) Get(m model.Model) error {
 	if found == nil {
 		return ErrNotFound
 	}
-	reflect.ValueOf(m).Elem().Set(reflect.Indirect(reflect.ValueOf(found)))
+
+	foundBytes, _ := json.Marshal(found)
+	_ = json.Unmarshal(foundBytes, m)
+
 	return nil
 }
 
@@ -359,6 +364,7 @@ func (a api) Update(model model.Model, fields ...interface{}) ([]ovsdb.Operation
 
 	for colName, column := range tableSchema.Columns {
 		if !column.Mutable() {
+			log.Printf("libovsdb: removing immutable field %s", colName)
 			delete(row, colName)
 		}
 	}
