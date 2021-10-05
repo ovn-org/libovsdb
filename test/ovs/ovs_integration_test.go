@@ -389,6 +389,71 @@ func (suite *OVSIntegrationSuite) TestInsertTransactIntegration() {
 	}, 2*time.Second, 500*time.Millisecond)
 }
 
+func (suite *OVSIntegrationSuite) TestMultipleOpsTransactIntegration() {
+	bridgeName := "a_bridge_to_nowhere"
+	uuid, err := suite.createBridge(bridgeName)
+	require.NoError(suite.T(), err)
+	require.Eventually(suite.T(), func() bool {
+		br := &bridgeType{UUID: uuid}
+		err := suite.client.Get(br)
+		return err == nil
+	}, 2*time.Second, 500*time.Millisecond)
+
+	var operations []ovsdb.Operation
+	ovsRow := bridgeType{}
+	br := &bridgeType{UUID: uuid}
+
+	op1, err := suite.client.Where(br).
+		Mutate(&ovsRow, model.Mutation{
+			Field:   &ovsRow.ExternalIds,
+			Mutator: ovsdb.MutateOperationInsert,
+			Value:   map[string]string{"one": "1"},
+		})
+	require.NoError(suite.T(), err)
+	operations = append(operations, op1...)
+
+	op2Mutations := []model.Mutation{
+		{
+			Field:   &ovsRow.ExternalIds,
+			Mutator: ovsdb.MutateOperationInsert,
+			Value:   map[string]string{"two": "2", "three": "3"},
+		},
+		{
+			Field:   &ovsRow.ExternalIds,
+			Mutator: ovsdb.MutateOperationDelete,
+			Value:   []string{"docker"},
+		},
+		{
+			Field:   &ovsRow.ExternalIds,
+			Mutator: ovsdb.MutateOperationInsert,
+			Value:   map[string]string{"podman": "made-for-each-other"},
+		},
+	}
+	op2, err := suite.client.Where(br).Mutate(&ovsRow, op2Mutations...)
+	require.NoError(suite.T(), err)
+	operations = append(operations, op2...)
+
+	reply, err := suite.client.Transact(context.TODO(), operations...)
+	require.NoError(suite.T(), err)
+
+	_, err = ovsdb.CheckOperationResults(reply, operations)
+	require.NoError(suite.T(), err)
+
+	require.Eventually(suite.T(), func() bool {
+		err := suite.client.Get(br)
+		return err == nil
+	}, 2*time.Second, 500*time.Millisecond)
+
+	expectedExternalIds := map[string]string{
+		"go":     "awesome",
+		"podman": "made-for-each-other",
+		"one":    "1",
+		"two":    "2",
+		"three":  "3",
+	}
+	require.Exactly(suite.T(), expectedExternalIds, br.ExternalIds)
+}
+
 func (suite *OVSIntegrationSuite) TestInsertAndDeleteTransactIntegration() {
 	bridgeName := "gopher-br5"
 	bridgeUUID, err := suite.createBridge(bridgeName)
