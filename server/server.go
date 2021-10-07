@@ -29,7 +29,7 @@ type OvsdbServer struct {
 }
 
 type DatabaseModel struct {
-	Model  *model.DBModel
+	Model  *model.ClientDBModel
 	Schema *ovsdb.DatabaseSchema
 }
 
@@ -141,7 +141,7 @@ type Transaction struct {
 	Cache *cache.TableCache
 }
 
-func NewTransaction(schema *ovsdb.DatabaseSchema, model *model.DBModel) Transaction {
+func NewTransaction(schema *ovsdb.DatabaseSchema, model *model.ClientDBModel) Transaction {
 	cache, err := cache.NewTableCache(schema, model, nil, nil)
 	if err != nil {
 		panic(err)

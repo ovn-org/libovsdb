@@ -22,11 +22,11 @@ type Database interface {
 
 type inMemoryDatabase struct {
 	databases map[string]*cache.TableCache
-	models    map[string]*model.DBModel
+	models    map[string]*model.ClientDBModel
 	mutex     sync.RWMutex
 }
 
-func NewInMemoryDatabase(models map[string]*model.DBModel) Database {
+func NewInMemoryDatabase(models map[string]*model.ClientDBModel) Database {
 	return &inMemoryDatabase{
 		databases: make(map[string]*cache.TableCache),
 		models:    models,
@@ -37,7 +37,7 @@ func NewInMemoryDatabase(models map[string]*model.DBModel) Database {
 func (db *inMemoryDatabase) CreateDatabase(name string, schema *ovsdb.DatabaseSchema) error {
 	db.mutex.Lock()
 	defer db.mutex.Unlock()
-	var mo *model.DBModel
+	var mo *model.ClientDBModel
 	var ok bool
 	if mo, ok = db.models[schema.Name]; !ok {
 		return fmt.Errorf("no db model provided for schema with name %s", name)

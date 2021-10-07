@@ -167,7 +167,7 @@ type queueType struct {
 	DSCP *int   `ovsdb:"dscp"`
 }
 
-var defDB, _ = model.NewDBModel("Open_vSwitch", map[string]model.Model{
+var defDB, _ = model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 	"Open_vSwitch": &ovsType{},
 	"Bridge":       &bridgeType{},
 	"IPFIX":        &ipfixType{},

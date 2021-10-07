@@ -87,7 +87,7 @@ type OpenvSwitch struct {
 	SystemVersion   *string           `ovsdb:"system_version"`
 }
 
-var defDB, _ = model.NewDBModel("Open_vSwitch",
+var defDB, _ = model.NewClientDBModel("Open_vSwitch",
 	map[string]model.Model{
 		"Open_vSwitch": &OpenvSwitch{},
 		"Bridge":       &Bridge{},
@@ -559,12 +559,12 @@ func BenchmarkUpdate1(b *testing.B) {
 	var s ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(schema), &s)
 	require.NoError(b, err)
-	dbModel, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{
+	clientDBModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Bridge":       &Bridge{},
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil, nil)
+	ovs.primaryDB().cache, err = cache.NewTableCache(&s, clientDBModel, nil, nil)
 	require.NoError(b, err)
 	update := []byte(`{
 		"Open_vSwitch": {
@@ -583,12 +583,12 @@ func BenchmarkUpdate2(b *testing.B) {
 	var s ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(schema), &s)
 	require.NoError(b, err)
-	dbModel, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{
+	clientDBModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Bridge":       &Bridge{},
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil, nil)
+	ovs.primaryDB().cache, err = cache.NewTableCache(&s, clientDBModel, nil, nil)
 	require.NoError(b, err)
 	update := []byte(`{
 		"Open_vSwitch": {
@@ -608,12 +608,12 @@ func BenchmarkUpdate3(b *testing.B) {
 	var s ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(schema), &s)
 	require.NoError(b, err)
-	dbModel, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{
+	clientDBModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Bridge":       &Bridge{},
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil, nil)
+	ovs.primaryDB().cache, err = cache.NewTableCache(&s, clientDBModel, nil, nil)
 	require.NoError(b, err)
 	update := []byte(`{
 		"Open_vSwitch": {
@@ -634,12 +634,12 @@ func BenchmarkUpdate5(b *testing.B) {
 	var s ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(schema), &s)
 	require.NoError(b, err)
-	dbModel, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{
+	clientDBModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Bridge":       &Bridge{},
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil, nil)
+	ovs.primaryDB().cache, err = cache.NewTableCache(&s, clientDBModel, nil, nil)
 	require.NoError(b, err)
 	update := []byte(`{
 		"Open_vSwitch": {
@@ -662,12 +662,12 @@ func BenchmarkUpdate8(b *testing.B) {
 	var s ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(schema), &s)
 	require.NoError(b, err)
-	dbModel, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{
+	clientDBModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Bridge":       &Bridge{},
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil, nil)
+	ovs.primaryDB().cache, err = cache.NewTableCache(&s, clientDBModel, nil, nil)
 	require.NoError(b, err)
 	update := []byte(`{
 		"Open_vSwitch": {
@@ -707,12 +707,12 @@ func TestUpdate(t *testing.T) {
 	var s ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(schema), &s)
 	require.NoError(t, err)
-	dbModel, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{
+	clientDBModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Bridge":       &Bridge{},
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(t, err)
-	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil, nil)
+	ovs.primaryDB().cache, err = cache.NewTableCache(&s, clientDBModel, nil, nil)
 	require.NoError(t, err)
 	var reply []interface{}
 	update := []byte(`{

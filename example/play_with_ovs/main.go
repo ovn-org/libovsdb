@@ -97,13 +97,13 @@ func main() {
 	quit = make(chan bool)
 	update = make(chan model.Model)
 
-	dbModel, err := model.NewDBModel("Open_vSwitch",
+	clientDBModel, err := model.NewClientDBModel("Open_vSwitch",
 		map[string]model.Model{bridgeTable: &vswitchd.Bridge{}, ovsTable: &vswitchd.OpenvSwitch{}})
 	if err != nil {
 		log.Fatal("Unable to create DB model ", err)
 	}
 
-	ovs, err := client.NewOVSDBClient(dbModel, client.WithEndpoint(*connection))
+	ovs, err := client.NewOVSDBClient(clientDBModel, client.WithEndpoint(*connection))
 	if err != nil {
 		log.Fatal(err)
 	}

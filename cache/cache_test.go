@@ -82,7 +82,7 @@ func TestRowCache_Rows(t *testing.T) {
 
 func TestRowCacheCreate(t *testing.T) {
 	var schema ovsdb.DatabaseSchema
-	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
 	require.Nil(t, err)
 	err = json.Unmarshal([]byte(`
 		 {"name": "TestDB",
@@ -168,7 +168,7 @@ func TestRowCacheCreate(t *testing.T) {
 
 func TestRowCacheCreateMultiIndex(t *testing.T) {
 	var schema ovsdb.DatabaseSchema
-	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
 	require.Nil(t, err)
 	err = json.Unmarshal([]byte(`
 		 {"name": "TestDB",
@@ -261,7 +261,7 @@ func TestRowCacheCreateMultiIndex(t *testing.T) {
 
 func TestRowCacheUpdate(t *testing.T) {
 	var schema ovsdb.DatabaseSchema
-	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
 	require.Nil(t, err)
 	err = json.Unmarshal([]byte(`
 		 {"name": "TestDB",
@@ -343,7 +343,7 @@ func TestRowCacheUpdate(t *testing.T) {
 
 func TestRowCacheUpdateMultiIndex(t *testing.T) {
 	var schema ovsdb.DatabaseSchema
-	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
 	require.Nil(t, err)
 	err = json.Unmarshal([]byte(`
 		 {"name": "TestDB",
@@ -425,7 +425,7 @@ func TestRowCacheUpdateMultiIndex(t *testing.T) {
 
 func TestRowCacheDelete(t *testing.T) {
 	var schema ovsdb.DatabaseSchema
-	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
 	require.Nil(t, err)
 	err = json.Unmarshal([]byte(`
 		 {"name": "TestDB",
@@ -685,7 +685,7 @@ func TestTableCacheTables(t *testing.T) {
 
 func TestTableCache_populate(t *testing.T) {
 	t.Log("Create")
-	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
 	assert.Nil(t, err)
 	var schema ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(`
@@ -753,7 +753,7 @@ func TestTableCache_populate(t *testing.T) {
 
 func TestTableCachePopulate(t *testing.T) {
 	t.Log("Create")
-	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
 	assert.Nil(t, err)
 	var schema ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(`
@@ -820,7 +820,7 @@ func TestTableCachePopulate(t *testing.T) {
 }
 
 func TestTableCachePopulate2(t *testing.T) {
-	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
 	assert.Nil(t, err)
 	var schema ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(`
@@ -943,7 +943,7 @@ func TestIndex(t *testing.T) {
 		Bar  string `ovsdb:"bar"`
 		Baz  int    `ovsdb:"baz"`
 	}
-	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &indexTestModel{}})
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &indexTestModel{}})
 	assert.Nil(t, err)
 	var schema ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(`
@@ -1038,7 +1038,7 @@ func TestIndex(t *testing.T) {
 
 func TestTableCacheRowByModelSingleIndex(t *testing.T) {
 	var schema ovsdb.DatabaseSchema
-	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
 	require.Nil(t, err)
 	err = json.Unmarshal([]byte(`
 		 {"name": "TestDB",
@@ -1087,7 +1087,7 @@ func TestTableCacheRowByModelSingleIndex(t *testing.T) {
 
 func TestTableCacheRowByModelTwoIndexes(t *testing.T) {
 	var schema ovsdb.DatabaseSchema
-	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
 	require.Nil(t, err)
 	err = json.Unmarshal([]byte(`
 		 {"name": "TestDB",
@@ -1138,7 +1138,7 @@ func TestTableCacheRowByModelTwoIndexes(t *testing.T) {
 
 func TestTableCacheRowByModelMultiIndex(t *testing.T) {
 	var schema ovsdb.DatabaseSchema
-	db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
 	require.Nil(t, err)
 	err = json.Unmarshal([]byte(`
 		 {"name": "TestDB",
@@ -1287,7 +1287,7 @@ func TestTableCacheApplyModifications(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			db, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+			db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
 			assert.Nil(t, err)
 			var schema ovsdb.DatabaseSchema
 			err = json.Unmarshal([]byte(`

@@ -23,7 +23,7 @@ type modelInvalid struct {
 	Foo string
 }
 
-func TestDBModel(t *testing.T) {
+func TestClientDBModel(t *testing.T) {
 	type Test struct {
 		name  string
 		obj   map[string]Model
@@ -50,7 +50,7 @@ func TestDBModel(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("TestNewModel_%s", tt.name), func(t *testing.T) {
-			db, err := NewDBModel(tt.name, tt.obj)
+			db, err := NewClientDBModel(tt.name, tt.obj)
 			if tt.valid {
 				assert.Nil(t, err)
 				assert.Len(t, db.Types(), len(tt.obj))
@@ -63,7 +63,7 @@ func TestDBModel(t *testing.T) {
 }
 
 func TestNewModel(t *testing.T) {
-	db, err := NewDBModel("testTable", map[string]Model{"Test_A": &modelA{}, "Test_B": &modelB{}})
+	db, err := NewClientDBModel("testTable", map[string]Model{"Test_A": &modelA{}, "Test_B": &modelB{}})
 	assert.Nil(t, err)
 	_, err = db.NewModel("Unknown")
 	assert.NotNilf(t, err, "Creating model from unknown table should fail")
@@ -86,7 +86,7 @@ func TestSetUUID(t *testing.T) {
 }
 
 func TestValidate(t *testing.T) {
-	model, err := NewDBModel("TestDB", map[string]Model{
+	model, err := NewClientDBModel("TestDB", map[string]Model{
 		"TestTable": &struct {
 			aUUID   string            `ovsdb:"_uuid"`
 			aString string            `ovsdb:"aString"`

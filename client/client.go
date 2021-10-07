@@ -85,7 +85,7 @@ type ovsdbClient struct {
 
 // database is everything needed to map between go types and an ovsdb Database
 type database struct {
-	model       *model.DBModel
+	model       *model.ClientDBModel
 	schema      *ovsdb.DatabaseSchema
 	schemaMutex sync.RWMutex
 	cache       *cache.TableCache
@@ -102,12 +102,12 @@ type database struct {
 // database model. The client can be configured using one or more Option(s),
 // like WithTLSConfig. If no WithEndpoint option is supplied, the default of
 // unix:/var/run/openvswitch/ovsdb.sock is used
-func NewOVSDBClient(databaseModel *model.DBModel, opts ...Option) (Client, error) {
+func NewOVSDBClient(databaseModel *model.ClientDBModel, opts ...Option) (Client, error) {
 	return newOVSDBClient(databaseModel, opts...)
 }
 
 // newOVSDBClient creates a new ovsdbClient
-func newOVSDBClient(databaseModel *model.DBModel, opts ...Option) (*ovsdbClient, error) {
+func newOVSDBClient(databaseModel *model.ClientDBModel, opts ...Option) (*ovsdbClient, error) {
 	ovs := &ovsdbClient{
 		primaryDBName: databaseModel.Name(),
 		databases: map[string]*database{

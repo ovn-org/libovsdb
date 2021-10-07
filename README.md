@@ -32,16 +32,16 @@ To make the API use go idioms, the following mappings occur:
 1. OVSDB Map = Map
 1. OVSDB Scalar Type = Equivalent scalar Go type
 
-A Open vSwitch Database is modeled using a DBModel which is a created by assigning table names to pointers to these structs:
+A Open vSwitch Database is modeled using a ClientDBModel which is a created by assigning table names to pointers to these structs:
 
-    dbModel, _ := model.NewDBModel("OVN_Northbound", map[string]model.Model{
+    dbModelReq, _ := model.NewClientDBModel("OVN_Northbound", map[string]model.Model{
                 "Logical_Switch": &MyLogicalSwitch{},
     })
 
 
 Finally, a client object can be created:
 
-    ovs, _ := client.Connect(context.Background(), dbModel, client.WithEndpoint("tcp:172.18.0.4:6641"))
+    ovs, _ := client.Connect(context.Background(), dbModelReq, client.WithEndpoint("tcp:172.18.0.4:6641"))
     client.MonitorAll(nil) // Only needed if you want to use the built-in cache
 
 
@@ -219,7 +219,7 @@ It can be used as follows:
             Package name (default "ovsmodel")
 
 The result will be the definition of a Model per table defined in the ovsdb schema file.
-Additionally, a function called `FullDatabaseModel()` that returns the `DBModel` is created for convenience.
+Additionally, a function called `FullDatabaseModel()` that returns the `ClientDBModel` is created for convenience.
 
 Example:
 
@@ -237,7 +237,7 @@ Run `go generate`
     go generate ./...
 
 
-In your application, load the DBModel, connect to the server and start interacting with the database:
+In your application, load the ClientDBModel, connect to the server and start interacting with the database:
 
     import (
         "fmt"
@@ -247,8 +247,8 @@ In your application, load the DBModel, connect to the server and start interacti
     )
     
     func main() {
-        dbModel, _ := generated.FullDatabaseModel()
-        ovs, _ := client.Connect(context.Background(), dbModel, client.WithEndpoint("tcp:localhost:6641"))
+        dbModelReq, _ := generated.FullDatabaseModel()
+        ovs, _ := client.Connect(context.Background(), dbModelReq, client.WithEndpoint("tcp:localhost:6641"))
         ovs.MonitorAll()
 
         // Create a *LogicalRouter, as a pointer to a Model is required by the API
