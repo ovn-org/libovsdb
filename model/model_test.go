@@ -53,7 +53,7 @@ func TestClientDBModel(t *testing.T) {
 			db, err := NewClientDBModel(tt.name, tt.obj)
 			if tt.valid {
 				assert.Nil(t, err)
-				assert.Len(t, db.Types(), len(tt.obj))
+				assert.Len(t, db.types, len(tt.obj))
 				assert.Equal(t, tt.name, db.Name())
 			} else {
 				assert.NotNil(t, err)
@@ -65,9 +65,9 @@ func TestClientDBModel(t *testing.T) {
 func TestNewModel(t *testing.T) {
 	db, err := NewClientDBModel("testTable", map[string]Model{"Test_A": &modelA{}, "Test_B": &modelB{}})
 	assert.Nil(t, err)
-	_, err = db.NewModel("Unknown")
+	_, err = db.newModel("Unknown")
 	assert.NotNilf(t, err, "Creating model from unknown table should fail")
-	model, err := db.NewModel("Test_A")
+	model, err := db.newModel("Test_A")
 	assert.Nilf(t, err, "Creating model from valid table should succeed")
 	assert.IsTypef(t, model, &modelA{}, "model creation should return the appropriate type")
 }
@@ -324,7 +324,7 @@ func TestValidate(t *testing.T) {
 			var schema ovsdb.DatabaseSchema
 			err := json.Unmarshal(tt.schema, &schema)
 			assert.Nil(t, err)
-			errors := model.Validate(&schema)
+			errors := model.validate(&schema)
 			if tt.err {
 				assert.Greater(t, len(errors), 0)
 			} else {

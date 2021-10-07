@@ -451,7 +451,7 @@ func NewTableCache(dbModel *model.DatabaseModel, data Data, logger *logr.Logger)
 	}
 	eventProcessor := newEventProcessor(bufferSize, logger)
 	cache := make(map[string]*RowCache)
-	tableTypes := dbModel.Client().Types()
+	tableTypes := dbModel.Types()
 	for name, tableSchema := range dbModel.Schema().Tables {
 		cache[name] = newRowCache(name, tableSchema, tableTypes[name])
 	}
@@ -482,9 +482,9 @@ func (t *TableCache) Mapper() *mapper.Mapper {
 	return t.dbModel.Mapper()
 }
 
-// ClientDBModel returns the ClientDBModel
-func (t *TableCache) ClientDBModel() *model.ClientDBModel {
-	return t.dbModel.Client()
+// DatabaseModel returns the DatabaseModelRequest
+func (t *TableCache) DatabaseModel() *model.DatabaseModel {
+	return t.dbModel
 }
 
 // Table returns the a Table from the cache with a given name
@@ -549,7 +549,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) error {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
-	for table := range t.dbModel.Client().Types() {
+	for table := range t.dbModel.Types() {
 		updates, ok := tableUpdates[table]
 		if !ok {
 			continue
@@ -600,7 +600,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) error {
 func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	for table := range t.dbModel.Client().Types() {
+	for table := range t.dbModel.Types() {
 		updates, ok := tableUpdates[table]
 		if !ok {
 			continue
@@ -672,7 +672,7 @@ func (t *TableCache) Purge(dbModel *model.DatabaseModel) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	t.dbModel = dbModel
-	tableTypes := t.dbModel.Client().Types()
+	tableTypes := t.dbModel.Types()
 	for name, tableSchema := range t.dbModel.Schema().Tables {
 		t.cache[name] = newRowCache(name, tableSchema, tableTypes[name])
 	}
@@ -851,7 +851,7 @@ func (t *TableCache) CreateModel(tableName string, row *ovsdb.Row, uuid string) 
 	if table == nil {
 		return nil, fmt.Errorf("table %s not found", tableName)
 	}
-	model, err := t.dbModel.Client().NewModel(tableName)
+	model, err := t.dbModel.NewModel(tableName)
 	if err != nil {
 		return nil, err
 	}

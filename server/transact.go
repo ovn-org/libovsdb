@@ -82,7 +82,7 @@ func (o *OvsdbServer) Insert(database string, table string, rowUUID string, row 
 		rowUUID = uuid.NewString()
 	}
 
-	model, err := dbModel.Client().NewModel(table)
+	model, err := dbModel.NewModel(table)
 	if err != nil {
 		return ovsdb.OperationResult{
 			Error: err.Error(),
@@ -201,7 +201,7 @@ func (o *OvsdbServer) Update(database, table string, where []ovsdb.Condition, ro
 		if err != nil {
 			panic(err)
 		}
-		new, err := dbModel.Client().NewModel(table)
+		new, err := dbModel.NewModel(table)
 		if err != nil {
 			panic(err)
 		}
@@ -333,7 +333,7 @@ func (o *OvsdbServer) Mutate(database, table string, where []ovsdb.Condition, mu
 		if err != nil {
 			panic(err)
 		}
-		new, err := dbModel.Client().NewModel(table)
+		new, err := dbModel.NewModel(table)
 		if err != nil {
 			panic(err)
 		}

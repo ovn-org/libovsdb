@@ -15,7 +15,7 @@ type ClientDBModel struct {
 }
 
 // NewModel returns a new instance of a model from a specific string
-func (db ClientDBModel) NewModel(table string) (Model, error) {
+func (db ClientDBModel) newModel(table string) (Model, error) {
 	mtype, ok := db.types[table]
 	if !ok {
 		return nil, fmt.Errorf("table %s not found in database model", string(table))
@@ -24,32 +24,14 @@ func (db ClientDBModel) NewModel(table string) (Model, error) {
 	return model.Interface().(Model), nil
 }
 
-// Types returns the ClientDBModel Types
-// the ClientDBModel types is a map of reflect.Types indexed by string
-// The reflect.Type is a pointer to a struct that contains 'ovs' tags
-// as described above. Such pointer to struct also implements the Model interface
-func (db ClientDBModel) Types() map[string]reflect.Type {
-	return db.types
-}
-
 // Name returns the database name
 func (db ClientDBModel) Name() string {
 	return db.name
 }
 
-// FindTable returns the string associated with a reflect.Type or ""
-func (db ClientDBModel) FindTable(mType reflect.Type) string {
-	for table, tType := range db.types {
-		if tType == mType {
-			return table
-		}
-	}
-	return ""
-}
-
 // Validate validates the DatabaseModel against the input schema
 // Returns all the errors detected
-func (db ClientDBModel) Validate(schema *ovsdb.DatabaseSchema) []error {
+func (db ClientDBModel) validate(schema *ovsdb.DatabaseSchema) []error {
 	var errors []error
 	if db.name != schema.Name {
 		errors = append(errors, fmt.Errorf("database model name (%s) does not match schema (%s)",
@@ -62,7 +44,7 @@ func (db ClientDBModel) Validate(schema *ovsdb.DatabaseSchema) []error {
 			errors = append(errors, fmt.Errorf("database model contains a model for table %s that does not exist in schema", tableName))
 			continue
 		}
-		model, err := db.NewModel(tableName)
+		model, err := db.newModel(tableName)
 		if err != nil {
 			errors = append(errors, err)
 			continue

@@ -638,7 +638,7 @@ func (o *ovsdbClient) transact(ctx context.Context, dbName string, operation ...
 // MonitorAll is a convenience method to monitor every table/column
 func (o *ovsdbClient) MonitorAll(ctx context.Context) (MonitorCookie, error) {
 	m := newMonitor()
-	for name := range o.primaryDB().model.Client().Types() {
+	for name := range o.primaryDB().model.Types() {
 		m.Tables = append(m.Tables, TableMonitor{Table: name})
 	}
 	return o.Monitor(ctx, m)
@@ -696,7 +696,7 @@ func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconne
 	db.schemaMutex.RLock()
 	mapper := db.model.Mapper()
 	db.schemaMutex.RUnlock()
-	typeMap := o.databases[dbName].model.Client().Types()
+	typeMap := o.databases[dbName].model.Types()
 	requests := make(map[string]ovsdb.MonitorRequest)
 	for _, o := range monitor.Tables {
 		m, ok := typeMap[o.Table]

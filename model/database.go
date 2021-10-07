@@ -1,6 +1,8 @@
 package model
 
 import (
+	"fmt"
+	"reflect"
 	"sync"
 
 	"github.com/ovn-org/libovsdb/mapper"
@@ -17,9 +19,9 @@ type DatabaseModel struct {
 }
 
 // NewDatabaseModel returns a new DatabaseModel
-func NewDatabaseModel(schema *ovsdb.DatabaseSchema, request *ClientDBModel) *DatabaseModel {
+func NewDatabaseModel(schema *ovsdb.DatabaseSchema, client *ClientDBModel) *DatabaseModel {
 	return &DatabaseModel{
-		client: request,
+		client: client,
 		schema: schema,
 		mapper: mapper.NewMapper(schema),
 	}
@@ -43,7 +45,7 @@ func (db *DatabaseModel) Valid() bool {
 func (db *DatabaseModel) SetSchema(schema *ovsdb.DatabaseSchema) []error {
 	db.mutex.Lock()
 	defer db.mutex.Unlock()
-	errors := db.client.Validate(schema)
+	errors := db.client.validate(schema)
 	if len(errors) > 0 {
 		return errors
 	}
@@ -77,4 +79,32 @@ func (db *DatabaseModel) Mapper() *mapper.Mapper {
 	db.mutex.RLock()
 	defer db.mutex.RUnlock()
 	return db.mapper
+}
+
+// NewModel returns a new instance of a model from a specific string
+func (db *DatabaseModel) NewModel(table string) (Model, error) {
+	mtype, ok := db.client.types[table]
+	if !ok {
+		return nil, fmt.Errorf("table %s not found in database model", string(table))
+	}
+	model := reflect.New(mtype.Elem())
+	return model.Interface().(Model), nil
+}
+
+// Types returns the DatabaseModel Types
+// the DatabaseModel types is a map of reflect.Types indexed by string
+// The reflect.Type is a pointer to a struct that contains 'ovs' tags
+// as described above. Such pointer to struct also implements the Model interface
+func (db *DatabaseModel) Types() map[string]reflect.Type {
+	return db.client.types
+}
+
+// FindTable returns the string associated with a reflect.Type or ""
+func (db *DatabaseModel) FindTable(mType reflect.Type) string {
+	for table, tType := range db.client.types {
+		if tType == mType {
+			return table
+		}
+	}
+	return ""
 }
