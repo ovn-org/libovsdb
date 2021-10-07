@@ -43,7 +43,7 @@ var (
 	parallel   = flag.Bool("parallel", false, "run clients in parallel")
 	verbose    = flag.Bool("verbose", false, "Be verbose")
 	connection = flag.String("ovsdb", "unix:/var/run/openvswitch/db.sock", "OVSDB connection string")
-	dbModel    *model.DBModel
+	dbModelReq *model.DatabaseModelRequest
 )
 
 type result struct {
@@ -54,7 +54,7 @@ type result struct {
 }
 
 func cleanup(ctx context.Context) {
-	ovs, err := client.NewOVSDBClient(dbModel, client.WithEndpoint(*connection))
+	ovs, err := client.NewOVSDBClient(dbModelReq, client.WithEndpoint(*connection))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func run(ctx context.Context, resultsChan chan result, wg *sync.WaitGroup) {
 	ready := false
 	var rootUUID string
 
-	ovs, err := client.NewOVSDBClient(dbModel, client.WithEndpoint(*connection))
+	ovs, err := client.NewOVSDBClient(dbModelReq, client.WithEndpoint(*connection))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -249,7 +249,7 @@ func main() {
 	}
 
 	var err error
-	dbModel, err = model.NewDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &ovsType{}, "Bridge": &bridgeType{}})
+	dbModelReq, err = model.NewDatabaseModelRequest("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &ovsType{}, "Bridge": &bridgeType{}})
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -407,7 +407,7 @@ type TableCache struct {
 	cache          map[string]*RowCache
 	eventProcessor *eventProcessor
 	mapper         *mapper.Mapper
-	dbModel        *model.DBModel
+	dbModelReq     *model.DatabaseModelRequest
 	schema         *ovsdb.DatabaseSchema
 	ovsdb.NotificationHandler
 	mutex sync.RWMutex
@@ -417,13 +417,13 @@ type TableCache struct {
 type Data map[string]map[string]model.Model
 
 // NewTableCache creates a new TableCache
-func NewTableCache(schema *ovsdb.DatabaseSchema, dbModel *model.DBModel, data Data) (*TableCache, error) {
-	if schema == nil || dbModel == nil {
+func NewTableCache(schema *ovsdb.DatabaseSchema, dbModelReq *model.DatabaseModelRequest, data Data) (*TableCache, error) {
+	if schema == nil || dbModelReq == nil {
 		return nil, fmt.Errorf("tablecache without databasemodel cannot be populated")
 	}
 	eventProcessor := newEventProcessor(bufferSize)
 	cache := make(map[string]*RowCache)
-	tableTypes := dbModel.Types()
+	tableTypes := dbModelReq.Types()
 	for name, tableSchema := range schema.Tables {
 		cache[name] = newRowCache(name, tableSchema, tableTypes[name])
 	}
@@ -442,7 +442,7 @@ func NewTableCache(schema *ovsdb.DatabaseSchema, dbModel *model.DBModel, data Da
 		schema:         schema,
 		eventProcessor: eventProcessor,
 		mapper:         mapper.NewMapper(schema),
-		dbModel:        dbModel,
+		dbModelReq:     dbModelReq,
 		mutex:          sync.RWMutex{},
 	}, nil
 }
@@ -452,9 +452,9 @@ func (t *TableCache) Mapper() *mapper.Mapper {
 	return t.mapper
 }
 
-// DBModel returns the DBModel
-func (t *TableCache) DBModel() *model.DBModel {
-	return t.dbModel
+// DatabaseModelRequest returns the DatabaseModelRequest
+func (t *TableCache) DatabaseModelRequest() *model.DatabaseModelRequest {
+	return t.dbModelReq
 }
 
 // Table returns the a Table from the cache with a given name
@@ -517,7 +517,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
-	for table := range t.dbModel.Types() {
+	for table := range t.dbModelReq.Types() {
 		updates, ok := tableUpdates[table]
 		if !ok {
 			continue
@@ -563,7 +563,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	for table := range t.dbModel.Types() {
+	for table := range t.dbModelReq.Types() {
 		updates, ok := tableUpdates[table]
 		if !ok {
 			continue
@@ -628,7 +628,7 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) {
 func (t *TableCache) Purge(schema *ovsdb.DatabaseSchema) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	tableTypes := t.dbModel.Types()
+	tableTypes := t.dbModelReq.Types()
 	for name, tableSchema := range t.schema.Tables {
 		t.cache[name] = newRowCache(name, tableSchema, tableTypes[name])
 	}
@@ -760,7 +760,7 @@ func (t *TableCache) CreateModel(tableName string, row *ovsdb.Row, uuid string) 
 	if table == nil {
 		return nil, fmt.Errorf("table %s not found", tableName)
 	}
-	model, err := t.dbModel.NewModel(tableName)
+	model, err := t.dbModelReq.NewModel(tableName)
 	if err != nil {
 		return nil, err
 	}

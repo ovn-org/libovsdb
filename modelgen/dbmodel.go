@@ -8,7 +8,7 @@ import (
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
-// NewDBTemplate return a new DBModel template
+// NewDBTemplate return a new DatabaseModelRequest template
 // It includes the following other templates that can be overridden to customize the generated file
 // "header"
 // "preDBDefinitions"
@@ -40,8 +40,8 @@ package {{ index . "PackageName" }}
 {{ template "preDBDefinitions" }}
 
 // FullDatabaseModel returns the DatabaseModel object to be used in libovsdb
-func FullDatabaseModel() (*model.DBModel, error) {
-	return model.NewDBModel("{{ index . "DatabaseName" }}", map[string]model.Model{
+func FullDatabaseModel() (*model.DatabaseModelRequest, error) {
+	return model.NewDatabaseModelRequest("{{ index . "DatabaseName" }}", map[string]model.Model{
     {{ range index . "Tables" }} "{{ .TableName }}" : &{{ .StructName }}{}, 
     {{ end }}
 	})

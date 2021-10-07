@@ -12,7 +12,7 @@ import (
 )
 
 func TestMutateOp(t *testing.T) {
-	defDB, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{
+	defDB, err := model.NewDatabaseModelRequest("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
 		"Bridge":       &bridgeType{}})
 	if err != nil {
@@ -22,7 +22,7 @@ func TestMutateOp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ovsDB := NewInMemoryDatabase(map[string]*model.DBModel{"Open_vSwitch": defDB})
+	ovsDB := NewInMemoryDatabase(map[string]*model.DatabaseModelRequest{"Open_vSwitch": defDB})
 	o, err := NewOvsdbServer(ovsDB, DatabaseModel{
 		Model: defDB, Schema: schema})
 	require.Nil(t, err)
@@ -204,7 +204,7 @@ func TestDiff(t *testing.T) {
 
 func TestOvsdbServerInsert(t *testing.T) {
 	t.Skip("need a helper for comparing rows as map elements aren't in same order")
-	defDB, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{
+	defDB, err := model.NewDatabaseModelRequest("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
 		"Bridge":       &bridgeType{}})
 	if err != nil {
@@ -214,7 +214,7 @@ func TestOvsdbServerInsert(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ovsDB := NewInMemoryDatabase(map[string]*model.DBModel{"Open_vSwitch": defDB})
+	ovsDB := NewInMemoryDatabase(map[string]*model.DatabaseModelRequest{"Open_vSwitch": defDB})
 	o, err := NewOvsdbServer(ovsDB, DatabaseModel{
 		Model: defDB, Schema: schema})
 	require.Nil(t, err)
@@ -257,7 +257,7 @@ func TestOvsdbServerInsert(t *testing.T) {
 }
 
 func TestOvsdbServerUpdate(t *testing.T) {
-	defDB, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{
+	defDB, err := model.NewDatabaseModelRequest("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
 		"Bridge":       &bridgeType{}})
 	if err != nil {
@@ -267,7 +267,7 @@ func TestOvsdbServerUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ovsDB := NewInMemoryDatabase(map[string]*model.DBModel{"Open_vSwitch": defDB})
+	ovsDB := NewInMemoryDatabase(map[string]*model.DatabaseModelRequest{"Open_vSwitch": defDB})
 	o, err := NewOvsdbServer(ovsDB, DatabaseModel{
 		Model: defDB, Schema: schema})
 	require.Nil(t, err)

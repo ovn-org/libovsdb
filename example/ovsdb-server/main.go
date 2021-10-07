@@ -39,7 +39,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	dbModel, err := vswitchd.FullDatabaseModel()
+	dbModelReq, err := vswitchd.FullDatabaseModel()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -57,12 +57,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ovsDB := server.NewInMemoryDatabase(map[string]*model.DBModel{
-		schema.Name: dbModel,
+	ovsDB := server.NewInMemoryDatabase(map[string]*model.DatabaseModelRequest{
+		schema.Name: dbModelReq,
 	})
 
 	s, err := server.NewOvsdbServer(ovsDB, server.DatabaseModel{
-		Model:  dbModel,
+		Model:  dbModelReq,
 		Schema: schema,
 	})
 	if err != nil {
@@ -80,7 +80,7 @@ func main() {
 	}(s)
 
 	time.Sleep(1 * time.Second)
-	c, err := client.NewOVSDBClient(dbModel, client.WithEndpoint(fmt.Sprintf("tcp::%d", *port)))
+	c, err := client.NewOVSDBClient(dbModelReq, client.WithEndpoint(fmt.Sprintf("tcp::%d", *port)))
 	if err != nil {
 		log.Fatal(err)
 	}

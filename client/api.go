@@ -203,7 +203,7 @@ func (a api) conditionFromModel(any bool, model model.Model, cond ...model.Condi
 
 // Get is a generic Get function capable of returning (through a provided pointer)
 // a instance of any row in the cache.
-// 'result' must be a pointer to an Model that exists in the DBModel
+// 'result' must be a pointer to an Model that exists in the DatabaseModelRequest
 //
 // The way the cache is searched depends on the fields already populated in 'result'
 // Any table index (including _uuid) will be used for comparison
@@ -280,7 +280,7 @@ func (a api) Mutate(model model.Model, mutationObjs ...model.Mutation) ([]ovsdb.
 		return nil, fmt.Errorf("at least one Mutation must be provided")
 	}
 
-	tableName := a.cache.DBModel().FindTable(reflect.ValueOf(model).Type())
+	tableName := a.cache.DatabaseModelRequest().FindTable(reflect.ValueOf(model).Type())
 	if tableName == "" {
 		return nil, fmt.Errorf("table not found for object")
 	}
@@ -414,7 +414,7 @@ func (a api) getTableFromModel(m interface{}) (string, error) {
 	if _, ok := m.(model.Model); !ok {
 		return "", &ErrWrongType{reflect.TypeOf(m), "Type does not implement Model interface"}
 	}
-	table := a.cache.DBModel().FindTable(reflect.TypeOf(m))
+	table := a.cache.DatabaseModelRequest().FindTable(reflect.TypeOf(m))
 	if table == "" {
 		return "", &ErrWrongType{reflect.TypeOf(m), "Model not found in Database Model"}
 	}
@@ -439,7 +439,7 @@ func (a api) getTableFromFunc(predicate interface{}) (string, error) {
 			fmt.Sprintf("Type %s does not implement Model interface", modelType.String())}
 	}
 
-	table := a.cache.DBModel().FindTable(modelType)
+	table := a.cache.DatabaseModelRequest().FindTable(modelType)
 	if table == "" {
 		return "", &ErrWrongType{predType,
 			fmt.Sprintf("Model %s not found in Database Model", modelType.String())}
