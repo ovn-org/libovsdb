@@ -274,6 +274,17 @@ func TestMutateInsert(t *testing.T) {
 				"baz": "quux",
 			},
 		},
+		{
+			"insert key value pairs on nil map",
+			map[string]string{
+				"foo": "bar",
+			},
+			ovsdb.MutateOperationInsert,
+			nil,
+			map[string]string{
+				"foo": "bar",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
