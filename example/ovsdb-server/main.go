@@ -61,10 +61,7 @@ func main() {
 		schema.Name: clientDBModel,
 	})
 
-	s, err := server.NewOvsdbServer(ovsDB, server.DatabaseModel{
-		Model:  clientDBModel,
-		Schema: schema,
-	})
+	s, err := server.NewOvsdbServer(ovsDB, model.NewDatabaseModel(schema, clientDBModel))
 	if err != nil {
 		log.Fatal(err)
 	}
