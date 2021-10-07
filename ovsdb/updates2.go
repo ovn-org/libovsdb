@@ -62,7 +62,31 @@ func (r *RowUpdate2) Merge(new *RowUpdate2) {
 		return
 	}
 	if r.Modify != nil && new.Modify != nil {
-		r.Modify = new.Modify
+		currentRowData := *r.Modify
+		newRowData := *new.Modify
+		for k, v := range newRowData {
+			if _, ok := currentRowData[k]; !ok {
+				currentRowData[k] = v
+			} else {
+				switch v.(type) {
+				case OvsSet:
+					oSet := currentRowData[k].(OvsSet)
+					newSet := v.(OvsSet)
+					oSet.GoSet = append(oSet.GoSet, newSet.GoSet...)
+				case OvsMap:
+					oMap := currentRowData[k].(OvsMap)
+					newMap := v.(OvsMap)
+					for newK, newV := range newMap.GoMap {
+						if _, ok := oMap.GoMap[newK]; !ok {
+							oMap.GoMap[newK] = newV
+						}
+					}
+				default:
+					panic("ARGH!")
+				}
+			}
+		}
+		r.Modify = &currentRowData
 		return
 	}
 	if r.Modify != nil && new.Delete != nil {

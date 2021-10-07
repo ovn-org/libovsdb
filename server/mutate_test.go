@@ -1,10 +1,10 @@
 package server
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/ovn-org/libovsdb/ovsdb"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestMutateAdd(t *testing.T) {
@@ -46,10 +46,9 @@ func TestMutateAdd(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, _ := mutate(tt.current, tt.mutator, tt.value)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("mutate() = %v, want %v", got, tt.want)
-			}
+			got, diff := mutate(tt.current, tt.mutator, tt.value)
+			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.want, diff)
 		})
 	}
 }
@@ -94,10 +93,9 @@ func TestMutateSubtract(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, _ := mutate(tt.current, tt.mutator, tt.value)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("mutate() = %v, want %v", got, tt.want)
-			}
+			got, diff := mutate(tt.current, tt.mutator, tt.value)
+			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.want, diff)
 		})
 	}
 }
@@ -142,10 +140,9 @@ func TestMutateMultiply(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, _ := mutate(tt.current, tt.mutator, tt.value)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("mutate() = %v, want %v", got, tt.want)
-			}
+			got, diff := mutate(tt.current, tt.mutator, tt.value)
+			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.want, diff)
 		})
 	}
 }
@@ -189,10 +186,9 @@ func TestMutateDivide(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, _ := mutate(tt.current, tt.mutator, tt.value)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("mutate() = %v, want %v", got, tt.want)
-			}
+			got, diff := mutate(tt.current, tt.mutator, tt.value)
+			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.want, diff)
 		})
 	}
 }
@@ -222,10 +218,9 @@ func TestMutateModulo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, _ := mutate(tt.current, tt.mutator, tt.value)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("mutate() = %v, want %v", got, tt.want)
-			}
+			got, diff := mutate(tt.current, tt.mutator, tt.value)
+			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.want, diff)
 		})
 	}
 }
@@ -237,6 +232,7 @@ func TestMutateInsert(t *testing.T) {
 		mutator ovsdb.Mutator
 		value   interface{}
 		want    interface{}
+		diff    interface{}
 	}{
 		{
 			"insert single string",
@@ -244,6 +240,7 @@ func TestMutateInsert(t *testing.T) {
 			ovsdb.MutateOperationInsert,
 			"baz",
 			[]string{"foo", "bar", "baz"},
+			"baz",
 		},
 		{
 			"insert existing string",
@@ -251,6 +248,7 @@ func TestMutateInsert(t *testing.T) {
 			ovsdb.MutateOperationInsert,
 			"baz",
 			[]string{"foo", "bar", "baz"},
+			nil,
 		},
 		{
 			"insert multiple string",
@@ -258,6 +256,7 @@ func TestMutateInsert(t *testing.T) {
 			ovsdb.MutateOperationInsert,
 			[]string{"baz", "quux", "foo"},
 			[]string{"foo", "bar", "baz", "quux"},
+			[]string{"baz", "quux"},
 		},
 		{
 			"insert key value pairs",
@@ -273,14 +272,20 @@ func TestMutateInsert(t *testing.T) {
 				"foo": "bar",
 				"baz": "quux",
 			},
+			map[string]string{
+				"baz": "quux",
+			},
 		},
 		{
 			"insert key value pairs on nil map",
+			nil,
+			ovsdb.MutateOperationInsert,
 			map[string]string{
 				"foo": "bar",
 			},
-			ovsdb.MutateOperationInsert,
-			nil,
+			map[string]string{
+				"foo": "bar",
+			},
 			map[string]string{
 				"foo": "bar",
 			},
@@ -288,10 +293,9 @@ func TestMutateInsert(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, _ := mutate(tt.current, tt.mutator, tt.value)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("mutate() = %v, want %v", got, tt.want)
-			}
+			got, diff := mutate(tt.current, tt.mutator, tt.value)
+			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.diff, diff)
 		})
 	}
 }
@@ -303,6 +307,7 @@ func TestMutateDelete(t *testing.T) {
 		mutator ovsdb.Mutator
 		value   interface{}
 		want    interface{}
+		diff    interface{}
 	}{
 		{
 			"delete single string",
@@ -310,6 +315,7 @@ func TestMutateDelete(t *testing.T) {
 			ovsdb.MutateOperationDelete,
 			"bar",
 			[]string{"foo"},
+			"bar",
 		},
 		{
 			"delete multiple string",
@@ -317,6 +323,7 @@ func TestMutateDelete(t *testing.T) {
 			ovsdb.MutateOperationDelete,
 			[]string{"bar", "baz"},
 			[]string{"foo"},
+			[]string{"bar", "baz"},
 		},
 		{
 			"delete key value pairs",
@@ -332,6 +339,9 @@ func TestMutateDelete(t *testing.T) {
 			map[string]string{
 				"foo": "bar",
 			},
+			map[string]string{
+				"baz": "quux",
+			},
 		},
 		{
 			"delete keys",
@@ -344,14 +354,16 @@ func TestMutateDelete(t *testing.T) {
 			map[string]string{
 				"baz": "quux",
 			},
+			map[string]string{
+				"foo": "bar",
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, _ := mutate(tt.current, tt.mutator, tt.value)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("mutate() = %v, want %v", got, tt.want)
-			}
+			got, diff := mutate(tt.current, tt.mutator, tt.value)
+			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.diff, diff)
 		})
 	}
 }

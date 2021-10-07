@@ -610,7 +610,6 @@ func (o *ovsdbClient) transact(ctx context.Context, dbName string, operation ...
 	}
 
 	args := ovsdb.NewTransactArgs(dbName, operation...)
-
 	if o.rpcClient == nil {
 		return nil, ErrNotConnected
 	}

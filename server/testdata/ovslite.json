@@ -24,6 +24,17 @@
                     "type": "string",
                     "mutable": false
                 },
+                "datapath_type": {
+                    "type": "string"
+                },
+                "datapath_id": {
+                    "type": {
+                        "key": "string",
+                        "min": 0,
+                        "max": 1
+                    },
+                    "ephemeral": true
+                },
                 "ports": {
                     "type": {
                         "key": {

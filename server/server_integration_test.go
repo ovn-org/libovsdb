@@ -21,12 +21,14 @@ import (
 
 // bridgeType is the simplified ORM model of the Bridge table
 type bridgeType struct {
-	UUID        string            `ovsdb:"_uuid"`
-	Name        string            `ovsdb:"name"`
-	OtherConfig map[string]string `ovsdb:"other_config"`
-	ExternalIds map[string]string `ovsdb:"external_ids"`
-	Ports       []string          `ovsdb:"ports"`
-	Status      map[string]string `ovsdb:"status"`
+	UUID         string            `ovsdb:"_uuid"`
+	Name         string            `ovsdb:"name"`
+	DatapathType string            `ovsdb:"datapath_type"`
+	DatapathID   *string           `ovsdb:"datapath_id"`
+	OtherConfig  map[string]string `ovsdb:"other_config"`
+	ExternalIds  map[string]string `ovsdb:"external_ids"`
+	Ports        []string          `ovsdb:"ports"`
+	Status       map[string]string `ovsdb:"status"`
 }
 
 // ovsType is the simplified ORM model of the Bridge table
@@ -127,9 +129,12 @@ func TestClientServerInsert(t *testing.T) {
 	_, err = ovs.MonitorAll(context.Background())
 	require.NoError(t, err)
 
+	wallace := "wallace"
 	bridgeRow := &bridgeType{
-		Name:        "foo",
-		ExternalIds: map[string]string{"go": "awesome", "docker": "made-for-each-other"},
+		Name:         "foo",
+		DatapathType: "bar",
+		DatapathID:   &wallace,
+		ExternalIds:  map[string]string{"go": "awesome", "docker": "made-for-each-other"},
 	}
 
 	ops, err := ovs.Create(bridgeRow)
@@ -145,6 +150,15 @@ func TestClientServerInsert(t *testing.T) {
 		err := ovs.Get(br)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
+
+	br := &bridgeType{UUID: uuid}
+	err = ovs.Get(br)
+	require.NoError(t, err)
+
+	assert.Equal(t, bridgeRow.Name, br.Name)
+	assert.Equal(t, bridgeRow.ExternalIds, br.ExternalIds)
+	assert.Equal(t, bridgeRow.DatapathType, br.DatapathType)
+	assert.Equal(t, *bridgeRow.DatapathID, wallace)
 }
 
 func TestClientServerMonitor(t *testing.T) {
@@ -498,4 +512,10 @@ func TestClientServerInsertAndUpdate(t *testing.T) {
 		}
 		return reflect.DeepEqual(br.ExternalIds, bridgeRow.ExternalIds)
 	}, 2*time.Second, 500*time.Millisecond)
+
+	br := &bridgeType{UUID: uuid}
+	err = ovs.Get(br)
+	assert.NoError(t, err)
+
+	assert.Equal(t, bridgeRow, br)
 }
