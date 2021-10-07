@@ -280,7 +280,7 @@ func (a api) Mutate(model model.Model, mutationObjs ...model.Mutation) ([]ovsdb.
 		return nil, fmt.Errorf("at least one Mutation must be provided")
 	}
 
-	tableName := a.cache.DatabaseModelRequest().FindTable(reflect.ValueOf(model).Type())
+	tableName := a.cache.DatabaseModel().FindTable(reflect.ValueOf(model).Type())
 	if tableName == "" {
 		return nil, fmt.Errorf("table not found for object")
 	}
@@ -414,7 +414,7 @@ func (a api) getTableFromModel(m interface{}) (string, error) {
 	if _, ok := m.(model.Model); !ok {
 		return "", &ErrWrongType{reflect.TypeOf(m), "Type does not implement Model interface"}
 	}
-	table := a.cache.DatabaseModelRequest().FindTable(reflect.TypeOf(m))
+	table := a.cache.DatabaseModel().FindTable(reflect.TypeOf(m))
 	if table == "" {
 		return "", &ErrWrongType{reflect.TypeOf(m), "Model not found in Database Model"}
 	}
@@ -439,7 +439,7 @@ func (a api) getTableFromFunc(predicate interface{}) (string, error) {
 			fmt.Sprintf("Type %s does not implement Model interface", modelType.String())}
 	}
 
-	table := a.cache.DatabaseModelRequest().FindTable(modelType)
+	table := a.cache.DatabaseModel().FindTable(modelType)
 	if table == "" {
 		return "", &ErrWrongType{predType,
 			fmt.Sprintf("Model %s not found in Database Model", modelType.String())}

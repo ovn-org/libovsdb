@@ -421,7 +421,7 @@ func NewTableCache(dbModel *model.DatabaseModel, data Data) (*TableCache, error)
 	}
 	eventProcessor := newEventProcessor(bufferSize)
 	cache := make(map[string]*RowCache)
-	tableTypes := dbModel.Request().Types()
+	tableTypes := dbModel.Types()
 	for name, tableSchema := range dbModel.Schema().Tables {
 		cache[name] = newRowCache(name, tableSchema, tableTypes[name])
 	}
@@ -449,8 +449,8 @@ func (t *TableCache) Mapper() *mapper.Mapper {
 }
 
 // DatabaseModelRequest returns the DatabaseModelRequest
-func (t *TableCache) DatabaseModelRequest() *model.DatabaseModelRequest {
-	return t.dbModel.Request()
+func (t *TableCache) DatabaseModel() *model.DatabaseModel {
+	return t.dbModel
 }
 
 // Table returns the a Table from the cache with a given name
@@ -513,7 +513,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
-	for table := range t.dbModel.Request().Types() {
+	for table := range t.dbModel.Types() {
 		updates, ok := tableUpdates[table]
 		if !ok {
 			continue
@@ -559,7 +559,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	for table := range t.dbModel.Request().Types() {
+	for table := range t.dbModel.Types() {
 		updates, ok := tableUpdates[table]
 		if !ok {
 			continue
@@ -625,7 +625,7 @@ func (t *TableCache) Purge(dbModel *model.DatabaseModel) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	t.dbModel = dbModel
-	tableTypes := t.dbModel.Request().Types()
+	tableTypes := t.dbModel.Types()
 	for name, tableSchema := range t.dbModel.Schema().Tables {
 		t.cache[name] = newRowCache(name, tableSchema, tableTypes[name])
 	}
@@ -757,7 +757,7 @@ func (t *TableCache) CreateModel(tableName string, row *ovsdb.Row, uuid string) 
 	if table == nil {
 		return nil, fmt.Errorf("table %s not found", tableName)
 	}
-	model, err := t.dbModel.Request().NewModel(tableName)
+	model, err := t.dbModel.NewModel(tableName)
 	if err != nil {
 		return nil, err
 	}
