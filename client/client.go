@@ -17,7 +17,6 @@ import (
 	"github.com/cenkalti/rpc2"
 	"github.com/cenkalti/rpc2/jsonrpc"
 	"github.com/ovn-org/libovsdb/cache"
-	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/ovn-org/libovsdb/ovsdb/serverdb"
@@ -86,8 +85,7 @@ type ovsdbClient struct {
 
 // database is everything needed to map between go types and an ovsdb Database
 type database struct {
-	model       *model.DatabaseModelRequest
-	schema      *ovsdb.DatabaseSchema
+	model       *model.DatabaseModel
 	schemaMutex sync.RWMutex
 	cache       *cache.TableCache
 	cacheMutex  sync.RWMutex
@@ -103,17 +101,17 @@ type database struct {
 // database model. The client can be configured using one or more Option(s),
 // like WithTLSConfig. If no WithEndpoint option is supplied, the default of
 // unix:/var/run/openvswitch/ovsdb.sock is used
-func NewOVSDBClient(databaseModel *model.DatabaseModelRequest, opts ...Option) (Client, error) {
-	return newOVSDBClient(databaseModel, opts...)
+func NewOVSDBClient(databaseModelRequest *model.DatabaseModelRequest, opts ...Option) (Client, error) {
+	return newOVSDBClient(databaseModelRequest, opts...)
 }
 
 // newOVSDBClient creates a new ovsdbClient
-func newOVSDBClient(databaseModel *model.DatabaseModelRequest, opts ...Option) (*ovsdbClient, error) {
+func newOVSDBClient(databaseModelRequest *model.DatabaseModelRequest, opts ...Option) (*ovsdbClient, error) {
 	ovs := &ovsdbClient{
-		primaryDBName: databaseModel.Name(),
+		primaryDBName: databaseModelRequest.Name(),
 		databases: map[string]*database{
-			databaseModel.Name(): {
-				model:    databaseModel,
+			databaseModelRequest.Name(): {
+				model:    model.NewPartialDatabaseModel(databaseModelRequest),
 				monitors: make(map[string]*Monitor),
 			},
 		},
@@ -132,7 +130,7 @@ func newOVSDBClient(databaseModel *model.DatabaseModelRequest, opts ...Option) (
 			return nil, fmt.Errorf("could not initialize model _Server: %w", err)
 		}
 		ovs.databases[serverDB] = &database{
-			model:    sm,
+			model:    model.NewPartialDatabaseModel(sm),
 			monitors: make(map[string]*Monitor),
 		}
 	}
@@ -287,7 +285,9 @@ func (o *ovsdbClient) tryEndpoint(ctx context.Context, u *url.URL) error {
 			return err
 		}
 
-		errors := db.model.Validate(schema)
+		db.schemaMutex.Lock()
+		errors := db.model.SetSchema(schema)
+		db.schemaMutex.Unlock()
 		if len(errors) > 0 {
 			var combined []string
 			for _, err := range errors {
@@ -300,13 +300,9 @@ func (o *ovsdbClient) tryEndpoint(ctx context.Context, u *url.URL) error {
 			return err
 		}
 
-		db.schemaMutex.Lock()
-		db.schema = schema
-		db.schemaMutex.Unlock()
-
 		db.cacheMutex.Lock()
 		if db.cache == nil {
-			db.cache, err = cache.NewTableCache(schema, db.model, nil)
+			db.cache, err = cache.NewTableCache(db.model, nil)
 			if err != nil {
 				db.cacheMutex.Unlock()
 				o.rpcClient.Close()
@@ -315,7 +311,7 @@ func (o *ovsdbClient) tryEndpoint(ctx context.Context, u *url.URL) error {
 			}
 			db.api = newAPI(db.cache)
 		} else {
-			db.cache.Purge(db.schema)
+			db.cache.Purge(db.model)
 		}
 		db.cacheMutex.Unlock()
 	}
@@ -425,7 +421,7 @@ func (o *ovsdbClient) Schema() *ovsdb.DatabaseSchema {
 	db := o.primaryDB()
 	db.schemaMutex.RLock()
 	defer db.schemaMutex.RUnlock()
-	return db.schema
+	return db.model.Schema()
 }
 
 // Cache returns the TableCache that is populated from
@@ -619,7 +615,7 @@ func (o *ovsdbClient) transact(ctx context.Context, dbName string, operation ...
 	var reply []ovsdb.OperationResult
 	db := o.databases[dbName]
 	db.schemaMutex.RLock()
-	schema := o.databases[dbName].schema
+	schema := o.databases[dbName].model.Schema()
 	db.schemaMutex.RUnlock()
 	if schema == nil {
 		return nil, fmt.Errorf("cannot transact to database %s: schema unknown", dbName)
@@ -645,7 +641,7 @@ func (o *ovsdbClient) transact(ctx context.Context, dbName string, operation ...
 // MonitorAll is a convenience method to monitor every table/column
 func (o *ovsdbClient) MonitorAll(ctx context.Context) (MonitorCookie, error) {
 	m := newMonitor()
-	for name := range o.primaryDB().model.Types() {
+	for name := range o.primaryDB().model.Request().Types() {
 		m.Tables = append(m.Tables, TableMonitor{Table: name})
 	}
 	return o.Monitor(ctx, m)
@@ -705,9 +701,9 @@ func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconne
 	dbName := cookie.DatabaseName
 	db := o.databases[dbName]
 	db.schemaMutex.RLock()
-	mapper := mapper.NewMapper(db.schema)
+	mapper := db.model.Mapper()
 	db.schemaMutex.RUnlock()
-	typeMap := o.databases[dbName].model.Types()
+	typeMap := o.databases[dbName].model.Request().Types()
 	requests := make(map[string]ovsdb.MonitorRequest)
 	for _, o := range monitor.Tables {
 		m, ok := typeMap[o.Table]
@@ -908,7 +904,7 @@ func (o *ovsdbClient) handleDisconnectNotification() {
 
 		db.schemaMutex.Lock()
 		defer db.schemaMutex.Unlock()
-		db.schema = nil
+		db.model.ClearSchema()
 
 		db.monitorsMutex.Lock()
 		defer db.monitorsMutex.Unlock()

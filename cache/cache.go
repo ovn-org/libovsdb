@@ -406,9 +406,7 @@ func (e *EventHandlerFuncs) OnDelete(table string, row model.Model) {
 type TableCache struct {
 	cache          map[string]*RowCache
 	eventProcessor *eventProcessor
-	mapper         *mapper.Mapper
-	dbModelReq     *model.DatabaseModelRequest
-	schema         *ovsdb.DatabaseSchema
+	dbModel        *model.DatabaseModel
 	ovsdb.NotificationHandler
 	mutex sync.RWMutex
 }
@@ -417,18 +415,18 @@ type TableCache struct {
 type Data map[string]map[string]model.Model
 
 // NewTableCache creates a new TableCache
-func NewTableCache(schema *ovsdb.DatabaseSchema, dbModelReq *model.DatabaseModelRequest, data Data) (*TableCache, error) {
-	if schema == nil || dbModelReq == nil {
-		return nil, fmt.Errorf("tablecache without databasemodel cannot be populated")
+func NewTableCache(dbModel *model.DatabaseModel, data Data) (*TableCache, error) {
+	if !dbModel.Valid() {
+		return nil, fmt.Errorf("tablecache without valid databasemodel cannot be populated")
 	}
 	eventProcessor := newEventProcessor(bufferSize)
 	cache := make(map[string]*RowCache)
-	tableTypes := dbModelReq.Types()
-	for name, tableSchema := range schema.Tables {
+	tableTypes := dbModel.Request().Types()
+	for name, tableSchema := range dbModel.Schema().Tables {
 		cache[name] = newRowCache(name, tableSchema, tableTypes[name])
 	}
 	for table, rowData := range data {
-		if _, ok := schema.Tables[table]; !ok {
+		if _, ok := dbModel.Schema().Tables[table]; !ok {
 			return nil, fmt.Errorf("table %s is not in schema", table)
 		}
 		for uuid, row := range rowData {
@@ -439,22 +437,20 @@ func NewTableCache(schema *ovsdb.DatabaseSchema, dbModelReq *model.DatabaseModel
 	}
 	return &TableCache{
 		cache:          cache,
-		schema:         schema,
 		eventProcessor: eventProcessor,
-		mapper:         mapper.NewMapper(schema),
-		dbModelReq:     dbModelReq,
+		dbModel:        dbModel,
 		mutex:          sync.RWMutex{},
 	}, nil
 }
 
 // Mapper returns the mapper
 func (t *TableCache) Mapper() *mapper.Mapper {
-	return t.mapper
+	return t.dbModel.Mapper()
 }
 
 // DatabaseModelRequest returns the DatabaseModelRequest
 func (t *TableCache) DatabaseModelRequest() *model.DatabaseModelRequest {
-	return t.dbModelReq
+	return t.dbModel.Request()
 }
 
 // Table returns the a Table from the cache with a given name
@@ -517,7 +513,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
-	for table := range t.dbModelReq.Types() {
+	for table := range t.dbModel.Request().Types() {
 		updates, ok := tableUpdates[table]
 		if !ok {
 			continue
@@ -563,7 +559,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	for table := range t.dbModelReq.Types() {
+	for table := range t.dbModel.Request().Types() {
 		updates, ok := tableUpdates[table]
 		if !ok {
 			continue
@@ -624,12 +620,13 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) {
 }
 
 // Purge drops all data in the cache and reinitializes it using the
-// provided schema
-func (t *TableCache) Purge(schema *ovsdb.DatabaseSchema) {
+// provided database model
+func (t *TableCache) Purge(dbModel *model.DatabaseModel) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	tableTypes := t.dbModelReq.Types()
-	for name, tableSchema := range t.schema.Tables {
+	t.dbModel = dbModel
+	tableTypes := t.dbModel.Request().Types()
+	for name, tableSchema := range t.dbModel.Schema().Tables {
 		t.cache[name] = newRowCache(name, tableSchema, tableTypes[name])
 	}
 }
@@ -756,16 +753,16 @@ func (e *eventProcessor) Run(stopCh <-chan struct{}) {
 
 // CreateModel creates a new Model instance based on the Row information
 func (t *TableCache) CreateModel(tableName string, row *ovsdb.Row, uuid string) (model.Model, error) {
-	table := t.mapper.Schema.Table(tableName)
+	table := t.dbModel.Schema().Table(tableName)
 	if table == nil {
 		return nil, fmt.Errorf("table %s not found", tableName)
 	}
-	model, err := t.dbModelReq.NewModel(tableName)
+	model, err := t.dbModel.Request().NewModel(tableName)
 	if err != nil {
 		return nil, err
 	}
 
-	err = t.mapper.GetRowData(tableName, row, model)
+	err = t.dbModel.Mapper().GetRowData(tableName, row, model)
 	if err != nil {
 		return nil, err
 	}
@@ -786,11 +783,11 @@ func (t *TableCache) CreateModel(tableName string, row *ovsdb.Row, uuid string) 
 // ApplyModifications applies the contents of a RowUpdate2.Modify to a model
 // nolint: gocyclo
 func (t *TableCache) ApplyModifications(tableName string, base model.Model, update ovsdb.Row) error {
-	table := t.mapper.Schema.Table(tableName)
+	table := t.dbModel.Schema().Table(tableName)
 	if table == nil {
 		return fmt.Errorf("table %s not found", tableName)
 	}
-	schema := t.schema.Table(tableName)
+	schema := t.dbModel.Schema().Table(tableName)
 	if schema == nil {
 		return fmt.Errorf("no schema for table %s", tableName)
 	}

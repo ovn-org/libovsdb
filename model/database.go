@@ -17,25 +17,11 @@ type DatabaseModel struct {
 // NewDatabaseModel returns a new DatabaseModel
 func NewDatabaseModel(schema *ovsdb.DatabaseSchema, request *DatabaseModelRequest) *DatabaseModel {
 	return &DatabaseModel{
+		valid:   true,
 		request: request,
 		schema:  schema,
 		mapper:  mapper.NewMapper(schema),
 	}
-}
-
-// Request returns the DatabaseModel's request
-func (db *DatabaseModel) Request() *DatabaseModelRequest {
-	return db.request
-}
-
-// Schema returns the DatabaseModel's schema
-func (db *DatabaseModel) Schema() *ovsdb.DatabaseSchema {
-	return db.schema
-}
-
-// Mapper returns the DatabaseModel's mapper
-func (db *DatabaseModel) Mapper() *mapper.Mapper {
-	return db.mapper
 }
 
 // NewPartialDatabaseModel returns a DatabaseModel what does not have a schema yet
@@ -68,4 +54,19 @@ func (db *DatabaseModel) ClearSchema() {
 	db.schema = nil
 	db.mapper = nil
 	db.valid = false
+}
+
+// Request returns the DatabaseModel's request
+func (db *DatabaseModel) Request() *DatabaseModelRequest {
+	return db.request
+}
+
+// Schema returns the DatabaseModel's schema
+func (db *DatabaseModel) Schema() *ovsdb.DatabaseSchema {
+	return db.schema
+}
+
+// Mapper returns the DatabaseModel's mapper
+func (db *DatabaseModel) Mapper() *mapper.Mapper {
+	return db.mapper
 }
