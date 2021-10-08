@@ -1179,7 +1179,9 @@ func TestTableCacheApplyModifications(t *testing.T) {
 		Set   []string          `ovsdb:"set"`
 		Map   map[string]string `ovsdb:"map"`
 		Map2  map[string]string `ovsdb:"map2"`
+		Ptr   *string           `ovsdb:"ptr"`
 	}
+	aEmptySet, _ := ovsdb.NewOvsSet([]string{})
 	aFooSet, _ := ovsdb.NewOvsSet([]string{"foo"})
 	aFooBarSet, _ := ovsdb.NewOvsSet([]string{"foo", "bar"})
 	aFooMap, _ := ovsdb.NewOvsMap(map[string]string{"foo": "bar"})
@@ -1188,6 +1190,10 @@ func TestTableCacheApplyModifications(t *testing.T) {
 		"bar": "baz",
 		"baz": "quux",
 	})
+	wallace := "wallace"
+	aWallaceSet, _ := ovsdb.NewOvsSet([]string{wallace})
+	gromit := "gromit"
+	aWallaceGromitSet, _ := ovsdb.NewOvsSet([]string{wallace, gromit})
 	tests := []struct {
 		name     string
 		update   ovsdb.Row
@@ -1224,7 +1230,6 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			&testDBModel{Set: []string{"foo"}},
 			&testDBModel{Set: []string{"bar"}},
 		},
-
 		{
 			"replace map value",
 			ovsdb.Row{"map": aFooMap},
@@ -1252,6 +1257,24 @@ func TestTableCacheApplyModifications(t *testing.T) {
 				Map2: map[string]string{"foo": "bar"},
 			},
 		},
+		{
+			"set optional value",
+			ovsdb.Row{"ptr": aWallaceSet},
+			&testDBModel{Ptr: nil},
+			&testDBModel{Ptr: &wallace},
+		},
+		{
+			"replace optional value",
+			ovsdb.Row{"ptr": aWallaceGromitSet},
+			&testDBModel{Ptr: &wallace},
+			&testDBModel{Ptr: &gromit},
+		},
+		{
+			"delete optional value",
+			ovsdb.Row{"ptr": aEmptySet},
+			&testDBModel{Ptr: &wallace},
+			&testDBModel{Ptr: nil},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1268,7 +1291,8 @@ func TestTableCacheApplyModifications(t *testing.T) {
 					  "value": { "type": "string" },
 					  "set": { "type": { "key": { "type": "string" }, "min": 0,	"max": "unlimited" } },
 					  "map": { "type": { "key": "string", "max": "unlimited", "min": 0, "value": "string" } },
-					  "map2": { "type": { "key": "string", "max": "unlimited", "min": 0, "value": "string" } }
+					  "map2": { "type": { "key": "string", "max": "unlimited", "min": 0, "value": "string" } },
+					  "ptr": { "type": { "key": { "type": "string" }, "min": 0,	"max": 1 } }
 					}
 				  }
 				}

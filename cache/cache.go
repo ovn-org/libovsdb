@@ -780,6 +780,7 @@ func (t *TableCache) CreateModel(tableName string, row *ovsdb.Row, uuid string) 
 }
 
 // ApplyModifications applies the contents of a RowUpdate2.Modify to a model
+// nolint: gocyclo
 func (t *TableCache) ApplyModifications(tableName string, base model.Model, update ovsdb.Row) error {
 	table := t.mapper.Schema.Table(tableName)
 	if table == nil {
@@ -797,19 +798,29 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 		if k == "_uuid" {
 			continue
 		}
-		value, err := ovsdb.OvsToNative(schema.Column(k), v)
+
+		current, err := info.FieldByColumn(k)
+		if err != nil {
+			return err
+		}
+
+		var value interface{}
+		value, err = ovsdb.OvsToNative(schema.Column(k), v)
+		// we can overflow the max of a set with min: 0, max: 1 here because of the update2/update3 notation
+		// which to replace "foo" with "bar" would send a set with ["foo", "bar"]
+		if err != nil && schema.Column(k).Type == ovsdb.TypeSet && schema.Column(k).TypeObj.Max() == 1 {
+			value, err = ovsdb.OvsToNativeSlice(schema.Column(k).TypeObj.Key.Type, v)
+		}
 		if err != nil {
 			return err
 		}
 		nv := reflect.ValueOf(value)
 
-		switch nv.Kind() {
+		switch reflect.ValueOf(current).Kind() {
 		case reflect.Slice, reflect.Array:
 			// The difference between two sets are all elements that only belong to one of the sets.
-
 			// Iterate new values
 			for i := 0; i < nv.Len(); i++ {
-
 				// search for match in base values
 				baseValue, err := info.FieldByColumn(k)
 				if err != nil {
@@ -837,7 +848,30 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 					}
 				}
 			}
-
+		case reflect.Ptr:
+			// if NativeToOVS was successful, then simply assign
+			if nv.Type() == reflect.ValueOf(current).Type() {
+				err = info.SetField(k, nv.Interface())
+				return err
+			}
+			// With a pointer type, an update value could be a set with 2 elements [old, new]
+			if nv.Len() != 2 {
+				panic("expected a slice with 2 elements")
+			}
+			// the new value is the value in the slice which isn't equal to the existing string
+			for i := 0; i < nv.Len(); i++ {
+				baseValue, err := info.FieldByColumn(k)
+				if err != nil {
+					return err
+				}
+				bv := reflect.ValueOf(baseValue)
+				if nv.Index(i) != bv {
+					err = info.SetField(k, nv.Index(i).Addr().Interface())
+					if err != nil {
+						return err
+					}
+				}
+			}
 		case reflect.Map:
 			// The difference between two maps are all key-value pairs whose keys appears in only one of the maps,
 			// plus the key-value pairs whose keys appear in both maps but with different values.

@@ -81,8 +81,6 @@ func (r *RowUpdate2) Merge(new *RowUpdate2) {
 							oMap.GoMap[newK] = newV
 						}
 					}
-				default:
-					panic("ARGH!")
 				}
 			}
 		}
