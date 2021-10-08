@@ -136,8 +136,8 @@ type Transaction struct {
 	Cache *cache.TableCache
 }
 
-func NewTransaction(schema *ovsdb.DatabaseSchema, model *model.ClientDBModel) Transaction {
-	cache, err := cache.NewTableCache(schema, model, nil, nil)
+func NewTransaction(model *model.DatabaseModel) Transaction {
+	cache, err := cache.NewTableCache(model, nil, nil)
 	if err != nil {
 		panic(err)
 	}

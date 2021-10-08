@@ -25,25 +25,6 @@ func NewDatabaseModel(schema *ovsdb.DatabaseSchema, request *ClientDBModel) *Dat
 	}
 }
 
-// Client returns the DatabaseModel's client dbModel
-func (db *DatabaseModel) Client() *ClientDBModel {
-	return db.client
-}
-
-// Schema returns the DatabaseModel's schema
-func (db *DatabaseModel) Schema() *ovsdb.DatabaseSchema {
-	db.mutex.RLock()
-	defer db.mutex.RUnlock()
-	return db.schema
-}
-
-// Mapper returns the DatabaseModel's mapper
-func (db *DatabaseModel) Mapper() *mapper.Mapper {
-	db.mutex.RLock()
-	defer db.mutex.RUnlock()
-	return db.mapper
-}
-
 // NewPartialDatabaseModel returns a DatabaseModel what does not have a schema yet
 func NewPartialDatabaseModel(client *ClientDBModel) *DatabaseModel {
 	return &DatabaseModel{
@@ -77,4 +58,23 @@ func (db *DatabaseModel) ClearSchema() {
 	defer db.mutex.Unlock()
 	db.schema = nil
 	db.mapper = nil
+}
+
+// Client returns the DatabaseModel's client dbModel
+func (db *DatabaseModel) Client() *ClientDBModel {
+	return db.client
+}
+
+// Schema returns the DatabaseModel's schema
+func (db *DatabaseModel) Schema() *ovsdb.DatabaseSchema {
+	db.mutex.RLock()
+	defer db.mutex.RUnlock()
+	return db.schema
+}
+
+// Mapper returns the DatabaseModel's mapper
+func (db *DatabaseModel) Mapper() *mapper.Mapper {
+	db.mutex.RLock()
+	defer db.mutex.RUnlock()
+	return db.mapper
 }
