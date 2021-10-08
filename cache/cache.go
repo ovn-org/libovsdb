@@ -113,7 +113,7 @@ func (r *RowCache) RowByModel(m model.Model) model.Model {
 	if reflect.TypeOf(m) != r.dataType {
 		return nil
 	}
-	info, _ := mapper.NewInfo(&r.schema, m)
+	info, _ := mapper.NewInfo(r.name, &r.schema, m)
 	uuid, err := info.FieldByColumn("_uuid")
 	if err != nil {
 		return nil
@@ -143,7 +143,7 @@ func (r *RowCache) Create(uuid string, m model.Model, checkIndexes bool) error {
 	if reflect.TypeOf(m) != r.dataType {
 		return fmt.Errorf("expected data of type %s, but got %s", r.dataType.String(), reflect.TypeOf(m).String())
 	}
-	info, err := mapper.NewInfo(&r.schema, m)
+	info, err := mapper.NewInfo(r.name, &r.schema, m)
 	if err != nil {
 		return err
 	}
@@ -179,11 +179,11 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) error {
 		return NewErrCacheInconsistent(fmt.Sprintf("cannot update row %s as it does not exist in the cache", uuid))
 	}
 	oldRow := model.Clone(r.cache[uuid])
-	oldInfo, err := mapper.NewInfo(&r.schema, oldRow)
+	oldInfo, err := mapper.NewInfo(r.name, &r.schema, oldRow)
 	if err != nil {
 		return err
 	}
-	newInfo, err := mapper.NewInfo(&r.schema, m)
+	newInfo, err := mapper.NewInfo(r.name, &r.schema, m)
 	if err != nil {
 		return err
 	}
@@ -241,7 +241,7 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) error {
 }
 
 func (r *RowCache) IndexExists(row model.Model) error {
-	info, err := mapper.NewInfo(&r.schema, row)
+	info, err := mapper.NewInfo(r.name, &r.schema, row)
 	if err != nil {
 		return err
 	}
@@ -275,7 +275,7 @@ func (r *RowCache) Delete(uuid string) error {
 		return NewErrCacheInconsistent(fmt.Sprintf("cannot delete row %s as it does not exist in the cache", uuid))
 	}
 	oldRow := r.cache[uuid]
-	oldInfo, err := mapper.NewInfo(&r.schema, oldRow)
+	oldInfo, err := mapper.NewInfo(r.name, &r.schema, oldRow)
 	if err != nil {
 		return err
 	}
@@ -344,7 +344,7 @@ func (r *RowCache) RowsByCondition(conditions []ovsdb.Condition) (map[string]mod
 			}
 		} else {
 			for uuid, row := range r.Rows() {
-				info, err := mapper.NewInfo(&r.schema, row)
+				info, err := mapper.NewInfo(r.name, &r.schema, row)
 				if err != nil {
 					return nil, err
 				}
@@ -855,18 +855,17 @@ func (t *TableCache) CreateModel(tableName string, row *ovsdb.Row, uuid string) 
 	if err != nil {
 		return nil, err
 	}
-
-	err = t.dbModel.Mapper().GetRowData(tableName, row, model)
+	info, err := mapper.NewInfo(tableName, table, model)
+	if err != nil {
+		return nil, err
+	}
+	err = t.dbModel.Mapper().GetRowData(row, info)
 	if err != nil {
 		return nil, err
 	}
 
 	if uuid != "" {
-		mapperInfo, err := mapper.NewInfo(table, model)
-		if err != nil {
-			return nil, err
-		}
-		if err := mapperInfo.SetField("_uuid", uuid); err != nil {
+		if err := info.SetField("_uuid", uuid); err != nil {
 			return nil, err
 		}
 	}
@@ -888,7 +887,7 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 	if schema == nil {
 		return fmt.Errorf("no schema for table %s", tableName)
 	}
-	info, err := mapper.NewInfo(schema, base)
+	info, err := mapper.NewInfo(tableName, schema, base)
 	if err != nil {
 		return err
 	}

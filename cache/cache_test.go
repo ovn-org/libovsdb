@@ -251,7 +251,7 @@ func TestRowCacheCreateMultiIndex(t *testing.T) {
 				}
 			} else {
 				assert.Nil(t, err)
-				mapperInfo, err := mapper.NewInfo(tSchema, tt.model)
+				mapperInfo, err := mapper.NewInfo("Open_vSwitch", tSchema, tt.model)
 				require.Nil(t, err)
 				h, err := valueFromIndex(mapperInfo, newIndex("foo", "bar"))
 				require.Nil(t, err)
@@ -417,7 +417,7 @@ func TestRowCacheUpdateMultiIndex(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.Nil(t, err)
-				mapperInfo, err := mapper.NewInfo(tSchema, tt.model)
+				mapperInfo, err := mapper.NewInfo("Open_vSwitch", tSchema, tt.model)
 				require.Nil(t, err)
 				h, err := valueFromIndex(mapperInfo, newIndex("foo", "bar"))
 				require.Nil(t, err)
@@ -991,7 +991,7 @@ func TestIndex(t *testing.T) {
 	t.Run("Index by single column", func(t *testing.T) {
 		idx, err := table.Index("foo")
 		assert.Nil(t, err)
-		info, err := mapper.NewInfo(schema.Table("Open_vSwitch"), obj)
+		info, err := mapper.NewInfo("Open_vSwitch", schema.Table("Open_vSwitch"), obj)
 		assert.Nil(t, err)
 		v, err := valueFromIndex(info, newIndex("foo"))
 		assert.Nil(t, err)
@@ -1003,7 +1003,7 @@ func TestIndex(t *testing.T) {
 		obj2 := obj
 		obj2.Foo = "wrong"
 		assert.Nil(t, err)
-		info, err := mapper.NewInfo(schema.Table("Open_vSwitch"), obj2)
+		info, err := mapper.NewInfo("Open_vSwitch", schema.Table("Open_vSwitch"), obj2)
 		assert.Nil(t, err)
 		v, err := valueFromIndex(info, newIndex("foo"))
 		assert.Nil(t, err)
@@ -1021,7 +1021,7 @@ func TestIndex(t *testing.T) {
 	t.Run("Index by multi-column", func(t *testing.T) {
 		idx, err := table.Index("bar", "baz")
 		assert.Nil(t, err)
-		info, err := mapper.NewInfo(schema.Table("Open_vSwitch"), obj)
+		info, err := mapper.NewInfo("Open_vSwitch", schema.Table("Open_vSwitch"), obj)
 		assert.Nil(t, err)
 		v, err := valueFromIndex(info, newIndex("bar", "baz"))
 		assert.Nil(t, err)
@@ -1032,7 +1032,7 @@ func TestIndex(t *testing.T) {
 		assert.Nil(t, err)
 		obj2 := obj
 		obj2.Baz++
-		info, err := mapper.NewInfo(schema.Table("Open_vSwitch"), obj)
+		info, err := mapper.NewInfo("Open_vSwitch", schema.Table("Open_vSwitch"), obj)
 		assert.Nil(t, err)
 		v, err := valueFromIndex(info, newIndex("bar", "baz"))
 		assert.Nil(t, err)

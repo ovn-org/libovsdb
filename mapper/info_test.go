@@ -58,7 +58,7 @@ func TestNewMapperInfo(t *testing.T) {
 			err := json.Unmarshal(tt.table, &table)
 			assert.Nil(t, err)
 
-			info, err := NewInfo(&table, tt.obj)
+			info, err := NewInfo("Test", &table, tt.obj)
 			if tt.err {
 				assert.NotNil(t, err)
 			} else {
@@ -67,6 +67,7 @@ func TestNewMapperInfo(t *testing.T) {
 			for _, col := range tt.expectedCols {
 				assert.Truef(t, info.hasColumn(col), "Expected column should be present in Mapper Info")
 			}
+			assert.Equal(t, "Test", info.Metadata.TableName)
 
 		})
 	}
@@ -141,7 +142,7 @@ func TestMapperInfoSet(t *testing.T) {
 			err := json.Unmarshal(tt.table, &table)
 			assert.Nil(t, err)
 
-			info, err := NewInfo(&table, tt.obj)
+			info, err := NewInfo("Test", &table, tt.obj)
 			assert.Nil(t, err)
 
 			err = info.SetField(tt.column, tt.field)
@@ -222,7 +223,7 @@ func TestMapperInfoColByPtr(t *testing.T) {
 			err := json.Unmarshal(tt.table, &table)
 			assert.Nil(t, err)
 
-			info, err := NewInfo(&table, tt.obj)
+			info, err := NewInfo("Test", &table, tt.obj)
 			assert.Nil(t, err)
 
 			col, err := info.ColumnByPtr(tt.field)
@@ -354,7 +355,7 @@ func TestOrmGetIndex(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("GetValidIndexes_%s", tt.name), func(t *testing.T) {
-			info, err := NewInfo(&table, tt.obj)
+			info, err := NewInfo("Test", &table, tt.obj)
 			assert.Nil(t, err)
 
 			indexes, err := info.getValidIndexes()
