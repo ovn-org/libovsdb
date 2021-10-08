@@ -239,14 +239,21 @@ func (o *OvsdbServer) Update(database, table string, where []ovsdb.Condition, ro
 			if err != nil {
 				panic(err)
 			}
+
 			oldValue, err := ovsdb.NativeToOvs(colSchema, old)
 			if err != nil {
-				panic(err)
+				oldValue = nil
 			}
+
 			native, err := ovsdb.OvsToNative(colSchema, value)
 			if err != nil {
 				panic(err)
 			}
+
+			if oldValue == native {
+				continue
+			}
+
 			err = info.SetField(column, native)
 			if err != nil {
 				panic(err)
@@ -257,7 +264,10 @@ func (o *OvsdbServer) Update(database, table string, where []ovsdb.Condition, ro
 			if err != nil {
 				panic(err)
 			}
-			rowDelta[column] = diff(oldValue, newValue)
+			diff := diff(oldValue, newValue)
+			if diff != nil {
+				rowDelta[column] = diff
+			}
 		}
 
 		newRow, err := m.NewRow(table, new)
@@ -314,11 +324,11 @@ func (o *OvsdbServer) Mutate(database, table string, where []ovsdb.Condition, mu
 	}
 
 	for _, old := range rows {
-		info, err := mapper.NewInfo(schema, old)
+		oldInfo, err := mapper.NewInfo(schema, old)
 		if err != nil {
 			panic(err)
 		}
-		uuid, _ := info.FieldByColumn("_uuid")
+		uuid, _ := oldInfo.FieldByColumn("_uuid")
 		oldRow, err := m.NewRow(table, old)
 		if err != nil {
 			panic(err)
@@ -331,17 +341,19 @@ func (o *OvsdbServer) Mutate(database, table string, where []ovsdb.Condition, mu
 		if err != nil {
 			panic(err)
 		}
-		info, err = mapper.NewInfo(schema, new)
+		newInfo, err := mapper.NewInfo(schema, new)
 		if err != nil {
 			panic(err)
 		}
-		err = info.SetField("_uuid", uuid)
+		err = newInfo.SetField("_uuid", uuid)
 		if err != nil {
 			panic(err)
 		}
 
 		rowDelta := ovsdb.NewRow()
+		mutateCols := make(map[string]struct{})
 		for _, mutation := range mutations {
+			mutateCols[mutation.Column] = struct{}{}
 			column := schema.Column(mutation.Column)
 			var nativeValue interface{}
 			// Usually a mutation value is of the same type of the value being mutated
@@ -361,38 +373,69 @@ func (o *OvsdbServer) Mutate(database, table string, where []ovsdb.Condition, mu
 			if err := ovsdb.ValidateMutation(column, mutation.Mutator, nativeValue); err != nil {
 				panic(err)
 			}
-			current, err := info.FieldByColumn(mutation.Column)
+			current, err := newInfo.FieldByColumn(mutation.Column)
 			if err != nil {
 				panic(err)
 			}
-			newValue, delta := mutate(current, mutation.Mutator, nativeValue)
-			if err := info.SetField(mutation.Column, newValue); err != nil {
+			newValue, _ := mutate(current, mutation.Mutator, nativeValue)
+			if err := newInfo.SetField(mutation.Column, newValue); err != nil {
 				panic(err)
 			}
-			rowDelta[mutation.Column] = delta
+		}
+		for changed := range mutateCols {
+			colSchema := schema.Column(changed)
+			oldValueNative, err := oldInfo.FieldByColumn(changed)
+			if err != nil {
+				panic(err)
+			}
 
-			newRow, err := m.NewRow(table, new)
+			newValueNative, err := newInfo.FieldByColumn(changed)
 			if err != nil {
 				panic(err)
 			}
-			// check indexes
-			if err := o.db.CheckIndexes(database, table, new); err != nil {
-				if indexExists, ok := err.(*cache.ErrIndexExists); ok {
-					e := ovsdb.ConstraintViolation{}
-					return ovsdb.OperationResult{
-						Error:   e.Error(),
-						Details: newIndexExistsDetails(*indexExists),
-					}, nil
-				}
+
+			oldValue, err := ovsdb.NativeToOvs(colSchema, oldValueNative)
+			if err != nil {
+				panic(err)
+			}
+
+			newValue, err := ovsdb.NativeToOvs(colSchema, newValueNative)
+			if err != nil {
+				panic(err)
+			}
+
+			delta := diff(oldValue, newValue)
+			if delta != nil {
+				rowDelta[changed] = delta
+			}
+		}
+
+		// check indexes
+		if err := o.db.CheckIndexes(database, table, new); err != nil {
+			if indexExists, ok := err.(*cache.ErrIndexExists); ok {
+				e := ovsdb.ConstraintViolation{}
 				return ovsdb.OperationResult{
-					Error: err.Error(),
+					Error:   e.Error(),
+					Details: newIndexExistsDetails(*indexExists),
 				}, nil
 			}
-			tableUpdate.AddRowUpdate(uuid.(string), &ovsdb.RowUpdate2{
-				Modify: &newRow,
-			})
+			return ovsdb.OperationResult{
+				Error: err.Error(),
+			}, nil
 		}
+
+		newRow, err := m.NewRow(table, new)
+		if err != nil {
+			panic(err)
+		}
+
+		tableUpdate.AddRowUpdate(uuid.(string), &ovsdb.RowUpdate2{
+			Modify: &rowDelta,
+			Old:    &oldRow,
+			New:    &newRow,
+		})
 	}
+
 	return ovsdb.OperationResult{
 			Count: len(rows),
 		}, ovsdb.TableUpdates2{
@@ -493,8 +536,11 @@ func diff(a interface{}, b interface{}) interface{} {
 				c = append(c, replacementElem)
 			}
 		}
-		cSet, _ := ovsdb.NewOvsSet(c)
-		return cSet
+		if len(c) > 0 {
+			cSet, _ := ovsdb.NewOvsSet(c)
+			return cSet
+		}
+		return nil
 	case ovsdb.OvsMap:
 		originalMap := a.(ovsdb.OvsMap)
 		replacementMap := b.(ovsdb.OvsMap)
@@ -520,8 +566,11 @@ func diff(a interface{}, b interface{}) interface{} {
 				c[k] = v
 			}
 		}
-		cMap, _ := ovsdb.NewOvsMap(c)
-		return cMap
+		if len(c) > 0 {
+			cMap, _ := ovsdb.NewOvsMap(c)
+			return cMap
+		}
+		return nil
 	default:
 		return b
 	}

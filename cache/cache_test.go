@@ -1200,7 +1200,12 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			&testDBModel{Value: "foo"},
 			&testDBModel{Value: "bar"},
 		},
-
+		{
+			"noop",
+			ovsdb.Row{"value": "bar"},
+			&testDBModel{Value: "bar"},
+			&testDBModel{Value: "bar"},
+		},
 		{
 			"add to set",
 			ovsdb.Row{"set": aFooSet},
@@ -1236,7 +1241,7 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			"delete map key",
 			ovsdb.Row{"map": aFooMap},
 			&testDBModel{Map: map[string]string{"foo": "bar"}},
-			&testDBModel{Map: map[string]string{}},
+			&testDBModel{Map: nil},
 		},
 		{
 			"multiple map operations",
@@ -1276,8 +1281,8 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			err = tc.ApplyModifications("Open_vSwitch", original, tt.update)
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, original)
-			if reflect.DeepEqual(original, tt.base) {
-				t.Error("original and base are equal")
+			if !reflect.DeepEqual(tt.expected, tt.base) {
+				require.NotEqual(t, tt.base, original)
 			}
 		})
 	}

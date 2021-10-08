@@ -590,15 +590,15 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) {
 				}
 				t.eventProcessor.AddEvent(addEvent, table, nil, m)
 			case row.Modify != nil:
-				modified := tCache.Row(uuid)
-				if modified == nil {
+				existing := tCache.Row(uuid)
+				if existing == nil {
 					panic(fmt.Errorf("row with uuid %s does not exist", uuid))
 				}
+				modified := tCache.Row(uuid)
 				err := t.ApplyModifications(table, modified, *row.Modify)
 				if err != nil {
 					panic(err)
 				}
-				existing := tCache.Row(uuid)
 				if !reflect.DeepEqual(modified, existing) {
 					if err := tCache.Update(uuid, modified, false); err != nil {
 						panic(err)
@@ -720,7 +720,7 @@ func (e *eventProcessor) AddEvent(eventType string, table string, old model.Mode
 		// noop
 		return
 	default:
-		log.Print("dropping event because event buffer is full")
+		log.Print("libovsdb: dropping event because event buffer is full")
 	}
 }
 
@@ -870,6 +870,9 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 					// set new value
 					bv.SetMapIndex(mk, mv)
 				}
+			}
+			if len(bv.MapKeys()) == 0 {
+				bv = reflect.Zero(nv.Type())
 			}
 			err = info.SetField(k, bv.Interface())
 			if err != nil {

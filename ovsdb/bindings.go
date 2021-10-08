@@ -245,7 +245,6 @@ func NativeToOvsAtomic(basicType string, nativeElem interface{}) (interface{}, e
 // NativeToOvs transforms an native type to a ovs type based on the column type information
 func NativeToOvs(column *ColumnSchema, rawElem interface{}) (interface{}, error) {
 	naType := NativeType(column)
-
 	if t := reflect.TypeOf(rawElem); t != naType {
 		return nil, NewErrWrongType("NativeToOvs", naType.String(), rawElem)
 	}

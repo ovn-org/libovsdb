@@ -9,6 +9,7 @@ import (
 	"github.com/cenkalti/rpc2"
 	"github.com/cenkalti/rpc2/jsonrpc"
 	"github.com/google/uuid"
+	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
@@ -133,6 +134,22 @@ func (o *OvsdbServer) GetSchema(client *rpc2.Client, args []interface{}, reply *
 	o.modelsMutex.RUnlock()
 	*reply = *model.Schema
 	return nil
+}
+
+type Transaction struct {
+	ID    uuid.UUID
+	Cache *cache.TableCache
+}
+
+func NewTransaction(schema *ovsdb.DatabaseSchema, model *model.DBModel) Transaction {
+	cache, err := cache.NewTableCache(schema, model, nil)
+	if err != nil {
+		panic(err)
+	}
+	return Transaction{
+		ID:    uuid.New(),
+		Cache: cache,
+	}
 }
 
 // Transact issues a new database transaction and returns the results
