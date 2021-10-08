@@ -766,7 +766,6 @@ func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconne
 	}
 
 	if !reconnecting {
-		db := o.databases[dbName]
 		db.monitorsMutex.Lock()
 		db.monitors[cookie.ID] = monitor
 		db.monitorsMutex.Unlock()
@@ -774,12 +773,15 @@ func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconne
 
 	if monitor.Method == ovsdb.MonitorRPC {
 		u := tableUpdates.(ovsdb.TableUpdates)
-		o.databases[dbName].cache.Populate(u)
+		db.cacheMutex.Lock()
+		defer db.cacheMutex.Unlock()
+		db.cache.Update(nil, u)
 	} else {
 		u := tableUpdates.(ovsdb.TableUpdates2)
-		o.databases[dbName].cache.Populate2(u)
+		db.cacheMutex.Lock()
+		defer db.cacheMutex.Unlock()
+		db.cache.Update2(nil, u)
 	}
-
 	return nil
 }
 
