@@ -491,7 +491,7 @@ func testOvsMap(t *testing.T, set interface{}) ovsdb.OvsMap {
 
 func updateBenchmark(ovs *ovsdbClient, updates []byte, b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		params := []json.RawMessage{[]byte(`["Open_vSwitch","v1"]`), updates}
+		params := []json.RawMessage{[]byte(`{"databaseName":"Open_vSwitch","id":"v1"}`), updates}
 		var reply []interface{}
 		err := ovs.update(params, &reply)
 		if err != nil {
