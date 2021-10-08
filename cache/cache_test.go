@@ -1241,7 +1241,7 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			"delete map key",
 			ovsdb.Row{"map": aFooMap},
 			&testDBModel{Map: map[string]string{"foo": "bar"}},
-			&testDBModel{Map: map[string]string{}},
+			&testDBModel{Map: nil},
 		},
 		{
 			"multiple map operations",

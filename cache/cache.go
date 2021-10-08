@@ -871,6 +871,9 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 					bv.SetMapIndex(mk, mv)
 				}
 			}
+			if len(bv.MapKeys()) == 0 {
+				bv = reflect.Zero(nv.Type())
+			}
 			err = info.SetField(k, bv.Interface())
 			if err != nil {
 				return err
