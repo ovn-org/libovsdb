@@ -32,7 +32,9 @@ func TestMutateOp(t *testing.T) {
 	m := mapper.NewMapper(schema)
 
 	ovs := ovsType{}
-	ovsRow, err := m.NewRow("Open_vSwitch", &ovs)
+	info, err := mapper.NewInfo("Open_vSwitch", schema.Table("Open_vSwitch"), &ovs)
+	require.NoError(t, err)
+	ovsRow, err := m.NewRow(info)
 	require.Nil(t, err)
 
 	bridge := bridgeType{
@@ -43,7 +45,9 @@ func TestMutateOp(t *testing.T) {
 			"waldo": "fred",
 		},
 	}
-	bridgeRow, err := m.NewRow("Bridge", &bridge)
+	bridgeInfo, err := mapper.NewInfo("Bridge", schema.Table("Bridge"), &bridge)
+	require.NoError(t, err)
+	bridgeRow, err := m.NewRow(bridgeInfo)
 	require.Nil(t, err)
 
 	res, updates := o.Insert("Open_vSwitch", "Open_vSwitch", ovsUUID, ovsRow)
@@ -214,8 +218,7 @@ func TestOvsdbServerInsert(t *testing.T) {
 		t.Fatal(err)
 	}
 	ovsDB := NewInMemoryDatabase(map[string]*model.DatabaseModelRequest{"Open_vSwitch": defDB})
-	o, err := NewOvsdbServer(ovsDB, DatabaseModel{
-		Model: defDB, Schema: schema})
+	o, err := NewOvsdbServer(ovsDB, *model.NewDatabaseModel(schema, defDB))
 	require.Nil(t, err)
 	m := mapper.NewMapper(schema)
 
@@ -231,7 +234,9 @@ func TestOvsdbServerInsert(t *testing.T) {
 		},
 	}
 	bridgeUUID := uuid.NewString()
-	bridgeRow, err := m.NewRow("Bridge", &bridge)
+	bridgeInfo, err := mapper.NewInfo("Bridge", schema.Table("Bridge"), &bridge)
+	require.NoError(t, err)
+	bridgeRow, err := m.NewRow(bridgeInfo)
 	require.Nil(t, err)
 
 	res, updates := o.Insert("Open_vSwitch", "Bridge", bridgeUUID, bridgeRow)
@@ -267,8 +272,7 @@ func TestOvsdbServerUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 	ovsDB := NewInMemoryDatabase(map[string]*model.DatabaseModelRequest{"Open_vSwitch": defDB})
-	o, err := NewOvsdbServer(ovsDB, DatabaseModel{
-		Model: defDB, Schema: schema})
+	o, err := NewOvsdbServer(ovsDB, *model.NewDatabaseModel(schema, defDB))
 	require.Nil(t, err)
 	m := mapper.NewMapper(schema)
 
@@ -281,7 +285,9 @@ func TestOvsdbServerUpdate(t *testing.T) {
 		},
 	}
 	bridgeUUID := uuid.NewString()
-	bridgeRow, err := m.NewRow("Bridge", &bridge)
+	bridgeInfo, err := mapper.NewInfo("Bridge", schema.Table("Bridge"), &bridge)
+	require.NoError(t, err)
+	bridgeRow, err := m.NewRow(bridgeInfo)
 	require.Nil(t, err)
 
 	res, updates := o.Insert("Open_vSwitch", "Bridge", bridgeUUID, bridgeRow)

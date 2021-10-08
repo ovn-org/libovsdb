@@ -17,6 +17,7 @@ import (
 	"github.com/cenkalti/rpc2"
 	"github.com/cenkalti/rpc2/jsonrpc"
 	"github.com/ovn-org/libovsdb/cache"
+	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/ovn-org/libovsdb/ovsdb/serverdb"
@@ -134,7 +135,7 @@ func newOVSDBClient(databaseModelRequest *model.DatabaseModelRequest, opts ...Op
 			monitors: make(map[string]*Monitor),
 		}
 	}
-	ovs.metrics.init(databaseModel.Name())
+	ovs.metrics.init(databaseModelRequest.Name())
 
 	return ovs, nil
 }
@@ -146,7 +147,7 @@ func newOVSDBClient(databaseModelRequest *model.DatabaseModelRequest, opts ...Op
 func (o *ovsdbClient) Connect(ctx context.Context) error {
 	// add the "model" value to the structured logger
 	// to make it easier to tell between different DBs (e.g. ovn nbdb vs. sbdb)
-	l := o.options.logger.WithValues("model", o.primaryDB().model.Name())
+	l := o.options.logger.WithValues("model", o.primaryDB().model.Request().Name())
 	o.options.logger = &l
 	o.registerMetrics()
 
@@ -701,7 +702,8 @@ func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconne
 	dbName := cookie.DatabaseName
 	db := o.databases[dbName]
 	db.schemaMutex.RLock()
-	mapper := db.model.Mapper()
+	mmapper := db.model.Mapper()
+	schema := db.model.Schema()
 	db.schemaMutex.RUnlock()
 	typeMap := o.databases[dbName].model.Types()
 	requests := make(map[string]ovsdb.MonitorRequest)
@@ -710,7 +712,11 @@ func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconne
 		if !ok {
 			return fmt.Errorf("type for table %s does not exist in model", o.Table)
 		}
-		request, err := mapper.NewMonitorRequest(o.Table, m, o.Fields)
+		info, err := mapper.NewInfo(o.Table, schema.Table(o.Table), m)
+		if err != nil {
+			return err
+		}
+		request, err := mmapper.NewMonitorRequest(info, o.Fields)
 		if err != nil {
 			return err
 		}

@@ -89,7 +89,13 @@ func (o *OvsdbServer) Insert(database string, table string, rowUUID string, row 
 		}, nil
 	}
 
-	err = m.GetRowData(table, &row, model)
+	mapperInfo, err := mapper.NewInfo(table, tSchema, model)
+	if err != nil {
+		return ovsdb.OperationResult{
+			Error: err.Error(),
+		}, nil
+	}
+	err = m.GetRowData(&row, mapperInfo)
 	if err != nil {
 		return ovsdb.OperationResult{
 			Error: err.Error(),
@@ -97,12 +103,6 @@ func (o *OvsdbServer) Insert(database string, table string, rowUUID string, row 
 	}
 
 	if rowUUID != "" {
-		mapperInfo, err := mapper.NewInfo(tSchema, model)
-		if err != nil {
-			return ovsdb.OperationResult{
-				Error: err.Error(),
-			}, nil
-		}
 		if err := mapperInfo.SetField("_uuid", rowUUID); err != nil {
 			return ovsdb.OperationResult{
 				Error: err.Error(),
@@ -110,7 +110,7 @@ func (o *OvsdbServer) Insert(database string, table string, rowUUID string, row 
 		}
 	}
 
-	resultRow, err := m.NewRow(table, model)
+	resultRow, err := m.NewRow(mapperInfo)
 	if err != nil {
 		return ovsdb.OperationResult{
 			Error: err.Error(),
@@ -163,7 +163,11 @@ func (o *OvsdbServer) Select(database string, table string, where []ovsdb.Condit
 		panic(err)
 	}
 	for _, row := range rows {
-		resultRow, err := m.NewRow(table, row)
+		info, err := mapper.NewInfo(table, dbModel.Schema().Table(table), row)
+		if err != nil {
+			panic(err)
+		}
+		resultRow, err := m.NewRow(info)
 		if err != nil {
 			panic(err)
 		}
@@ -194,10 +198,10 @@ func (o *OvsdbServer) Update(database, table string, where []ovsdb.Condition, ro
 		}, nil
 	}
 	for _, old := range rows {
-		info, _ := mapper.NewInfo(schema, old)
-		uuid, _ := info.FieldByColumn("_uuid")
+		oldInfo, _ := mapper.NewInfo(table, schema, old)
+		uuid, _ := oldInfo.FieldByColumn("_uuid")
 
-		oldRow, err := m.NewRow(table, old)
+		oldRow, err := m.NewRow(oldInfo)
 		if err != nil {
 			panic(err)
 		}
@@ -205,15 +209,15 @@ func (o *OvsdbServer) Update(database, table string, where []ovsdb.Condition, ro
 		if err != nil {
 			panic(err)
 		}
-		err = m.GetRowData(table, &oldRow, new)
+		newInfo, err := mapper.NewInfo(table, schema, new)
 		if err != nil {
 			panic(err)
 		}
-		info, err = mapper.NewInfo(schema, new)
+		err = m.GetRowData(&oldRow, newInfo)
 		if err != nil {
 			panic(err)
 		}
-		err = info.SetField("_uuid", uuid)
+		err = newInfo.SetField("_uuid", uuid)
 		if err != nil {
 			panic(err)
 		}
@@ -235,7 +239,7 @@ func (o *OvsdbServer) Update(database, table string, where []ovsdb.Condition, ro
 					Details: fmt.Sprintf("column %s is of table %s not mutable", column, table),
 				}, nil
 			}
-			old, err := info.FieldByColumn(column)
+			old, err := newInfo.FieldByColumn(column)
 			if err != nil {
 				panic(err)
 			}
@@ -254,7 +258,7 @@ func (o *OvsdbServer) Update(database, table string, where []ovsdb.Condition, ro
 				continue
 			}
 
-			err = info.SetField(column, native)
+			err = newInfo.SetField(column, native)
 			if err != nil {
 				panic(err)
 			}
@@ -270,7 +274,7 @@ func (o *OvsdbServer) Update(database, table string, where []ovsdb.Condition, ro
 			}
 		}
 
-		newRow, err := m.NewRow(table, new)
+		newRow, err := m.NewRow(newInfo)
 		if err != nil {
 			panic(err)
 		}
@@ -324,12 +328,12 @@ func (o *OvsdbServer) Mutate(database, table string, where []ovsdb.Condition, mu
 	}
 
 	for _, old := range rows {
-		oldInfo, err := mapper.NewInfo(schema, old)
+		oldInfo, err := mapper.NewInfo(table, schema, old)
 		if err != nil {
 			panic(err)
 		}
 		uuid, _ := oldInfo.FieldByColumn("_uuid")
-		oldRow, err := m.NewRow(table, old)
+		oldRow, err := m.NewRow(oldInfo)
 		if err != nil {
 			panic(err)
 		}
@@ -337,11 +341,11 @@ func (o *OvsdbServer) Mutate(database, table string, where []ovsdb.Condition, mu
 		if err != nil {
 			panic(err)
 		}
-		err = m.GetRowData(table, &oldRow, new)
+		newInfo, err := mapper.NewInfo(table, schema, new)
 		if err != nil {
 			panic(err)
 		}
-		newInfo, err := mapper.NewInfo(schema, new)
+		err = m.GetRowData(&oldRow, newInfo)
 		if err != nil {
 			panic(err)
 		}
@@ -424,7 +428,7 @@ func (o *OvsdbServer) Mutate(database, table string, where []ovsdb.Condition, mu
 			}, nil
 		}
 
-		newRow, err := m.NewRow(table, new)
+		newRow, err := m.NewRow(newInfo)
 		if err != nil {
 			panic(err)
 		}
@@ -460,9 +464,9 @@ func (o *OvsdbServer) Delete(database, table string, where []ovsdb.Condition) (o
 		panic(err)
 	}
 	for _, row := range rows {
-		info, _ := mapper.NewInfo(schema, row)
+		info, _ := mapper.NewInfo(table, schema, row)
 		uuid, _ := info.FieldByColumn("_uuid")
-		oldRow, err := m.NewRow(table, row)
+		oldRow, err := m.NewRow(info)
 		if err != nil {
 			panic(err)
 		}

@@ -246,7 +246,7 @@ func (a api) Create(models ...model.Model) ([]ovsdb.Operation, error) {
 		table := a.cache.Mapper().Schema.Table(tableName)
 
 		// Read _uuid field, and use it as named-uuid
-		info, err := mapper.NewInfo(table, model)
+		info, err := mapper.NewInfo(tableName, table, model)
 		if err != nil {
 			return nil, err
 		}
@@ -256,7 +256,7 @@ func (a api) Create(models ...model.Model) ([]ovsdb.Operation, error) {
 			return nil, err
 		}
 
-		row, err := a.cache.Mapper().NewRow(tableName, model)
+		row, err := a.cache.Mapper().NewRow(info)
 		if err != nil {
 			return nil, err
 		}
@@ -294,7 +294,7 @@ func (a api) Mutate(model model.Model, mutationObjs ...model.Mutation) ([]ovsdb.
 		return nil, err
 	}
 
-	info, err := mapper.NewInfo(table, model)
+	info, err := mapper.NewInfo(tableName, table, model)
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +305,7 @@ func (a api) Mutate(model model.Model, mutationObjs ...model.Mutation) ([]ovsdb.
 			return nil, err
 		}
 
-		mutation, err := a.cache.Mapper().NewMutation(tableName, model, col, mobj.Mutator, mobj.Value)
+		mutation, err := a.cache.Mapper().NewMutation(info, col, mobj.Mutator, mobj.Value)
 		if err != nil {
 			return nil, err
 		}
@@ -335,12 +335,12 @@ func (a api) Update(model model.Model, fields ...interface{}) ([]ovsdb.Operation
 		return nil, err
 	}
 	tableSchema := a.cache.Mapper().Schema.Table(table)
+	info, err := mapper.NewInfo(table, tableSchema, model)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(fields) > 0 {
-		info, err := mapper.NewInfo(tableSchema, model)
-		if err != nil {
-			return nil, err
-		}
 		for _, f := range fields {
 			colName, err := info.ColumnByPtr(f)
 			if err != nil {
@@ -357,7 +357,7 @@ func (a api) Update(model model.Model, fields ...interface{}) ([]ovsdb.Operation
 		return nil, err
 	}
 
-	row, err := a.cache.Mapper().NewRow(table, model, fields...)
+	row, err := a.cache.Mapper().NewRow(info, fields...)
 	if err != nil {
 		return nil, err
 	}
