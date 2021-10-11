@@ -69,7 +69,9 @@ func TestClientServerEcho(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	tmpfile := fmt.Sprintf("/tmp/ovsdb-%d.sock", rand.Intn(10000))
 	defer os.Remove(tmpfile)
-	server, err := NewOvsdbServer(ovsDB, *model.NewDatabaseModel(schema, defDB))
+	dbModel, errs := model.NewDatabaseModel(schema, defDB)
+	require.Empty(t, errs)
+	server, err := NewOvsdbServer(ovsDB, *dbModel)
 	require.Nil(t, err)
 
 	go func(t *testing.T, o *OvsdbServer) {
@@ -103,7 +105,9 @@ func TestClientServerInsert(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	tmpfile := fmt.Sprintf("/tmp/ovsdb-%d.sock", rand.Intn(10000))
 	defer os.Remove(tmpfile)
-	server, err := NewOvsdbServer(ovsDB, *model.NewDatabaseModel(schema, defDB))
+	dbModel, errs := model.NewDatabaseModel(schema, defDB)
+	require.Empty(t, errs)
+	server, err := NewOvsdbServer(ovsDB, *dbModel)
 	assert.Nil(t, err)
 
 	go func(t *testing.T, o *OvsdbServer) {
@@ -172,7 +176,9 @@ func TestClientServerMonitor(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	tmpfile := fmt.Sprintf("/tmp/ovsdb-%d.sock", rand.Intn(10000))
 	defer os.Remove(tmpfile)
-	server, err := NewOvsdbServer(ovsDB, *model.NewDatabaseModel(schema, defDB))
+	dbModel, errs := model.NewDatabaseModel(schema, defDB)
+	require.Empty(t, errs)
+	server, err := NewOvsdbServer(ovsDB, *dbModel)
 	assert.Nil(t, err)
 
 	go func(t *testing.T, o *OvsdbServer) {
@@ -292,7 +298,9 @@ func TestClientServerInsertAndDelete(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	tmpfile := fmt.Sprintf("/tmp/ovsdb-%d.sock", rand.Intn(10000))
 	defer os.Remove(tmpfile)
-	server, err := NewOvsdbServer(ovsDB, *model.NewDatabaseModel(schema, defDB))
+	dbModel, errs := model.NewDatabaseModel(schema, defDB)
+	require.Empty(t, errs)
+	server, err := NewOvsdbServer(ovsDB, *dbModel)
 	assert.Nil(t, err)
 
 	go func(t *testing.T, o *OvsdbServer) {
@@ -356,7 +364,9 @@ func TestClientServerInsertDuplicate(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	tmpfile := fmt.Sprintf("/tmp/ovsdb-%d.sock", rand.Intn(10000))
 	defer os.Remove(tmpfile)
-	server, err := NewOvsdbServer(ovsDB, *model.NewDatabaseModel(schema, defDB))
+	dbModel, errs := model.NewDatabaseModel(schema, defDB)
+	require.Empty(t, errs)
+	server, err := NewOvsdbServer(ovsDB, *dbModel)
 	assert.Nil(t, err)
 
 	go func(t *testing.T, o *OvsdbServer) {
@@ -408,7 +418,9 @@ func TestClientServerInsertAndUpdate(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	tmpfile := fmt.Sprintf("/tmp/ovsdb-%d.sock", rand.Intn(10000))
 	defer os.Remove(tmpfile)
-	server, err := NewOvsdbServer(ovsDB, *model.NewDatabaseModel(schema, defDB))
+	dbModel, errs := model.NewDatabaseModel(schema, defDB)
+	require.Empty(t, errs)
+	server, err := NewOvsdbServer(ovsDB, *dbModel)
 	assert.Nil(t, err)
 
 	go func(t *testing.T, o *OvsdbServer) {

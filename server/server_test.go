@@ -77,7 +77,9 @@ func TestOvsdbServerMonitor(t *testing.T) {
 		t.Fatal(err)
 	}
 	ovsDB := NewInMemoryDatabase(map[string]*model.DatabaseModelRequest{"Open_vSwitch": defDB})
-	o, err := NewOvsdbServer(ovsDB, *model.NewDatabaseModel(schema, defDB))
+	dbModel, errs := model.NewDatabaseModel(schema, defDB)
+	require.Empty(t, errs)
+	o, err := NewOvsdbServer(ovsDB, *dbModel)
 	require.Nil(t, err)
 	requests := make(map[string]ovsdb.MonitorRequest)
 	for table, tableSchema := range schema.Tables {

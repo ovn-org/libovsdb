@@ -42,7 +42,10 @@ func (db *inMemoryDatabase) CreateDatabase(name string, schema *ovsdb.DatabaseSc
 	if mo, ok = db.models[schema.Name]; !ok {
 		return fmt.Errorf("no db model provided for schema with name %s", name)
 	}
-	dbModel := model.NewDatabaseModel(schema, mo)
+	dbModel, errs := model.NewDatabaseModel(schema, mo)
+	if len(errs) > 0 {
+		return fmt.Errorf("Failed to create DatabaseModel: %#+v", errs)
+	}
 	database, err := cache.NewTableCache(dbModel, nil)
 	if err != nil {
 		return nil

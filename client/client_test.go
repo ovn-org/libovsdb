@@ -564,7 +564,8 @@ func BenchmarkUpdate1(b *testing.B) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	dbModel := model.NewDatabaseModel(&s, dbModelReq)
+	dbModel, errs := model.NewDatabaseModel(&s, dbModelReq)
+	require.Empty(b, errs)
 	ovs.primaryDB().cache, err = cache.NewTableCache(dbModel, nil)
 	require.NoError(b, err)
 	update := []byte(`{
@@ -589,7 +590,8 @@ func BenchmarkUpdate2(b *testing.B) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	dbModel := model.NewDatabaseModel(&s, dbModelReq)
+	dbModel, errs := model.NewDatabaseModel(&s, dbModelReq)
+	require.Empty(b, errs)
 	ovs.primaryDB().cache, err = cache.NewTableCache(dbModel, nil)
 	require.NoError(b, err)
 	update := []byte(`{
@@ -615,7 +617,8 @@ func BenchmarkUpdate3(b *testing.B) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	dbModel := model.NewDatabaseModel(&s, dbModelReq)
+	dbModel, errs := model.NewDatabaseModel(&s, dbModelReq)
+	require.Empty(b, errs)
 	ovs.primaryDB().cache, err = cache.NewTableCache(dbModel, nil)
 	require.NoError(b, err)
 	update := []byte(`{
@@ -642,7 +645,8 @@ func BenchmarkUpdate5(b *testing.B) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	dbModel := model.NewDatabaseModel(&s, dbModelReq)
+	dbModel, errs := model.NewDatabaseModel(&s, dbModelReq)
+	require.Empty(b, errs)
 	ovs.primaryDB().cache, err = cache.NewTableCache(dbModel, nil)
 	require.NoError(b, err)
 	update := []byte(`{
@@ -671,7 +675,8 @@ func BenchmarkUpdate8(b *testing.B) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	dbModel := model.NewDatabaseModel(&s, dbModelReq)
+	dbModel, errs := model.NewDatabaseModel(&s, dbModelReq)
+	require.Empty(b, errs)
 	ovs.primaryDB().cache, err = cache.NewTableCache(dbModel, nil)
 	require.NoError(b, err)
 	update := []byte(`{
@@ -717,7 +722,8 @@ func TestUpdate(t *testing.T) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(t, err)
-	dbModel := model.NewDatabaseModel(&s, dbModelReq)
+	dbModel, errs := model.NewDatabaseModel(&s, dbModelReq)
+	require.Empty(t, errs)
 	ovs.primaryDB().cache, err = cache.NewTableCache(dbModel, nil)
 	require.NoError(t, err)
 	var reply []interface{}
