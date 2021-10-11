@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ovn-org/libovsdb/cache"
-	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
@@ -76,7 +75,6 @@ func (o *OvsdbServer) Insert(database string, table string, rowUUID string, row 
 	o.modelsMutex.Unlock()
 
 	m := dbModel.Mapper()
-	tSchema := dbModel.Schema().Table(table)
 
 	if rowUUID == "" {
 		rowUUID = uuid.NewString()
@@ -89,7 +87,7 @@ func (o *OvsdbServer) Insert(database string, table string, rowUUID string, row 
 		}, nil
 	}
 
-	mapperInfo, err := mapper.NewInfo(table, tSchema, model)
+	mapperInfo, err := dbModel.NewModelInfo(model)
 	if err != nil {
 		return ovsdb.OperationResult{
 			Error: err.Error(),
@@ -163,7 +161,7 @@ func (o *OvsdbServer) Select(database string, table string, where []ovsdb.Condit
 		panic(err)
 	}
 	for _, row := range rows {
-		info, err := mapper.NewInfo(table, dbModel.Schema().Table(table), row)
+		info, err := dbModel.NewModelInfo(row)
 		if err != nil {
 			panic(err)
 		}
@@ -198,7 +196,7 @@ func (o *OvsdbServer) Update(database, table string, where []ovsdb.Condition, ro
 		}, nil
 	}
 	for _, old := range rows {
-		oldInfo, _ := mapper.NewInfo(table, schema, old)
+		oldInfo, _ := dbModel.NewModelInfo(old)
 		uuid, _ := oldInfo.FieldByColumn("_uuid")
 
 		oldRow, err := m.NewRow(oldInfo)
@@ -209,7 +207,7 @@ func (o *OvsdbServer) Update(database, table string, where []ovsdb.Condition, ro
 		if err != nil {
 			panic(err)
 		}
-		newInfo, err := mapper.NewInfo(table, schema, new)
+		newInfo, err := dbModel.NewModelInfo(new)
 		if err != nil {
 			panic(err)
 		}
@@ -328,7 +326,7 @@ func (o *OvsdbServer) Mutate(database, table string, where []ovsdb.Condition, mu
 	}
 
 	for _, old := range rows {
-		oldInfo, err := mapper.NewInfo(table, schema, old)
+		oldInfo, err := dbModel.NewModelInfo(old)
 		if err != nil {
 			panic(err)
 		}
@@ -341,7 +339,7 @@ func (o *OvsdbServer) Mutate(database, table string, where []ovsdb.Condition, mu
 		if err != nil {
 			panic(err)
 		}
-		newInfo, err := mapper.NewInfo(table, schema, new)
+		newInfo, err := dbModel.NewModelInfo(new)
 		if err != nil {
 			panic(err)
 		}
@@ -457,14 +455,14 @@ func (o *OvsdbServer) Delete(database, table string, where []ovsdb.Condition) (o
 	dbModel := o.models[database]
 	o.modelsMutex.Unlock()
 	m := dbModel.Mapper()
-	schema := dbModel.Schema().Table(table)
+
 	tableUpdate := make(ovsdb.TableUpdate2)
 	rows, err := o.db.List(database, table, where...)
 	if err != nil {
 		panic(err)
 	}
 	for _, row := range rows {
-		info, _ := mapper.NewInfo(table, schema, row)
+		info, _ := dbModel.NewModelInfo(row)
 		uuid, _ := info.FieldByColumn("_uuid")
 		oldRow, err := m.NewRow(info)
 		if err != nil {

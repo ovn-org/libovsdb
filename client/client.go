@@ -16,7 +16,6 @@ import (
 	"github.com/cenkalti/rpc2"
 	"github.com/cenkalti/rpc2/jsonrpc"
 	"github.com/ovn-org/libovsdb/cache"
-	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/ovn-org/libovsdb/ovsdb/serverdb"
@@ -700,16 +699,19 @@ func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconne
 	db := o.databases[dbName]
 	db.schemaMutex.RLock()
 	mmapper := db.model.Mapper()
-	schema := db.model.Schema()
 	db.schemaMutex.RUnlock()
 	typeMap := o.databases[dbName].model.Types()
 	requests := make(map[string]ovsdb.MonitorRequest)
 	for _, o := range monitor.Tables {
-		m, ok := typeMap[o.Table]
+		_, ok := typeMap[o.Table]
 		if !ok {
 			return fmt.Errorf("type for table %s does not exist in model", o.Table)
 		}
-		info, err := mapper.NewInfo(o.Table, schema.Table(o.Table), m)
+		model, err := db.model.NewModel(o.Table)
+		if err != nil {
+			return err
+		}
+		info, err := db.model.NewModelInfo(model)
 		if err != nil {
 			return err
 		}

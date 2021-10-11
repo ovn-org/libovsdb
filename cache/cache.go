@@ -89,7 +89,7 @@ func newIndex(columns ...string) index {
 // RowCache is a collections of Models hashed by UUID
 type RowCache struct {
 	name     string
-	schema   ovsdb.TableSchema
+	dbModel  *model.DatabaseModel
 	dataType reflect.Type
 	cache    map[string]model.Model
 	indexes  columnToValue
@@ -113,7 +113,7 @@ func (r *RowCache) RowByModel(m model.Model) model.Model {
 	if reflect.TypeOf(m) != r.dataType {
 		return nil
 	}
-	info, _ := mapper.NewInfo(r.name, &r.schema, m)
+	info, _ := r.dbModel.NewModelInfo(m)
 	uuid, err := info.FieldByColumn("_uuid")
 	if err != nil {
 		return nil
@@ -143,11 +143,11 @@ func (r *RowCache) Create(uuid string, m model.Model, checkIndexes bool) error {
 	if reflect.TypeOf(m) != r.dataType {
 		return fmt.Errorf("expected data of type %s, but got %s", r.dataType.String(), reflect.TypeOf(m).String())
 	}
-	info, err := mapper.NewInfo(r.name, &r.schema, m)
+	info, err := r.dbModel.NewModelInfo(m)
 	if err != nil {
 		return err
 	}
-	newIndexes := newColumnToValue(r.schema.Indexes)
+	newIndexes := newColumnToValue(r.dbModel.Schema().Table(r.name).Indexes)
 	for index := range r.indexes {
 		val, err := valueFromIndex(info, index)
 		if err != nil {
@@ -179,16 +179,17 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) error {
 		return NewErrCacheInconsistent(fmt.Sprintf("cannot update row %s as it does not exist in the cache", uuid))
 	}
 	oldRow := model.Clone(r.cache[uuid])
-	oldInfo, err := mapper.NewInfo(r.name, &r.schema, oldRow)
+	oldInfo, err := r.dbModel.NewModelInfo(oldRow)
 	if err != nil {
 		return err
 	}
-	newInfo, err := mapper.NewInfo(r.name, &r.schema, m)
+	newInfo, err := r.dbModel.NewModelInfo(m)
 	if err != nil {
 		return err
 	}
-	newIndexes := newColumnToValue(r.schema.Indexes)
-	oldIndexes := newColumnToValue(r.schema.Indexes)
+	indexes := r.dbModel.Schema().Table(r.name).Indexes
+	newIndexes := newColumnToValue(indexes)
+	oldIndexes := newColumnToValue(indexes)
 	var errs []error
 	for index := range r.indexes {
 		var err error
@@ -241,7 +242,7 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) error {
 }
 
 func (r *RowCache) IndexExists(row model.Model) error {
-	info, err := mapper.NewInfo(r.name, &r.schema, row)
+	info, err := r.dbModel.NewModelInfo(row)
 	if err != nil {
 		return err
 	}
@@ -275,7 +276,7 @@ func (r *RowCache) Delete(uuid string) error {
 		return NewErrCacheInconsistent(fmt.Sprintf("cannot delete row %s as it does not exist in the cache", uuid))
 	}
 	oldRow := r.cache[uuid]
-	oldInfo, err := mapper.NewInfo(r.name, &r.schema, oldRow)
+	oldInfo, err := r.dbModel.NewModelInfo(oldRow)
 	if err != nil {
 		return err
 	}
@@ -303,6 +304,7 @@ func (r *RowCache) Rows() map[string]model.Model {
 
 func (r *RowCache) RowsByCondition(conditions []ovsdb.Condition) (map[string]model.Model, error) {
 	results := make(map[string]model.Model)
+	schema := r.dbModel.Schema().Table(r.name)
 	if len(conditions) == 0 {
 		for uuid, row := range r.Rows() {
 			results[uuid] = row
@@ -328,7 +330,7 @@ func (r *RowCache) RowsByCondition(conditions []ovsdb.Condition) (map[string]mod
 			}
 		} else if index, err := r.Index(condition.Column); err != nil {
 			for k, rowUUID := range index {
-				tSchema := r.schema.Columns[condition.Column]
+				tSchema := schema.Columns[condition.Column]
 				nativeValue, err := ovsdb.OvsToNative(tSchema, condition.Value)
 				if err != nil {
 					return nil, err
@@ -344,7 +346,7 @@ func (r *RowCache) RowsByCondition(conditions []ovsdb.Condition) (map[string]mod
 			}
 		} else {
 			for uuid, row := range r.Rows() {
-				info, err := mapper.NewInfo(r.name, &r.schema, row)
+				info, err := r.dbModel.NewModelInfo(row)
 				if err != nil {
 					return nil, err
 				}
@@ -452,8 +454,8 @@ func NewTableCache(dbModel *model.DatabaseModel, data Data, logger *logr.Logger)
 	eventProcessor := newEventProcessor(bufferSize, logger)
 	cache := make(map[string]*RowCache)
 	tableTypes := dbModel.Types()
-	for name, tableSchema := range dbModel.Schema().Tables {
-		cache[name] = newRowCache(name, tableSchema, tableTypes[name])
+	for name := range dbModel.Schema().Tables {
+		cache[name] = newRowCache(name, dbModel, tableTypes[name])
 	}
 	for table, rowData := range data {
 		if _, ok := dbModel.Schema().Tables[table]; !ok {
@@ -673,8 +675,8 @@ func (t *TableCache) Purge(dbModel *model.DatabaseModel) {
 	defer t.mutex.Unlock()
 	t.dbModel = dbModel
 	tableTypes := t.dbModel.Types()
-	for name, tableSchema := range t.dbModel.Schema().Tables {
-		t.cache[name] = newRowCache(name, tableSchema, tableTypes[name])
+	for name := range t.dbModel.Schema().Tables {
+		t.cache[name] = newRowCache(name, t.dbModel, tableTypes[name])
 	}
 }
 
@@ -731,11 +733,11 @@ func (t *TableCache) processUpdates(stopCh <-chan struct{}) {
 
 // newRowCache creates a new row cache with the provided data
 // if the data is nil, and empty RowCache will be created
-func newRowCache(name string, schema ovsdb.TableSchema, dataType reflect.Type) *RowCache {
+func newRowCache(name string, dbModel *model.DatabaseModel, dataType reflect.Type) *RowCache {
 	r := &RowCache{
 		name:     name,
-		schema:   schema,
-		indexes:  newColumnToValue(schema.Indexes),
+		dbModel:  dbModel,
+		indexes:  newColumnToValue(dbModel.Schema().Table(name).Indexes),
 		dataType: dataType,
 		cache:    make(map[string]model.Model),
 		mutex:    sync.RWMutex{},
@@ -855,7 +857,7 @@ func (t *TableCache) CreateModel(tableName string, row *ovsdb.Row, uuid string) 
 	if err != nil {
 		return nil, err
 	}
-	info, err := mapper.NewInfo(tableName, table, model)
+	info, err := t.dbModel.NewModelInfo(model)
 	if err != nil {
 		return nil, err
 	}
@@ -887,7 +889,7 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 	if schema == nil {
 		return fmt.Errorf("no schema for table %s", tableName)
 	}
-	info, err := mapper.NewInfo(tableName, schema, base)
+	info, err := t.dbModel.NewModelInfo(base)
 	if err != nil {
 		return err
 	}

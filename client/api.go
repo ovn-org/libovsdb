@@ -8,7 +8,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/ovn-org/libovsdb/cache"
-	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
@@ -187,13 +186,13 @@ func (a api) conditionFromModel(any bool, model model.Model, cond ...model.Condi
 	}
 
 	if len(cond) == 0 {
-		conditional, err = newEqualityConditional(a.cache.Mapper(), tableName, any, model)
+		conditional, err = newEqualityConditional(a.cache.DatabaseModel(), tableName, any, model)
 		if err != nil {
 			conditional = newErrorConditional(err)
 		}
 
 	} else {
-		conditional, err = newExplicitConditional(a.cache.Mapper(), tableName, any, model, cond...)
+		conditional, err = newExplicitConditional(a.cache.DatabaseModel(), tableName, any, model, cond...)
 		if err != nil {
 			conditional = newErrorConditional(err)
 		}
@@ -243,10 +242,8 @@ func (a api) Create(models ...model.Model) ([]ovsdb.Operation, error) {
 			return nil, err
 		}
 
-		table := a.cache.Mapper().Schema.Table(tableName)
-
 		// Read _uuid field, and use it as named-uuid
-		info, err := mapper.NewInfo(tableName, table, model)
+		info, err := a.cache.DatabaseModel().NewModelInfo(model)
 		if err != nil {
 			return nil, err
 		}
@@ -294,7 +291,7 @@ func (a api) Mutate(model model.Model, mutationObjs ...model.Mutation) ([]ovsdb.
 		return nil, err
 	}
 
-	info, err := mapper.NewInfo(tableName, table, model)
+	info, err := a.cache.DatabaseModel().NewModelInfo(model)
 	if err != nil {
 		return nil, err
 	}
@@ -335,7 +332,7 @@ func (a api) Update(model model.Model, fields ...interface{}) ([]ovsdb.Operation
 		return nil, err
 	}
 	tableSchema := a.cache.Mapper().Schema.Table(table)
-	info, err := mapper.NewInfo(table, tableSchema, model)
+	info, err := a.cache.DatabaseModel().NewModelInfo(model)
 	if err != nil {
 		return nil, err
 	}
