@@ -47,7 +47,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	path := filepath.Join(wd, "vswitchd", "vswitchd.ovsschema")
+	path := filepath.Join(wd, "vswitchd", "ovs.ovsschema")
 	f, err := os.Open(path)
 	if err != nil {
 		log.Fatal(err)
