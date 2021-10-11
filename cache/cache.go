@@ -797,7 +797,7 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 		return err
 	}
 	for k, v := range update {
-		if k == "_uuid" {
+		if k == "_uuid" || !t.dbModel.HasColumn(tableName, k) {
 			continue
 		}
 

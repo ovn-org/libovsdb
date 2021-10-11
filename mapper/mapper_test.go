@@ -226,7 +226,7 @@ func TestMapperGetData(t *testing.T) {
 	test := ormTestType{
 		NonTagged: "something",
 	}
-	testInfo, err := NewInfo("TestTable", schema.Table("TestTable"), &test)
+	testInfo, err := NewInfo("TestTable", schema.Table("TestTable"), &test, false)
 	assert.NoError(t, err)
 
 	err = mapper.GetRowData(&ovsRow, testInfo)
@@ -345,7 +345,7 @@ func TestMapperNewRow(t *testing.T) {
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("NewRow: %s", test.name), func(t *testing.T) {
 			mapper := NewMapper(&schema)
-			info, err := NewInfo("TestTable", schema.Table("TestTable"), test.objInput)
+			info, err := NewInfo("TestTable", schema.Table("TestTable"), test.objInput, false)
 			assert.NoError(t, err)
 			row, err := mapper.NewRow(info)
 			if test.shoulderr {
@@ -438,7 +438,7 @@ func TestMapperNewRowFields(t *testing.T) {
 			testObj.MyFloat = 0
 
 			test.prepare(&testObj)
-			info, err := NewInfo("TestTable", schema.Table("TestTable"), &testObj)
+			info, err := NewInfo("TestTable", schema.Table("TestTable"), &testObj, false)
 			assert.NoError(t, err)
 			row, err := mapper.NewRow(info, test.fields...)
 			if test.err {
@@ -592,7 +592,7 @@ func TestMapperCondition(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("newEqualityCondition_%s", tt.name), func(t *testing.T) {
 			tt.prepare(&testObj)
-			info, err := NewInfo("TestTable", schema.Table("TestTable"), &testObj)
+			info, err := NewInfo("TestTable", schema.Table("TestTable"), &testObj, false)
 			assert.NoError(t, err)
 
 			conds, err := mapper.NewEqualityCondition(info, tt.index...)
@@ -846,9 +846,9 @@ func TestMapperEqualIndexes(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("Equal %s", test.name), func(t *testing.T) {
-			info1, err := NewInfo("TestTable", schema.Table("TestTable"), &test.obj1)
+			info1, err := NewInfo("TestTable", schema.Table("TestTable"), &test.obj1, false)
 			assert.NoError(t, err)
-			info2, err := NewInfo("TestTable", schema.Table("TestTable"), &test.obj2)
+			info2, err := NewInfo("TestTable", schema.Table("TestTable"), &test.obj2, false)
 			assert.NoError(t, err)
 			eq, err := mapper.equalIndexes(info1, info2, test.indexes...)
 			assert.Nil(t, err)
@@ -873,9 +873,9 @@ func TestMapperEqualIndexes(t *testing.T) {
 		Int1:   42,
 		Int2:   25,
 	}
-	info1, err := NewInfo("TestTable", schema.Table("TestTable"), &obj1)
+	info1, err := NewInfo("TestTable", schema.Table("TestTable"), &obj1, false)
 	assert.NoError(t, err)
-	info2, err := NewInfo("TestTable", schema.Table("TestTable"), &obj2)
+	info2, err := NewInfo("TestTable", schema.Table("TestTable"), &obj2, false)
 	assert.NoError(t, err)
 	eq, err := mapper.EqualFields(info1, info2, &obj1.Int1, &obj1.Int2)
 	assert.Nil(t, err)
@@ -1031,7 +1031,7 @@ func TestMapperMutation(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("newMutation%s", test.name), func(t *testing.T) {
-			info, err := NewInfo("TestTable", schema.Table("TestTable"), &test.obj)
+			info, err := NewInfo("TestTable", schema.Table("TestTable"), &test.obj, false)
 			assert.NoError(t, err)
 
 			mutation, err := mapper.NewMutation(info, test.column, test.mutator, test.value)
@@ -1119,7 +1119,7 @@ func TestNewMonitorRequest(t *testing.T) {
 	require.NoError(t, err)
 	mapper := NewMapper(&schema)
 	testTable := &testType{}
-	info, err := NewInfo("TestTable", schema.Table("TestTable"), testTable)
+	info, err := NewInfo("TestTable", schema.Table("TestTable"), testTable, false)
 	assert.NoError(t, err)
 	mr, err := mapper.NewMonitorRequest(info, nil)
 	require.NoError(t, err)

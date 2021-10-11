@@ -250,6 +250,7 @@ func main() {
 
 	var err error
 	dbModelReq, err = model.NewDatabaseModelRequest("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &ovsType{}, "Bridge": &bridgeType{}})
+	dbModelReq.SetCompatibility(true)
 	if err != nil {
 		log.Fatal(err)
 	}

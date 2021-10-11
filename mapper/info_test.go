@@ -39,17 +39,77 @@ func TestNewMapperInfo(t *testing.T) {
 		table        []byte
 		obj          interface{}
 		expectedCols []string
+		compat       bool
 		err          bool
 	}
 	tests := []test{
 		{
-			name:  "no_orm",
+			name:  "Info from object without tags should return no columns",
 			table: sampleTable,
 			obj: &struct {
 				foo string
 				bar int
 			}{},
-			err: false,
+			expectedCols: []string{},
+			compat:       false,
+			err:          false,
+		},
+		{
+			name:  "Valid model should contain columns",
+			table: sampleTable,
+			obj: &struct {
+				Foo string `ovsdb:"aString"`
+				Bar int    `ovsdb:"aInteger"`
+			}{},
+			expectedCols: []string{"aString", "aInteger"},
+			compat:       true,
+			err:          false,
+		},
+		{
+			name:  "Extra column no compat should error",
+			table: sampleTable,
+			obj: &struct {
+				Foo string `ovsdb:"aString"`
+				Bar int    `ovsdb:"aInteger"`
+				Baz int    `ovsdb:"aNonExistingCol"`
+			}{},
+			expectedCols: []string{"aString", "aInteger"},
+			compat:       false,
+			err:          true,
+		},
+		{
+			name:  "Extra column compat should not error",
+			table: sampleTable,
+			obj: &struct {
+				Foo string `ovsdb:"aString"`
+				Bar int    `ovsdb:"aInteger"`
+				Baz int    `ovsdb:"aNonExistingCol"`
+			}{},
+			expectedCols: []string{"aString", "aInteger"},
+			compat:       true,
+			err:          false,
+		},
+		{
+			name:  "Different column typ no compat should error",
+			table: sampleTable,
+			obj: &struct {
+				Foo string `ovsdb:"aString"`
+				Bar string `ovsdb:"aInt"`
+			}{},
+			expectedCols: []string{"aString", "aInt"},
+			compat:       false,
+			err:          true,
+		},
+		{
+			name:  "Different column type compat should not error",
+			table: sampleTable,
+			obj: &struct {
+				Foo string `ovsdb:"aString"`
+				Bar string `ovsdb:"aInt"`
+			}{},
+			expectedCols: []string{"aString"},
+			compat:       true,
+			err:          false,
 		},
 	}
 	for _, tt := range tests {
@@ -58,16 +118,16 @@ func TestNewMapperInfo(t *testing.T) {
 			err := json.Unmarshal(tt.table, &table)
 			assert.Nil(t, err)
 
-			info, err := NewInfo("Test", &table, tt.obj)
+			info, err := NewInfo("Test", &table, tt.obj, tt.compat)
 			if tt.err {
 				assert.NotNil(t, err)
 			} else {
 				assert.Nil(t, err)
+				for _, col := range tt.expectedCols {
+					assert.Truef(t, info.HasColumn(col), "Expected column %s should be present in Mapper Info", col)
+				}
+				assert.Equal(t, "Test", info.Metadata.TableName)
 			}
-			for _, col := range tt.expectedCols {
-				assert.Truef(t, info.hasColumn(col), "Expected column should be present in Mapper Info")
-			}
-			assert.Equal(t, "Test", info.Metadata.TableName)
 
 		})
 	}
@@ -142,7 +202,7 @@ func TestMapperInfoSet(t *testing.T) {
 			err := json.Unmarshal(tt.table, &table)
 			assert.Nil(t, err)
 
-			info, err := NewInfo("Test", &table, tt.obj)
+			info, err := NewInfo("Test", &table, tt.obj, false)
 			assert.Nil(t, err)
 
 			err = info.SetField(tt.column, tt.field)
@@ -223,7 +283,7 @@ func TestMapperInfoColByPtr(t *testing.T) {
 			err := json.Unmarshal(tt.table, &table)
 			assert.Nil(t, err)
 
-			info, err := NewInfo("Test", &table, tt.obj)
+			info, err := NewInfo("Test", &table, tt.obj, false)
 			assert.Nil(t, err)
 
 			col, err := info.ColumnByPtr(tt.field)
@@ -355,7 +415,7 @@ func TestOrmGetIndex(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("GetValidIndexes_%s", tt.name), func(t *testing.T) {
-			info, err := NewInfo("Test", &table, tt.obj)
+			info, err := NewInfo("Test", &table, tt.obj, false)
 			assert.Nil(t, err)
 
 			indexes, err := info.getValidIndexes()

@@ -72,7 +72,7 @@ func (m Mapper) GetRowData(row *ovsdb.Row, result *Info) error {
 // The result object must be given as pointer to an object with the right tags
 func (m Mapper) getData(ovsData ovsdb.Row, result *Info) error {
 	for name, column := range result.Metadata.TableSchema.Columns {
-		if !result.hasColumn(name) {
+		if !result.HasColumn(name) {
 			// If provided struct does not have a field to hold this value, skip it
 			continue
 		}
@@ -243,7 +243,7 @@ func (m Mapper) NewCondition(data *Info, field interface{}, function ovsdb.Condi
 // It takes care of field validation against the column type
 func (m Mapper) NewMutation(data *Info, column string, mutator ovsdb.Mutator, value interface{}) (*ovsdb.Mutation, error) {
 	// Check the column exists in the object
-	if !data.hasColumn(column) {
+	if !data.HasColumn(column) {
 		return nil, fmt.Errorf("mutation contains column %s that does not exist in object %v", column, data)
 	}
 	// Check that the mutation is valid
@@ -304,7 +304,7 @@ func (m Mapper) equalIndexes(one, other *Info, indexes ...string) (bool, error) 
 			if reflect.DeepEqual(ridx, lidx) {
 				// All columns in an index must be simultaneously equal
 				for _, col := range lidx {
-					if !one.hasColumn(col) || !other.hasColumn(col) {
+					if !one.HasColumn(col) || !other.HasColumn(col) {
 						break
 					}
 					lfield, err := one.FieldByColumn(col)

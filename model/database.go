@@ -15,7 +15,7 @@ type DatabaseModel struct {
 	request  *DatabaseModelRequest
 	schema   *ovsdb.DatabaseSchema
 	mapper   *mapper.Mapper
-	metadata map[reflect.Type]*mapper.Metadata
+	metadata map[string]*mapper.Metadata
 }
 
 // NewDatabaseModel returns a new DatabaseModel
@@ -111,11 +111,10 @@ func (db *DatabaseModel) FindTable(mType reflect.Type) string {
 // database and caches them for future re-use
 func (db *DatabaseModel) generateModelInfo() []error {
 	errors := []error{}
-	metadata := make(map[reflect.Type]*mapper.Metadata, len(db.request.types))
-	for tableName, tType := range db.request.types {
+	metadata := make(map[string]*mapper.Metadata, len(db.request.types))
+	for tableName := range db.request.types {
 		tableSchema := db.schema.Table(tableName)
 		if tableSchema == nil {
-			errors = append(errors, fmt.Errorf("Database Model contains model for table %s which is not present in schema", tableName))
 			continue
 		}
 		obj, err := db.NewModel(tableName)
@@ -123,12 +122,12 @@ func (db *DatabaseModel) generateModelInfo() []error {
 			errors = append(errors, err)
 			continue
 		}
-		info, err := mapper.NewInfo(tableName, tableSchema, obj)
+		info, err := mapper.NewInfo(tableName, tableSchema, obj, db.request.compat)
 		if err != nil {
 			errors = append(errors, err)
 			continue
 		}
-		metadata[tType] = info.Metadata
+		metadata[tableName] = info.Metadata
 	}
 	db.metadata = metadata
 	return errors
@@ -136,7 +135,7 @@ func (db *DatabaseModel) generateModelInfo() []error {
 
 // NewModelInfo returns a mapper.Info object based on a provided model
 func (db *DatabaseModel) NewModelInfo(obj interface{}) (*mapper.Info, error) {
-	meta, ok := db.metadata[reflect.TypeOf(obj)]
+	meta, ok := db.metadata[db.FindTable(reflect.TypeOf(obj))]
 	if !ok {
 		return nil, ovsdb.NewErrWrongType("NewModelInfo", "type that is part of the DatabaseModel", obj)
 	}
@@ -144,4 +143,13 @@ func (db *DatabaseModel) NewModelInfo(obj interface{}) (*mapper.Info, error) {
 		Obj:      obj,
 		Metadata: meta,
 	}, nil
+}
+
+func (db *DatabaseModel) HasColumn(tableName, column string) bool {
+	meta, ok := db.metadata[tableName]
+	if !ok {
+		return false
+	}
+	_, ok = meta.Fields[column]
+	return ok
 }
