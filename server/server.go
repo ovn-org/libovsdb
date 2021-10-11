@@ -18,7 +18,6 @@ import (
 type OvsdbServer struct {
 	srv          *rpc2.Server
 	listener     net.Listener
-	done         chan struct{}
 	db           Database
 	ready        bool
 	readyMutex   sync.RWMutex
@@ -36,7 +35,6 @@ type DatabaseModel struct {
 // NewOvsdbServer returns a new OvsdbServer
 func NewOvsdbServer(db Database, models ...DatabaseModel) (*OvsdbServer, error) {
 	o := &OvsdbServer{
-		done:         make(chan struct{}, 1),
 		db:           db,
 		models:       make(map[string]DatabaseModel),
 		modelsMutex:  sync.RWMutex{},
@@ -98,7 +96,6 @@ func (o *OvsdbServer) Close() {
 	o.ready = false
 	o.readyMutex.Unlock()
 	o.listener.Close()
-	close(o.done)
 }
 
 // Ready returns true if a server is ready to handle connections

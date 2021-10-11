@@ -3,6 +3,7 @@ package ovs
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	"github.com/ovn-org/libovsdb/client"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
+	"github.com/ovn-org/libovsdb/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -23,9 +25,11 @@ import (
 // OVSIntegrationSuite runs tests against a real Open vSwitch instance
 type OVSIntegrationSuite struct {
 	suite.Suite
-	pool     *dockertest.Pool
-	resource *dockertest.Resource
-	client   client.Client
+	realServer bool
+	pool       *dockertest.Pool
+	resource   *dockertest.Resource
+	client     client.Client
+	server     *server.OvsdbServer
 }
 
 func (suite *OVSIntegrationSuite) SetupSuite() {
@@ -38,32 +42,58 @@ func (suite *OVSIntegrationSuite) SetupSuite() {
 		tag = "latest"
 	}
 
-	options := &dockertest.RunOptions{
-		Repository:   "libovsdb/ovs",
-		Tag:          tag,
-		ExposedPorts: []string{"6640/tcp"},
-		PortBindings: map[docker.Port][]docker.PortBinding{
-			"6640/tcp": {{HostPort: "56640"}},
-		},
-		Tty: true,
+	realServer := os.Getenv("IN_MEMORY_DATABASE")
+	if realServer != "1" {
+		suite.realServer = true
 	}
-	hostConfig := func(config *docker.HostConfig) {
-		// set AutoRemove to true so that stopped container goes away by itself
-		config.AutoRemove = true
-		config.RestartPolicy = docker.RestartPolicy{
-			Name: "no",
+
+	if suite.realServer {
+		options := &dockertest.RunOptions{
+			Repository:   "libovsdb/ovs",
+			Tag:          tag,
+			ExposedPorts: []string{"6640/tcp"},
+			PortBindings: map[docker.Port][]docker.PortBinding{
+				"6640/tcp": {{HostPort: "56640"}},
+			},
+			Tty: true,
 		}
+		hostConfig := func(config *docker.HostConfig) {
+			// set AutoRemove to true so that stopped container goes away by itself
+			config.AutoRemove = true
+			config.RestartPolicy = docker.RestartPolicy{
+				Name: "no",
+			}
+		}
+
+		suite.resource, err = suite.pool.RunWithOptions(options, hostConfig)
+		require.NoError(suite.T(), err)
+
+		// set expiry to 90 seconds so containers are cleaned up on test panic
+		err = suite.resource.Expire(90)
+		require.NoError(suite.T(), err)
+
+		// let the container start before we attempt connection
+		time.Sleep(5 * time.Second)
+	} else {
+		schema, err := getSchema()
+		require.Nil(suite.T(), err)
+
+		ovsDB := server.NewInMemoryDatabase(map[string]*model.DBModel{"Open_vSwitch": defDB})
+		suite.server, err = server.NewOvsdbServer(ovsDB, server.DatabaseModel{
+			Model:  defDB,
+			Schema: schema,
+		})
+		require.Nil(suite.T(), err)
+
+		go func(t *testing.T, o *server.OvsdbServer) {
+			if err := o.Serve("tcp", ":56640"); err != nil {
+				t.Error(err)
+			}
+		}(suite.T(), suite.server)
+		require.Eventually(suite.T(), func() bool {
+			return suite.server.Ready()
+		}, 1*time.Second, 10*time.Millisecond)
 	}
-
-	suite.resource, err = suite.pool.RunWithOptions(options, hostConfig)
-	require.NoError(suite.T(), err)
-
-	// set expiry to 90 seconds so containers are cleaned up on test panic
-	err = suite.resource.Expire(90)
-	require.NoError(suite.T(), err)
-
-	// let the container start before we attempt connection
-	time.Sleep(5 * time.Second)
 
 	err = suite.pool.Retry(func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -72,7 +102,7 @@ func (suite *OVSIntegrationSuite) SetupSuite() {
 		ovs, err := client.NewOVSDBClient(
 			defDB,
 			client.WithEndpoint(endpoint),
-			client.WithLeaderOnly(true),
+			// client.WithLeaderOnly(true),
 		)
 		if err != nil {
 			return err
@@ -103,8 +133,13 @@ func (suite *OVSIntegrationSuite) TearDownSuite() {
 		suite.client.Close()
 		suite.client = nil
 	}
-	err := suite.pool.Purge(suite.resource)
-	require.NoError(suite.T(), err)
+	if suite.pool != nil && suite.resource != nil {
+		err := suite.pool.Purge(suite.resource)
+		require.NoError(suite.T(), err)
+	}
+	if suite.server != nil {
+		suite.server.Close()
+	}
 }
 
 func TestOVSIntegrationTestSuite(t *testing.T) {
@@ -173,6 +208,24 @@ var defDB, _ = model.NewDBModel("Open_vSwitch", map[string]model.Model{
 	"IPFIX":        &ipfixType{},
 	"Queue":        &queueType{},
 })
+
+func getSchema() (*ovsdb.DatabaseSchema, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	path := filepath.Join(wd, "..", "..", "example", "vswitchd", "ovs.ovsschema")
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	schema, err := ovsdb.SchemaFromFile(f)
+	if err != nil {
+		return nil, err
+	}
+	return schema, nil
+}
 
 func (suite *OVSIntegrationSuite) TestConnectReconnect() {
 	assert.True(suite.T(), suite.client.Connected())
@@ -323,9 +376,18 @@ func (suite *OVSIntegrationSuite) TestWithReconnect() {
 	require.Equal(suite.T(), bridgeName, br.Name)
 
 	// trigger reconnect
-	err = suite.pool.Client.RestartContainer(suite.resource.Container.ID, 0)
-	require.NoError(suite.T(), err)
-
+	if suite.realServer {
+		err = suite.pool.Client.RestartContainer(suite.resource.Container.ID, 0)
+		require.NoError(suite.T(), err)
+	} else {
+		suite.server.Close()
+		time.Sleep(2 * time.Second)
+		go func(t *testing.T, o *server.OvsdbServer) {
+			if err := o.Serve("tcp", ":56640"); err != nil {
+				t.Error(err)
+			}
+		}(suite.T(), suite.server)
+	}
 	// check that we are automatically reconnected
 	require.Eventually(suite.T(), func() bool {
 		return suite.client.Connected()
@@ -553,6 +615,9 @@ func (suite *OVSIntegrationSuite) TestColumnSchemaValidationIntegration() {
 }
 
 func (suite *OVSIntegrationSuite) TestMonitorCancelIntegration() {
+	if !suite.realServer {
+		suite.T().Skip("not supported on in-memory ovsdb-server")
+	}
 	monitorID, err := suite.client.Monitor(
 		context.TODO(),
 		suite.client.NewMonitor(
@@ -593,7 +658,11 @@ func (suite *OVSIntegrationSuite) TestInsertDuplicateTransactIntegration() {
 
 	_, err = suite.createBridge("br-dup")
 	assert.Error(suite.T(), err)
-	assert.IsType(suite.T(), &ovsdb.ConstraintViolation{}, err)
+
+	// TODO: In-memory server doesn't return a typed error here
+	if suite.realServer {
+		assert.IsTypef(suite.T(), &ovsdb.ConstraintViolation{}, err, "got %+v", err)
+	}
 }
 
 func (suite *OVSIntegrationSuite) TestUpdate() {
