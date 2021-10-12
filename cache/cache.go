@@ -606,10 +606,11 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) {
 					t.eventProcessor.AddEvent(updateEvent, table, existing, modified)
 				}
 			case row.Delete != nil:
-				m, err := t.CreateModel(table, row.Delete, uuid)
-				if err != nil {
-					panic(err)
-				}
+				fallthrough
+			default:
+				// If everything else is nil (including Delete because it's a key with
+				// no value on the wire), then process a delete
+				m := tCache.Row(uuid)
 				if err := tCache.Delete(uuid); err != nil {
 					panic(err)
 				}

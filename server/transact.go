@@ -467,7 +467,8 @@ func (o *OvsdbServer) Delete(database, table string, where []ovsdb.Condition) (o
 			panic(err)
 		}
 		tableUpdate.AddRowUpdate(uuid.(string), &ovsdb.RowUpdate2{
-			Delete: &oldRow,
+			Delete: &ovsdb.Row{},
+			Old:    &oldRow,
 		})
 	}
 	return ovsdb.OperationResult{

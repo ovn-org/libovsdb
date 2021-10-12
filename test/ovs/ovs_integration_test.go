@@ -505,6 +505,12 @@ func (suite *OVSIntegrationSuite) TestInsertAndDeleteTransactIntegration() {
 		}
 		suite.T().Fatal(err)
 	}
+
+	require.Eventually(suite.T(), func() bool {
+		br := &bridgeType{UUID: bridgeUUID}
+		err := suite.client.Get(br)
+		return err != nil
+	}, 2*time.Second, 500*time.Millisecond)
 }
 
 func (suite *OVSIntegrationSuite) TestTableSchemaValidationIntegration() {
