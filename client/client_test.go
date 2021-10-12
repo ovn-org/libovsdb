@@ -564,7 +564,7 @@ func BenchmarkUpdate1(b *testing.B) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil)
+	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil, nil)
 	require.NoError(b, err)
 	update := []byte(`{
 		"Open_vSwitch": {
@@ -588,7 +588,7 @@ func BenchmarkUpdate2(b *testing.B) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil)
+	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil, nil)
 	require.NoError(b, err)
 	update := []byte(`{
 		"Open_vSwitch": {
@@ -613,7 +613,7 @@ func BenchmarkUpdate3(b *testing.B) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil)
+	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil, nil)
 	require.NoError(b, err)
 	update := []byte(`{
 		"Open_vSwitch": {
@@ -639,7 +639,7 @@ func BenchmarkUpdate5(b *testing.B) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil)
+	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil, nil)
 	require.NoError(b, err)
 	update := []byte(`{
 		"Open_vSwitch": {
@@ -667,7 +667,7 @@ func BenchmarkUpdate8(b *testing.B) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil)
+	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil, nil)
 	require.NoError(b, err)
 	update := []byte(`{
 		"Open_vSwitch": {
@@ -712,7 +712,7 @@ func TestUpdate(t *testing.T) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(t, err)
-	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil)
+	ovs.primaryDB().cache, err = cache.NewTableCache(&s, dbModel, nil, nil)
 	require.NoError(t, err)
 	var reply []interface{}
 	update := []byte(`{

@@ -6,12 +6,14 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 	"fmt"
+	"log"
+	"os"
 	"reflect"
 	"strings"
 	"sync"
 
-	"log"
-
+	"github.com/go-logr/logr"
+	"github.com/go-logr/stdr"
 	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
@@ -434,18 +436,26 @@ type TableCache struct {
 	updates2       chan ovsdb.TableUpdates2
 	errorChan      chan error
 	ovsdb.NotificationHandler
-	mutex sync.RWMutex
+	mutex  sync.RWMutex
+	logger *logr.Logger
 }
 
 // Data is the type for data that can be prepopulated in the cache
 type Data map[string]map[string]model.Model
 
 // NewTableCache creates a new TableCache
-func NewTableCache(schema *ovsdb.DatabaseSchema, dbModel *model.DBModel, data Data) (*TableCache, error) {
+func NewTableCache(schema *ovsdb.DatabaseSchema, dbModel *model.DBModel, data Data, logger *logr.Logger) (*TableCache, error) {
 	if schema == nil || dbModel == nil {
 		return nil, fmt.Errorf("tablecache without databasemodel cannot be populated")
 	}
-	eventProcessor := newEventProcessor(bufferSize)
+	if logger == nil {
+		l := stdr.NewWithOptions(log.New(os.Stderr, "", log.LstdFlags), stdr.Options{LogCaller: stdr.All}).WithName("libovsdb/cache")
+		logger = &l
+	} else {
+		l := logger.WithName("cache")
+		logger = &l
+	}
+	eventProcessor := newEventProcessor(bufferSize, logger)
 	cache := make(map[string]*RowCache)
 	tableTypes := dbModel.Types()
 	for name, tableSchema := range schema.Tables {
@@ -471,6 +481,7 @@ func NewTableCache(schema *ovsdb.DatabaseSchema, dbModel *model.DBModel, data Da
 		updates:        make(chan ovsdb.TableUpdates, bufferSize),
 		updates2:       make(chan ovsdb.TableUpdates2, bufferSize),
 		errorChan:      make(chan error),
+		logger:         logger,
 	}, nil
 }
 
@@ -553,6 +564,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) error {
 		}
 		tCache := t.cache[table]
 		for uuid, row := range updates {
+			t.logger.V(5).Info("processing update for row", "uuid", uuid, "table", table)
 			if row.New != nil {
 				newModel, err := t.CreateModel(table, row.New, uuid)
 				if err != nil {
@@ -560,6 +572,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) error {
 				}
 				if existing := tCache.Row(uuid); existing != nil {
 					if !reflect.DeepEqual(newModel, existing) {
+						t.logger.V(5).Info("updating row", "uuid", uuid, "old:", fmt.Sprintf("%+v", existing), "new", fmt.Sprintf("%+v", newModel))
 						if err := tCache.Update(uuid, newModel, false); err != nil {
 							return err
 						}
@@ -568,6 +581,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) error {
 					// no diff
 					continue
 				}
+				t.logger.V(5).Info("creating row", "uuid", uuid, "model", fmt.Sprintf("%+v", newModel))
 				if err := tCache.Create(uuid, newModel, false); err != nil {
 					return err
 				}
@@ -578,6 +592,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) error {
 				if err != nil {
 					return err
 				}
+				t.logger.V(5).Info("deleting row", "uuid", uuid, "model", fmt.Sprintf("%+v", oldModel))
 				if err := tCache.Delete(uuid); err != nil {
 					return err
 				}
@@ -600,12 +615,14 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 		}
 		tCache := t.cache[table]
 		for uuid, row := range updates {
+			t.logger.V(5).Info("processing update for row", "uuid", uuid, "table", table)
 			switch {
 			case row.Initial != nil:
 				m, err := t.CreateModel(table, row.Initial, uuid)
 				if err != nil {
 					return err
 				}
+				t.logger.V(5).Info("creating row", "uuid", uuid, "model", fmt.Sprintf("%+v", m))
 				if err := tCache.Create(uuid, m, false); err != nil {
 					return err
 				}
@@ -615,6 +632,7 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 				if err != nil {
 					return err
 				}
+				t.logger.V(5).Info("creating row", "uuid", uuid, "model", fmt.Sprintf("%+v", m))
 				if err := tCache.Create(uuid, m, false); err != nil {
 					return err
 				}
@@ -630,6 +648,7 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 					return err
 				}
 				if !reflect.DeepEqual(modified, existing) {
+					t.logger.V(5).Info("updating row", "uuid", uuid, "old", fmt.Sprintf("%+v", existing), "new", fmt.Sprintf("%+v", modified))
 					if err := tCache.Update(uuid, modified, false); err != nil {
 						return err
 					}
@@ -644,6 +663,7 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 				if m == nil {
 					panic(fmt.Errorf("row with uuid %s does not exist", uuid))
 				}
+				t.logger.V(5).Info("deleting row", "uuid", uuid, "model", fmt.Sprintf("%+v", m))
 				if err := tCache.Delete(uuid); err != nil {
 					return err
 				}
@@ -762,12 +782,14 @@ type eventProcessor struct {
 	// volume is very low (i.e only when AddEventHandler is called)
 	handlersMutex sync.Mutex
 	handlers      []EventHandler
+	logger        *logr.Logger
 }
 
-func newEventProcessor(capacity int) *eventProcessor {
+func newEventProcessor(capacity int, logger *logr.Logger) *eventProcessor {
 	return &eventProcessor{
 		events:   make(chan event, capacity),
 		handlers: []EventHandler{},
+		logger:   logger,
 	}
 }
 
@@ -796,7 +818,7 @@ func (e *eventProcessor) AddEvent(eventType string, table string, old model.Mode
 		// noop
 		return
 	default:
-		log.Print("libovsdb: dropping event because event buffer is full")
+		e.logger.V(0).Info("dropping event because event buffer is full")
 	}
 }
 
