@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -12,12 +13,12 @@ import (
 
 // Database abstracts database operations from ovsdb
 type Database interface {
-	CreateDatabase(database string, model *ovsdb.DatabaseSchema) error
-	Exists(database string) bool
-	Commit(database string, id uuid.UUID, updates ovsdb.TableUpdates2) error
-	CheckIndexes(database string, table string, m model.Model) error
-	List(database, table string, conditions ...ovsdb.Condition) ([]model.Model, error)
-	Get(database, table string, uuid string) (model.Model, error)
+	CreateDatabase(ctx context.Context, database string, model *ovsdb.DatabaseSchema) error
+	Exists(ctx context.Context, database string) bool
+	Commit(ctx context.Context, database string, id uuid.UUID, updates ovsdb.TableUpdates2) error
+	CheckIndexes(ctx context.Context, database string, table string, m model.Model) error
+	List(ctx context.Context, database, table string, conditions ...ovsdb.Condition) ([]model.Model, error)
+	Get(ctx context.Context, database, table string, uuid string) (model.Model, error)
 }
 
 type inMemoryDatabase struct {
@@ -34,7 +35,9 @@ func NewInMemoryDatabase(models map[string]*model.DBModel) Database {
 	}
 }
 
-func (db *inMemoryDatabase) CreateDatabase(name string, schema *ovsdb.DatabaseSchema) error {
+func (db *inMemoryDatabase) CreateDatabase(ctx context.Context, name string, schema *ovsdb.DatabaseSchema) error {
+	_, span := tracer.Start(ctx, "CreateDatabase")
+	defer span.End()
 	db.mutex.Lock()
 	defer db.mutex.Unlock()
 	var mo *model.DBModel
@@ -50,26 +53,32 @@ func (db *inMemoryDatabase) CreateDatabase(name string, schema *ovsdb.DatabaseSc
 	return nil
 }
 
-func (db *inMemoryDatabase) Exists(name string) bool {
+func (db *inMemoryDatabase) Exists(ctx context.Context, name string) bool {
+	_, span := tracer.Start(ctx, "Exists")
+	defer span.End()
 	db.mutex.RLock()
 	defer db.mutex.RUnlock()
 	_, ok := db.databases[name]
 	return ok
 }
 
-func (db *inMemoryDatabase) Commit(database string, id uuid.UUID, updates ovsdb.TableUpdates2) error {
-	if !db.Exists(database) {
+func (db *inMemoryDatabase) Commit(ctx context.Context, database string, id uuid.UUID, updates ovsdb.TableUpdates2) error {
+	ctx, span := tracer.Start(ctx, "Commit")
+	defer span.End()
+	if !db.Exists(ctx, database) {
 		return fmt.Errorf("db does not exist")
 	}
 	db.mutex.RLock()
 	targetDb := db.databases[database]
 	db.mutex.RLock()
-	targetDb.Populate2(updates)
+	targetDb.Populate2(ctx, updates)
 	return nil
 }
 
-func (db *inMemoryDatabase) CheckIndexes(database string, table string, m model.Model) error {
-	if !db.Exists(database) {
+func (db *inMemoryDatabase) CheckIndexes(ctx context.Context, database string, table string, m model.Model) error {
+	_, span := tracer.Start(ctx, "CheckIndexes")
+	defer span.End()
+	if !db.Exists(ctx, database) {
 		return nil
 	}
 	db.mutex.RLock()
@@ -79,8 +88,10 @@ func (db *inMemoryDatabase) CheckIndexes(database string, table string, m model.
 	return targetTable.IndexExists(m)
 }
 
-func (db *inMemoryDatabase) List(database, table string, conditions ...ovsdb.Condition) ([]model.Model, error) {
-	if !db.Exists(database) {
+func (db *inMemoryDatabase) List(ctx context.Context, database, table string, conditions ...ovsdb.Condition) ([]model.Model, error) {
+	_, span := tracer.Start(ctx, "List")
+	defer span.End()
+	if !db.Exists(ctx, database) {
 		return nil, fmt.Errorf("db does not exist")
 	}
 	db.mutex.RLock()
@@ -95,8 +106,10 @@ func (db *inMemoryDatabase) List(database, table string, conditions ...ovsdb.Con
 	return targetTable.RowsByCondition(conditions)
 }
 
-func (db *inMemoryDatabase) Get(database, table string, uuid string) (model.Model, error) {
-	if !db.Exists(database) {
+func (db *inMemoryDatabase) Get(ctx context.Context, database, table string, uuid string) (model.Model, error) {
+	_, span := tracer.Start(ctx, "Get")
+	defer span.End()
+	if !db.Exists(ctx, database) {
 		return nil, fmt.Errorf("db does not exist")
 	}
 	db.mutex.RLock()

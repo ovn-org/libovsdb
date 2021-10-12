@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
@@ -12,6 +13,7 @@ import (
 )
 
 func TestMutateOp(t *testing.T) {
+	ctx := context.Background()
 	defDB, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
 		"Bridge":       &bridgeType{}})
@@ -47,19 +49,20 @@ func TestMutateOp(t *testing.T) {
 	bridgeRow, err := m.NewRow("Bridge", &bridge)
 	require.Nil(t, err)
 
-	res, updates := o.Insert("Open_vSwitch", "Open_vSwitch", ovsUUID, ovsRow)
+	res, updates := o.Insert(ctx, "Open_vSwitch", "Open_vSwitch", ovsUUID, ovsRow)
 	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
 	require.Nil(t, err)
 
-	res, update2 := o.Insert("Open_vSwitch", "Bridge", bridgeUUID, bridgeRow)
+	res, update2 := o.Insert(ctx, "Open_vSwitch", "Bridge", bridgeUUID, bridgeRow)
 	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
 	require.Nil(t, err)
 
 	updates.Merge(update2)
-	err = o.db.Commit("Open_vSwitch", uuid.New(), updates)
+	err = o.db.Commit(context.TODO(), "Open_vSwitch", uuid.New(), updates)
 	require.NoError(t, err)
 
 	gotResult, gotUpdate := o.Mutate(
+		ctx,
 		"Open_vSwitch",
 		"Open_vSwitch",
 		[]ovsdb.Condition{
@@ -70,7 +73,7 @@ func TestMutateOp(t *testing.T) {
 		},
 	)
 	assert.Equal(t, ovsdb.OperationResult{Count: 1}, gotResult)
-	err = o.db.Commit("Open_vSwitch", uuid.New(), gotUpdate)
+	err = o.db.Commit(context.TODO(), "Open_vSwitch", uuid.New(), gotUpdate)
 	require.NoError(t, err)
 
 	bridgeSet, err := ovsdb.NewOvsSet([]ovsdb.UUID{{GoUUID: bridgeUUID}})
@@ -99,6 +102,7 @@ func TestMutateOp(t *testing.T) {
 	keyValueDelete, err := ovsdb.NewOvsMap(map[string]string{"baz": "quux"})
 	assert.Nil(t, err)
 	gotResult, gotUpdate = o.Mutate(
+		ctx,
 		"Open_vSwitch",
 		"Bridge",
 		[]ovsdb.Condition{
@@ -204,6 +208,7 @@ func TestDiff(t *testing.T) {
 
 func TestOvsdbServerInsert(t *testing.T) {
 	t.Skip("need a helper for comparing rows as map elements aren't in same order")
+	ctx := context.Background()
 	defDB, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
 		"Bridge":       &bridgeType{}})
@@ -235,15 +240,15 @@ func TestOvsdbServerInsert(t *testing.T) {
 	bridgeRow, err := m.NewRow("Bridge", &bridge)
 	require.Nil(t, err)
 
-	res, updates := o.Insert("Open_vSwitch", "Bridge", bridgeUUID, bridgeRow)
+	res, updates := o.Insert(ctx, "Open_vSwitch", "Bridge", bridgeUUID, bridgeRow)
 	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
 	require.NoError(t, err)
 
-	err = ovsDB.Commit("Open_vSwitch", uuid.New(), updates)
+	err = ovsDB.Commit(context.TODO(), "Open_vSwitch", uuid.New(), updates)
 	assert.NoError(t, err)
 
 	bridge.UUID = bridgeUUID
-	br, err := o.db.Get("Open_vSwitch", "Bridge", bridgeUUID)
+	br, err := o.db.Get(context.TODO(), "Open_vSwitch", "Bridge", bridgeUUID)
 	assert.NoError(t, err)
 	assert.Equal(t, &bridge, br)
 	assert.Equal(t, ovsdb.TableUpdates2{
@@ -257,6 +262,7 @@ func TestOvsdbServerInsert(t *testing.T) {
 }
 
 func TestOvsdbServerUpdate(t *testing.T) {
+	ctx := context.Background()
 	defDB, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
 		"Bridge":       &bridgeType{}})
@@ -285,11 +291,11 @@ func TestOvsdbServerUpdate(t *testing.T) {
 	bridgeRow, err := m.NewRow("Bridge", &bridge)
 	require.Nil(t, err)
 
-	res, updates := o.Insert("Open_vSwitch", "Bridge", bridgeUUID, bridgeRow)
+	res, updates := o.Insert(ctx, "Open_vSwitch", "Bridge", bridgeUUID, bridgeRow)
 	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
 	require.NoError(t, err)
 
-	err = ovsDB.Commit("Open_vSwitch", uuid.New(), updates)
+	err = ovsDB.Commit(context.TODO(), "Open_vSwitch", uuid.New(), updates)
 	assert.NoError(t, err)
 
 	halloween, _ := ovsdb.NewOvsSet([]string{"halloween"})
@@ -320,6 +326,7 @@ func TestOvsdbServerUpdate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			res, updates := o.Update(
+				ctx,
 				"Open_vSwitch", "Bridge",
 				[]ovsdb.Condition{{
 					Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: bridgeUUID},
@@ -328,7 +335,7 @@ func TestOvsdbServerUpdate(t *testing.T) {
 			require.NoErrorf(t, err, "%+v", errs)
 
 			bridge.UUID = bridgeUUID
-			row, err := o.db.Get("Open_vSwitch", "Bridge", bridgeUUID)
+			row, err := o.db.Get(context.TODO(), "Open_vSwitch", "Bridge", bridgeUUID)
 			assert.NoError(t, err)
 			br := row.(*bridgeType)
 			assert.NotEqual(t, br, bridgeRow)

@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"encoding/json"
 	"reflect"
 	"testing"
@@ -721,7 +722,7 @@ func TestTableCache_populate(t *testing.T) {
 			},
 		},
 	}
-	tc.Populate(updates)
+	tc.Populate(context.Background(), updates)
 
 	got := tc.Table("Open_vSwitch").Row("test")
 	assert.Equal(t, testRowModel, got)
@@ -733,7 +734,7 @@ func TestTableCache_populate(t *testing.T) {
 		Old: &testRow,
 		New: &updatedRow,
 	}
-	tc.Populate(updates)
+	tc.Populate(context.Background(), updates)
 
 	got = tc.cache["Open_vSwitch"].cache["test"]
 	assert.Equal(t, updatedRowModel, got)
@@ -744,7 +745,7 @@ func TestTableCache_populate(t *testing.T) {
 		New: nil,
 	}
 
-	tc.Populate(updates)
+	tc.Populate(context.Background(), updates)
 
 	_, ok := tc.cache["Open_vSwitch"].cache["test"]
 	assert.False(t, ok)
@@ -786,7 +787,7 @@ func TestTableCachePopulate(t *testing.T) {
 			},
 		},
 	}
-	tc.Populate(updates)
+	tc.Populate(context.TODO(), updates)
 
 	got := tc.Table("Open_vSwitch").Row("test")
 	assert.Equal(t, testRowModel, got)
@@ -798,7 +799,7 @@ func TestTableCachePopulate(t *testing.T) {
 		Old: &testRow,
 		New: &updatedRow,
 	}
-	tc.Populate(updates)
+	tc.Populate(context.TODO(), updates)
 
 	got = tc.cache["Open_vSwitch"].cache["test"]
 	assert.Equal(t, updatedRowModel, got)
@@ -809,7 +810,7 @@ func TestTableCachePopulate(t *testing.T) {
 		New: nil,
 	}
 
-	tc.Populate(updates)
+	tc.Populate(context.TODO(), updates)
 
 	_, ok := tc.cache["Open_vSwitch"].cache["test"]
 	assert.False(t, ok)
@@ -851,7 +852,7 @@ func TestTableCachePopulate2(t *testing.T) {
 	}
 
 	t.Log("Initial")
-	tc.Populate2(updates)
+	tc.Populate2(context.TODO(), updates)
 	got := tc.Table("Open_vSwitch").Row("test")
 	assert.Equal(t, testRowModel, got)
 
@@ -865,7 +866,7 @@ func TestTableCachePopulate2(t *testing.T) {
 			},
 		},
 	}
-	tc.Populate2(updates)
+	tc.Populate2(context.TODO(), updates)
 	got = tc.Table("Open_vSwitch").Row("test2")
 	assert.Equal(t, testRowModel2, got)
 
@@ -879,7 +880,7 @@ func TestTableCachePopulate2(t *testing.T) {
 			},
 		},
 	}
-	tc.Populate2(updates)
+	tc.Populate2(context.TODO(), updates)
 	got = tc.cache["Open_vSwitch"].cache["test"]
 	assert.Equal(t, updatedRowModel, got)
 
@@ -892,7 +893,7 @@ func TestTableCachePopulate2(t *testing.T) {
 			},
 		},
 	}
-	tc.Populate2(updates)
+	tc.Populate2(context.TODO(), updates)
 	_, ok := tc.cache["Open_vSwitch"].cache["test"]
 	assert.False(t, ok)
 }

@@ -386,7 +386,8 @@ func TestClientServerInsertDuplicate(t *testing.T) {
 
 	ovs, err := client.NewOVSDBClient(defDB, client.WithEndpoint(fmt.Sprintf("unix:%s", tmpfile)))
 	require.NoError(t, err)
-	err = ovs.Connect(context.Background())
+	ctx := context.Background()
+	err = ovs.Connect(ctx)
 	require.NoError(t, err)
 
 	bridgeRow := &bridgeType{
