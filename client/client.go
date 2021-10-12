@@ -723,7 +723,12 @@ func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconne
 
 	var args []interface{}
 	if monitor.Method == ovsdb.ConditionalMonitorSinceRPC {
-		args = ovsdb.NewMonitorCondSinceArgs(dbName, cookie, requests, monitor.LastTransactionID)
+		// FIXME: We should pass the monitor.LastTransactionID here
+		// But that would require delaying clearing the cache until
+		// after the monitors have been re-established - the logic
+		// would also need to be different for monitor and monitor_cond
+		// as we must always clear the cache in that instance
+		args = ovsdb.NewMonitorCondSinceArgs(dbName, cookie, requests, emptyUUID)
 	} else {
 		args = ovsdb.NewMonitorArgs(dbName, cookie, requests)
 	}
