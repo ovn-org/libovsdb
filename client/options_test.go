@@ -52,6 +52,7 @@ func TestNewOptions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := newOptions(tt.opts...)
+			got.logger = nil // hack; we don't care
 			require.Nil(t, err)
 			assert.Equal(t, tt.want, got)
 		})
