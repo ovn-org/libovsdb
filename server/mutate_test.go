@@ -290,6 +290,20 @@ func TestMutateInsert(t *testing.T) {
 				"foo": "bar",
 			},
 		},
+		{
+			"insert key value pairs on an empty map",
+			map[string]string{},
+			ovsdb.MutateOperationInsert,
+			map[string]string{
+				"foo": "bar",
+			},
+			map[string]string{
+				"foo": "bar",
+			},
+			map[string]string{
+				"foo": "bar",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
