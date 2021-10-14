@@ -58,27 +58,24 @@ func TestRowCache_Row(t *testing.T) {
 }
 
 func TestRowCache_Rows(t *testing.T) {
-	type fields struct {
-		cache map[string]model.Model
-	}
 	tests := []struct {
-		name   string
-		fields fields
-		want   []string
+		name  string
+		cache map[string]model.Model
+		want  map[string]model.Model
 	}{
 		{
 			"returns a rows that exist",
-			fields{cache: map[string]model.Model{"test1": &testModel{}, "test2": &testModel{}, "test3": &testModel{}}},
-			[]string{"test1", "test2", "test3"},
+			map[string]model.Model{"test1": &testModel{}, "test2": &testModel{}, "test3": &testModel{}},
+			map[string]model.Model{"test1": &testModel{}, "test2": &testModel{}, "test3": &testModel{}},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := &RowCache{
-				cache: tt.fields.cache,
+				cache: tt.cache,
 			}
 			got := r.Rows()
-			assert.ElementsMatch(t, tt.want, got)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

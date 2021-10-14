@@ -128,20 +128,19 @@ func (a api) List(result interface{}) error {
 	i := resultVal.Len()
 
 	for _, row := range tableCache.Rows() {
-		elem := tableCache.Row(row)
 		if i >= resultVal.Cap() {
 			break
 		}
 
 		if a.cond != nil {
-			if matches, err := a.cond.Matches(elem); err != nil {
+			if matches, err := a.cond.Matches(row); err != nil {
 				return err
 			} else if !matches {
 				continue
 			}
 		}
 
-		resultVal.Set(reflect.Append(resultVal, reflect.Indirect(reflect.ValueOf(elem))))
+		resultVal.Set(reflect.Append(resultVal, reflect.Indirect(reflect.ValueOf(row))))
 		i++
 	}
 	return nil

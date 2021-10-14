@@ -70,7 +70,7 @@ func cleanup(ctx context.Context) {
 
 	var rootUUID string
 	// Get root UUID
-	for _, uuid := range ovs.Cache().Table("Open_vSwitch").Rows() {
+	for uuid := range ovs.Cache().Table("Open_vSwitch").Rows() {
 		rootUUID = uuid
 		log.Printf("rootUUID is %v", rootUUID)
 	}
@@ -141,7 +141,7 @@ func run(ctx context.Context, resultsChan chan result, wg *sync.WaitGroup) {
 	}
 
 	// Get root UUID
-	for _, uuid := range ovs.Cache().Table("Open_vSwitch").Rows() {
+	for uuid := range ovs.Cache().Table("Open_vSwitch").Rows() {
 		rootUUID = uuid
 		if *verbose {
 			fmt.Printf("rootUUID is %v\n", rootUUID)
