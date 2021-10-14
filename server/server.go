@@ -132,18 +132,26 @@ func (o *OvsdbServer) GetSchema(client *rpc2.Client, args []interface{}, reply *
 }
 
 type Transaction struct {
-	ID    uuid.UUID
-	Cache *cache.TableCache
+	ID          uuid.UUID
+	Cache       *cache.TableCache
+	DeletedRows map[string]struct{}
+	Model       *model.DatabaseModel
+	DbName      string
+	Database    Database
 }
 
-func NewTransaction(model *model.DatabaseModel) Transaction {
+func NewTransaction(model *model.DatabaseModel, dbName string, database Database) Transaction {
 	cache, err := cache.NewTableCache(model, nil, nil)
 	if err != nil {
 		panic(err)
 	}
 	return Transaction{
-		ID:    uuid.New(),
-		Cache: cache,
+		ID:          uuid.New(),
+		Cache:       cache,
+		DeletedRows: make(map[string]struct{}),
+		Model:       model,
+		DbName:      dbName,
+		Database:    database,
 	}
 }
 
@@ -245,9 +253,15 @@ func (o *OvsdbServer) Monitor(client *rpc2.Client, args []json.RawMessage, reply
 			return fmt.Errorf("monitor with that value already exists")
 		}
 	}
+
+	o.modelsMutex.Lock()
+	dbModel := o.models[db]
+	o.modelsMutex.Unlock()
+	transaction := NewTransaction(dbModel, db, o.db)
+
 	tableUpdates := make(ovsdb.TableUpdates)
 	for t, request := range request {
-		rows := o.Select(db, t, nil, request.Columns)
+		rows := transaction.Select(t, nil, request.Columns)
 		for i := range rows.Rows {
 			tu := make(ovsdb.TableUpdate)
 			uuid := rows.Rows[i]["_uuid"].(ovsdb.UUID).GoUUID
@@ -286,9 +300,15 @@ func (o *OvsdbServer) MonitorCond(client *rpc2.Client, args []json.RawMessage, r
 			return fmt.Errorf("monitor with that value already exists")
 		}
 	}
+
+	o.modelsMutex.Lock()
+	dbModel := o.models[db]
+	o.modelsMutex.Unlock()
+	transaction := NewTransaction(dbModel, db, o.db)
+
 	tableUpdates := make(ovsdb.TableUpdates2)
 	for t, request := range request {
-		rows := o.Select(db, t, nil, request.Columns)
+		rows := transaction.Select(t, nil, request.Columns)
 		for i := range rows.Rows {
 			tu := make(ovsdb.TableUpdate2)
 			uuid := rows.Rows[i]["_uuid"].(ovsdb.UUID).GoUUID
@@ -325,9 +345,15 @@ func (o *OvsdbServer) MonitorCondSince(client *rpc2.Client, args []json.RawMessa
 			return fmt.Errorf("monitor with that value already exists")
 		}
 	}
+
+	o.modelsMutex.Lock()
+	dbModel := o.models[db]
+	o.modelsMutex.Unlock()
+	transaction := NewTransaction(dbModel, db, o.db)
+
 	tableUpdates := make(ovsdb.TableUpdates2)
 	for t, request := range request {
-		rows := o.Select(db, t, nil, request.Columns)
+		rows := transaction.Select(t, nil, request.Columns)
 		for i := range rows.Rows {
 			tu := make(ovsdb.TableUpdate2)
 			uuid := rows.Rows[i]["_uuid"].(ovsdb.UUID).GoUUID

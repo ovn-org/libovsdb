@@ -98,12 +98,14 @@ func TestOvsdbServerMonitor(t *testing.T) {
 	bazUUID := uuid.NewString()
 	quuxUUID := uuid.NewString()
 
-	_, updates := o.Insert("Open_vSwitch", "Bridge", fooUUID, ovsdb.Row{"name": "foo"})
-	_, update2 := o.Insert("Open_vSwitch", "Bridge", barUUID, ovsdb.Row{"name": "bar"})
+	transaction := NewTransaction(dbModel, "Open_vSwitch", o.db)
+
+	_, updates := transaction.Insert("Bridge", fooUUID, ovsdb.Row{"name": "foo"})
+	_, update2 := transaction.Insert("Bridge", barUUID, ovsdb.Row{"name": "bar"})
 	updates.Merge(update2)
-	_, update3 := o.Insert("Open_vSwitch", "Bridge", bazUUID, ovsdb.Row{"name": "baz"})
+	_, update3 := transaction.Insert("Bridge", bazUUID, ovsdb.Row{"name": "baz"})
 	updates.Merge(update3)
-	_, update4 := o.Insert("Open_vSwitch", "Bridge", quuxUUID, ovsdb.Row{"name": "quux"})
+	_, update4 := transaction.Insert("Bridge", quuxUUID, ovsdb.Row{"name": "quux"})
 	updates.Merge(update4)
 	err = o.db.Commit("Open_vSwitch", uuid.New(), updates)
 	require.NoError(t, err)

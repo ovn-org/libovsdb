@@ -52,11 +52,13 @@ func TestMutateOp(t *testing.T) {
 	bridgeRow, err := m.NewRow(bridgeInfo)
 	require.Nil(t, err)
 
-	res, updates := o.Insert("Open_vSwitch", "Open_vSwitch", ovsUUID, ovsRow)
+	transaction := NewTransaction(dbModel, "Open_vSwitch", o.db)
+
+	res, updates := transaction.Insert("Open_vSwitch", ovsUUID, ovsRow)
 	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
 	require.Nil(t, err)
 
-	res, update2 := o.Insert("Open_vSwitch", "Bridge", bridgeUUID, bridgeRow)
+	res, update2 := transaction.Insert("Bridge", bridgeUUID, bridgeRow)
 	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
 	require.Nil(t, err)
 
@@ -64,7 +66,7 @@ func TestMutateOp(t *testing.T) {
 	err = o.db.Commit("Open_vSwitch", uuid.New(), updates)
 	require.NoError(t, err)
 
-	gotResult, gotUpdate := o.Mutate(
+	gotResult, gotUpdate := transaction.Mutate(
 		"Open_vSwitch",
 		"Open_vSwitch",
 		[]ovsdb.Condition{
@@ -103,7 +105,7 @@ func TestMutateOp(t *testing.T) {
 	assert.Nil(t, err)
 	keyValueDelete, err := ovsdb.NewOvsMap(map[string]string{"baz": "quux"})
 	assert.Nil(t, err)
-	gotResult, gotUpdate = o.Mutate(
+	gotResult, gotUpdate = transaction.Mutate(
 		"Open_vSwitch",
 		"Bridge",
 		[]ovsdb.Condition{
@@ -243,7 +245,9 @@ func TestOvsdbServerInsert(t *testing.T) {
 	bridgeRow, err := m.NewRow(bridgeInfo)
 	require.Nil(t, err)
 
-	res, updates := o.Insert("Open_vSwitch", "Bridge", bridgeUUID, bridgeRow)
+	transaction := NewTransaction(dbModel, "Open_vSwitch", o.db)
+
+	res, updates := transaction.Insert("Bridge", bridgeUUID, bridgeRow)
 	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
 	require.NoError(t, err)
 
@@ -296,7 +300,9 @@ func TestOvsdbServerUpdate(t *testing.T) {
 	bridgeRow, err := m.NewRow(bridgeInfo)
 	require.Nil(t, err)
 
-	res, updates := o.Insert("Open_vSwitch", "Bridge", bridgeUUID, bridgeRow)
+	transaction := NewTransaction(dbModel, "Open_vSwitch", o.db)
+
+	res, updates := transaction.Insert("Bridge", bridgeUUID, bridgeRow)
 	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
 	require.NoError(t, err)
 
@@ -330,7 +336,7 @@ func TestOvsdbServerUpdate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res, updates := o.Update(
+			res, updates := transaction.Update(
 				"Open_vSwitch", "Bridge",
 				[]ovsdb.Condition{{
 					Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: bridgeUUID},
