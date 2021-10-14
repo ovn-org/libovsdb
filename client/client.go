@@ -222,6 +222,7 @@ func (o *ovsdbClient) connect(ctx context.Context, reconnect bool) error {
 
 	go o.handleDisconnectNotification()
 	for _, db := range o.databases {
+		go o.handleCacheErrors(o.stopCh, db.cache.Errors())
 		go db.cache.Run(o.stopCh)
 	}
 
@@ -795,14 +796,14 @@ func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconne
 		u := tableUpdates.(ovsdb.TableUpdates)
 		db.cacheMutex.Lock()
 		defer db.cacheMutex.Unlock()
-		db.cache.Update(nil, u)
+		err = db.cache.Populate(u)
 	} else {
 		u := tableUpdates.(ovsdb.TableUpdates2)
 		db.cacheMutex.Lock()
 		defer db.cacheMutex.Unlock()
-		db.cache.Update2(nil, u)
+		err = db.cache.Populate2(u)
 	}
-	return nil
+	return err
 }
 
 // Echo tests the liveness of the OVSDB connetion
@@ -868,9 +869,27 @@ func (o *ovsdbClient) watchForLeaderChange() error {
 	return nil
 }
 
+func (o *ovsdbClient) handleCacheErrors(stopCh <-chan struct{}, errorChan <-chan error) {
+	for {
+		select {
+		case <-stopCh:
+			return
+		case err := <-errorChan:
+			if errors.Is(err, &cache.ErrCacheInconsistent{}) || errors.Is(err, &cache.ErrIndexExists{}) {
+				// trigger a reconnect, which will purge the cache
+				// hopefully a rebuild will fix any inconsistency
+				o.options.logger.V(3).Error(err, "triggering reconnect to rebuild cache")
+				o.Disconnect()
+			} else {
+				o.options.logger.V(3).Error(err, "error updating cache")
+			}
+		}
+	}
+}
+
 func (o *ovsdbClient) handleDisconnectNotification() {
 	<-o.rpcClient.DisconnectNotify()
-	// close the stopCh, which will stop the cache event processor
+	// close the stopCh, which will stop the cache event processor and update processing
 	close(o.stopCh)
 	o.metrics.numDisconnects.Inc()
 	o.rpcMutex.Lock()

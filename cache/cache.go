@@ -25,6 +25,27 @@ const (
 	columnDelimiter = ","
 )
 
+// ErrCacheInconsistent is an error that can occur when an operation
+// would cause the cache to be inconsistent
+type ErrCacheInconsistent struct {
+	details string
+}
+
+// Error implements the error interface
+func (e *ErrCacheInconsistent) Error() string {
+	msg := "cache inconsistent"
+	if e.details != "" {
+		msg += ": " + e.details
+	}
+	return msg
+}
+
+func NewErrCacheInconsistent(details string) *ErrCacheInconsistent {
+	return &ErrCacheInconsistent{
+		details: details,
+	}
+}
+
 // ErrIndexExists is returned when an item in the database cannot be inserted due to existing indexes
 type ErrIndexExists struct {
 	Table    string
@@ -115,7 +136,7 @@ func (r *RowCache) Create(uuid string, m model.Model, checkIndexes bool) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if _, ok := r.cache[uuid]; ok {
-		return fmt.Errorf("row %s already exists", uuid)
+		return NewErrCacheInconsistent(fmt.Sprintf("cannot create row %s as it already exists", uuid))
 	}
 	if reflect.TypeOf(m) != r.dataType {
 		return fmt.Errorf("expected data of type %s, but got %s", r.dataType.String(), reflect.TypeOf(m).String())
@@ -153,7 +174,7 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if _, ok := r.cache[uuid]; !ok {
-		return fmt.Errorf("row %s does not exist", uuid)
+		return NewErrCacheInconsistent(fmt.Sprintf("cannot update row %s as it does not exist in the cache", uuid))
 	}
 	oldRow := model.Clone(r.cache[uuid])
 	oldInfo, err := mapper.NewInfo(&r.schema, oldRow)
@@ -249,7 +270,7 @@ func (r *RowCache) Delete(uuid string) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if _, ok := r.cache[uuid]; !ok {
-		return fmt.Errorf("row %s does not exist", uuid)
+		return NewErrCacheInconsistent(fmt.Sprintf("cannot delete row %s as it does not exist in the cache", uuid))
 	}
 	oldRow := r.cache[uuid]
 	oldInfo, err := mapper.NewInfo(&r.schema, oldRow)
@@ -409,6 +430,9 @@ type TableCache struct {
 	mapper         *mapper.Mapper
 	dbModel        *model.DBModel
 	schema         *ovsdb.DatabaseSchema
+	updates        chan ovsdb.TableUpdates
+	updates2       chan ovsdb.TableUpdates2
+	errorChan      chan error
 	ovsdb.NotificationHandler
 	mutex sync.RWMutex
 }
@@ -444,6 +468,9 @@ func NewTableCache(schema *ovsdb.DatabaseSchema, dbModel *model.DBModel, data Da
 		mapper:         mapper.NewMapper(schema),
 		dbModel:        dbModel,
 		mutex:          sync.RWMutex{},
+		updates:        make(chan ovsdb.TableUpdates, bufferSize),
+		updates2:       make(chan ovsdb.TableUpdates2, bufferSize),
+		errorChan:      make(chan error),
 	}, nil
 }
 
@@ -479,21 +506,23 @@ func (t *TableCache) Tables() []string {
 }
 
 // Update implements the update method of the NotificationHandler interface
-// this populates the cache with new updates
+// this populates a channel with updates so they can be processed after the initial
+// state has been Populated
 func (t *TableCache) Update(context interface{}, tableUpdates ovsdb.TableUpdates) {
 	if len(tableUpdates) == 0 {
 		return
 	}
-	t.Populate(tableUpdates)
+	t.updates <- tableUpdates
 }
 
 // Update2 implements the update method of the NotificationHandler interface
-// this populates the cache with new updates
+// this populates a channel with updates so they can be processed after the initial
+// state has been Populated
 func (t *TableCache) Update2(context interface{}, tableUpdates ovsdb.TableUpdates2) {
 	if len(tableUpdates) == 0 {
 		return
 	}
-	t.Populate2(tableUpdates)
+	t.updates2 <- tableUpdates
 }
 
 // Locked implements the locked method of the NotificationHandler interface
@@ -513,7 +542,7 @@ func (t *TableCache) Disconnected() {
 }
 
 // Populate adds data to the cache and places an event on the channel
-func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
+func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) error {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
@@ -527,12 +556,12 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 			if row.New != nil {
 				newModel, err := t.CreateModel(table, row.New, uuid)
 				if err != nil {
-					panic(err)
+					return err
 				}
 				if existing := tCache.Row(uuid); existing != nil {
 					if !reflect.DeepEqual(newModel, existing) {
 						if err := tCache.Update(uuid, newModel, false); err != nil {
-							panic(err)
+							return err
 						}
 						t.eventProcessor.AddEvent(updateEvent, table, existing, newModel)
 					}
@@ -540,27 +569,28 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 					continue
 				}
 				if err := tCache.Create(uuid, newModel, false); err != nil {
-					panic(err)
+					return err
 				}
 				t.eventProcessor.AddEvent(addEvent, table, nil, newModel)
 				continue
 			} else {
 				oldModel, err := t.CreateModel(table, row.Old, uuid)
 				if err != nil {
-					panic(err)
+					return err
 				}
 				if err := tCache.Delete(uuid); err != nil {
-					panic(err)
+					return err
 				}
 				t.eventProcessor.AddEvent(deleteEvent, table, oldModel, nil)
 				continue
 			}
 		}
 	}
+	return nil
 }
 
 // Populate2 adds data to the cache and places an event on the channel
-func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) {
+func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	for table := range t.dbModel.Types() {
@@ -574,19 +604,19 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) {
 			case row.Initial != nil:
 				m, err := t.CreateModel(table, row.Initial, uuid)
 				if err != nil {
-					panic(err)
+					return err
 				}
 				if err := tCache.Create(uuid, m, false); err != nil {
-					panic(err)
+					return err
 				}
 				t.eventProcessor.AddEvent(addEvent, table, nil, m)
 			case row.Insert != nil:
 				m, err := t.CreateModel(table, row.Insert, uuid)
 				if err != nil {
-					panic(err)
+					return err
 				}
 				if err := tCache.Create(uuid, m, false); err != nil {
-					panic(err)
+					return err
 				}
 				t.eventProcessor.AddEvent(addEvent, table, nil, m)
 			case row.Modify != nil:
@@ -597,11 +627,11 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) {
 				modified := tCache.Row(uuid)
 				err := t.ApplyModifications(table, modified, *row.Modify)
 				if err != nil {
-					panic(err)
+					return err
 				}
 				if !reflect.DeepEqual(modified, existing) {
 					if err := tCache.Update(uuid, modified, false); err != nil {
-						panic(err)
+						return err
 					}
 					t.eventProcessor.AddEvent(updateEvent, table, existing, modified)
 				}
@@ -615,12 +645,13 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) {
 					panic(fmt.Errorf("row with uuid %s does not exist", uuid))
 				}
 				if err := tCache.Delete(uuid); err != nil {
-					panic(err)
+					return err
 				}
 				t.eventProcessor.AddEvent(deleteEvent, table, m, nil)
 			}
 		}
 	}
+	return nil
 }
 
 // Purge drops all data in the cache and reinitializes it using the
@@ -639,9 +670,50 @@ func (t *TableCache) AddEventHandler(handler EventHandler) {
 	t.eventProcessor.AddEventHandler(handler)
 }
 
-// Run starts the event processing loop. It blocks until the channel is closed.
+// Run starts the event processing and update processing loops.
+// It blocks until the stop channel is closed.
+// Once closed, it clears the updates/updates2 channels to ensure we don't process stale updates on a new connection
 func (t *TableCache) Run(stopCh <-chan struct{}) {
-	t.eventProcessor.Run(stopCh)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go t.processUpdates(stopCh)
+	wg.Add(1)
+	go t.eventProcessor.Run(stopCh)
+	wg.Wait()
+	t.updates = make(chan ovsdb.TableUpdates, bufferSize)
+	t.updates2 = make(chan ovsdb.TableUpdates2, bufferSize)
+}
+
+// Errors returns a channel where errors that occur during cache propagation can be received
+func (t *TableCache) Errors() <-chan error {
+	return t.errorChan
+}
+
+func (t *TableCache) processUpdates(stopCh <-chan struct{}) {
+	for {
+		select {
+		case <-stopCh:
+			return
+		case update := <-t.updates:
+			if err := t.Populate(update); err != nil {
+				select {
+				case t.errorChan <- err:
+					// error sent to client
+				default:
+					// client not listening for errors
+				}
+			}
+		case update2 := <-t.updates2:
+			if err := t.Populate2(update2); err != nil {
+				select {
+				case t.errorChan <- err:
+					// error sent to client
+				default:
+					// client not listening for errors
+				}
+			}
+		}
+	}
 }
 
 // newRowCache creates a new row cache with the provided data
