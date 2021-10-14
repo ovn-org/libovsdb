@@ -795,14 +795,14 @@ func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconne
 		u := tableUpdates.(ovsdb.TableUpdates)
 		db.cacheMutex.Lock()
 		defer db.cacheMutex.Unlock()
-		db.cache.Populate(u)
+		err = db.cache.Populate(u)
 	} else {
 		u := tableUpdates.(ovsdb.TableUpdates2)
 		db.cacheMutex.Lock()
 		defer db.cacheMutex.Unlock()
-		db.cache.Populate2(u)
+		err = db.cache.Populate2(u)
 	}
-	return nil
+	return err
 }
 
 // Echo tests the liveness of the OVSDB connetion

@@ -64,8 +64,7 @@ func (db *inMemoryDatabase) Commit(database string, id uuid.UUID, updates ovsdb.
 	db.mutex.RLock()
 	targetDb := db.databases[database]
 	db.mutex.RLock()
-	targetDb.Populate2(updates)
-	return nil
+	return targetDb.Populate2(updates)
 }
 
 func (db *inMemoryDatabase) CheckIndexes(database string, table string, m model.Model) error {
