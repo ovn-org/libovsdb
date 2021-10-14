@@ -290,13 +290,13 @@ func (r *RowCache) Delete(uuid string) error {
 	return nil
 }
 
-// Rows returns a list of row UUIDs as strings
-func (r *RowCache) Rows() []string {
+// Rows returns a copy of all Rows in the Cache
+func (r *RowCache) Rows() map[string]model.Model {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
-	var result []string
-	for k := range r.cache {
-		result = append(result, k)
+	result := make(map[string]model.Model)
+	for k, v := range r.cache {
+		result[k] = model.Clone(v)
 	}
 	return result
 }
@@ -304,9 +304,7 @@ func (r *RowCache) Rows() []string {
 func (r *RowCache) RowsByCondition(conditions []ovsdb.Condition) ([]model.Model, error) {
 	var results []model.Model
 	if len(conditions) == 0 {
-		uuids := r.Rows()
-		for _, uuid := range uuids {
-			row := r.Row(uuid)
+		for _, row := range r.Rows() {
 			results = append(results, row)
 		}
 		return results, nil
@@ -319,13 +317,12 @@ func (r *RowCache) RowsByCondition(conditions []ovsdb.Condition) ([]model.Model,
 				panic(fmt.Sprintf("%+v is not an ovsdb uuid", ovsdbUUID))
 			}
 			uuid := ovsdbUUID.GoUUID
-			for _, k := range r.Rows() {
-				ok, err := condition.Function.Evaluate(k, uuid)
+			for rowUUID, row := range r.Rows() {
+				ok, err := condition.Function.Evaluate(rowUUID, uuid)
 				if err != nil {
 					return nil, err
 				}
 				if ok {
-					row := r.Row(k)
 					results = append(results, row)
 				}
 			}
@@ -346,8 +343,7 @@ func (r *RowCache) RowsByCondition(conditions []ovsdb.Condition) ([]model.Model,
 				}
 			}
 		} else {
-			for _, uuid := range r.Rows() {
-				row := r.Row(uuid)
+			for _, row := range r.Rows() {
 				info, err := mapper.NewInfo(&r.schema, row)
 				if err != nil {
 					return nil, err

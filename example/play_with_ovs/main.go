@@ -131,7 +131,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	rootUUID = ovs.Cache().Table(ovsTable).Rows()[0]
+	// Get root UUID
+	for uuid := range ovs.Cache().Table("Open_vSwitch").Rows() {
+		rootUUID = uuid
+	}
 
 	fmt.Println(`Silly game of stopping this app when a Bridge with name "stop" is monitored !`)
 	go play(ovs)
