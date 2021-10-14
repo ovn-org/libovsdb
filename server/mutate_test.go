@@ -226,6 +226,8 @@ func TestMutateModulo(t *testing.T) {
 }
 
 func TestMutateInsert(t *testing.T) {
+	var nilSlice []string
+	var nilMap map[string]string
 	tests := []struct {
 		name    string
 		current interface{}
@@ -241,6 +243,22 @@ func TestMutateInsert(t *testing.T) {
 			"baz",
 			[]string{"foo", "bar", "baz"},
 			"baz",
+		},
+		{
+			"insert in to nil value",
+			nil,
+			ovsdb.MutateOperationInsert,
+			[]string{"foo"},
+			[]string{"foo"},
+			[]string{"foo"},
+		},
+		{
+			"insert in to nil slice",
+			nilSlice,
+			ovsdb.MutateOperationInsert,
+			[]string{"foo"},
+			[]string{"foo"},
+			[]string{"foo"},
 		},
 		{
 			"insert existing string",
@@ -277,8 +295,22 @@ func TestMutateInsert(t *testing.T) {
 			},
 		},
 		{
-			"insert key value pairs on nil map",
+			"insert key value pairs on nil value",
 			nil,
+			ovsdb.MutateOperationInsert,
+			map[string]string{
+				"foo": "bar",
+			},
+			map[string]string{
+				"foo": "bar",
+			},
+			map[string]string{
+				"foo": "bar",
+			},
+		},
+		{
+			"insert key value pairs on nil map",
+			nilMap,
 			ovsdb.MutateOperationInsert,
 			map[string]string{
 				"foo": "bar",
