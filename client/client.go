@@ -681,11 +681,7 @@ func (o *ovsdbClient) MonitorCancel(ctx context.Context, cookie MonitorCookie) e
 // RFC 7047 : monitor
 func (o *ovsdbClient) Monitor(ctx context.Context, monitor *Monitor) (MonitorCookie, error) {
 	cookie := newMonitorCookie(o.primaryDBName)
-	err := o.monitor(ctx, cookie, false, monitor)
-	if err != nil && err == ErrUnsupportedRPC {
-		return cookie, o.monitor(ctx, cookie, false, monitor)
-	}
-	return cookie, err
+	return cookie, o.monitor(ctx, cookie, false, monitor)
 }
 
 func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconnecting bool, monitor *Monitor) error {
@@ -766,17 +762,17 @@ func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconne
 		if err == rpc2.ErrShutdown {
 			return ErrNotConnected
 		}
-		// TODO: Match unsupported RPC method error
-		if monitor.Method == ovsdb.ConditionalMonitorSinceRPC {
-			o.options.logger.V(3).Error(err, "method monitor_cond_since not supported, falling back to monitor_cond")
-			monitor.Method = ovsdb.ConditionalMonitorRPC
-			// return to ensure that we release any held mutexes, retry must happen from a calling function
-			return ErrUnsupportedRPC
-		} else if monitor.Method == ovsdb.ConditionalMonitorRPC {
-			o.options.logger.V(3).Error(err, "method monitor_cond not supported, falling back to monitor")
-			monitor.Method = ovsdb.MonitorRPC
-			// return to ensure that we release any held mutexes, retry must happen from a calling function
-			return ErrUnsupportedRPC
+		if err.Error() == "unknown method" {
+			if monitor.Method == ovsdb.ConditionalMonitorSinceRPC {
+				o.options.logger.V(3).Error(err, "method monitor_cond_since not supported, falling back to monitor_cond")
+				monitor.Method = ovsdb.ConditionalMonitorRPC
+				return o.monitor(ctx, cookie, reconnecting, monitor)
+			}
+			if monitor.Method == ovsdb.ConditionalMonitorRPC {
+				o.options.logger.V(3).Error(err, "method monitor_cond not supported, falling back to monitor")
+				monitor.Method = ovsdb.MonitorRPC
+				return o.monitor(ctx, cookie, reconnecting, monitor)
+			}
 		}
 		return err
 	}
