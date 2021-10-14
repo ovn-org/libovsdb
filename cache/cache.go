@@ -409,6 +409,8 @@ type TableCache struct {
 	mapper         *mapper.Mapper
 	dbModel        *model.DBModel
 	schema         *ovsdb.DatabaseSchema
+	updates        chan ovsdb.TableUpdates
+	updates2       chan ovsdb.TableUpdates2
 	ovsdb.NotificationHandler
 	mutex sync.RWMutex
 }
@@ -444,6 +446,8 @@ func NewTableCache(schema *ovsdb.DatabaseSchema, dbModel *model.DBModel, data Da
 		mapper:         mapper.NewMapper(schema),
 		dbModel:        dbModel,
 		mutex:          sync.RWMutex{},
+		updates:        make(chan ovsdb.TableUpdates, bufferSize),
+		updates2:       make(chan ovsdb.TableUpdates2, bufferSize),
 	}, nil
 }
 
@@ -479,21 +483,23 @@ func (t *TableCache) Tables() []string {
 }
 
 // Update implements the update method of the NotificationHandler interface
-// this populates the cache with new updates
+// this populates a channel with updates so they can be processed after the initial
+// state has been Populated
 func (t *TableCache) Update(context interface{}, tableUpdates ovsdb.TableUpdates) {
 	if len(tableUpdates) == 0 {
 		return
 	}
-	t.Populate(tableUpdates)
+	t.updates <- tableUpdates
 }
 
 // Update2 implements the update method of the NotificationHandler interface
-// this populates the cache with new updates
+// this populates a channel with updates so they can be processed after the initial
+// state has been Populated
 func (t *TableCache) Update2(context interface{}, tableUpdates ovsdb.TableUpdates2) {
 	if len(tableUpdates) == 0 {
 		return
 	}
-	t.Populate2(tableUpdates)
+	t.updates2 <- tableUpdates
 }
 
 // Locked implements the locked method of the NotificationHandler interface
@@ -639,9 +645,31 @@ func (t *TableCache) AddEventHandler(handler EventHandler) {
 	t.eventProcessor.AddEventHandler(handler)
 }
 
-// Run starts the event processing loop. It blocks until the channel is closed.
+// Run starts the event processing and update processing loops.
+// It blocks until the stop channel is closed.
+// Once closed, it clears the updates/updates2 channels to ensure we don't process stale updates on a new connection
 func (t *TableCache) Run(stopCh <-chan struct{}) {
-	t.eventProcessor.Run(stopCh)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go t.processUpdates(stopCh)
+	wg.Add(1)
+	go t.eventProcessor.Run(stopCh)
+	wg.Wait()
+	t.updates = make(chan ovsdb.TableUpdates, bufferSize)
+	t.updates2 = make(chan ovsdb.TableUpdates2, bufferSize)
+}
+
+func (t *TableCache) processUpdates(stopCh <-chan struct{}) {
+	for {
+		select {
+		case <-stopCh:
+			return
+		case update := <-t.updates:
+			t.Populate(update)
+		case update2 := <-t.updates2:
+			t.Populate2(update2)
+		}
+	}
 }
 
 // newRowCache creates a new row cache with the provided data

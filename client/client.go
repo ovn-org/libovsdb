@@ -795,12 +795,12 @@ func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconne
 		u := tableUpdates.(ovsdb.TableUpdates)
 		db.cacheMutex.Lock()
 		defer db.cacheMutex.Unlock()
-		db.cache.Update(nil, u)
+		db.cache.Populate(u)
 	} else {
 		u := tableUpdates.(ovsdb.TableUpdates2)
 		db.cacheMutex.Lock()
 		defer db.cacheMutex.Unlock()
-		db.cache.Update2(nil, u)
+		db.cache.Populate2(u)
 	}
 	return nil
 }
@@ -870,7 +870,7 @@ func (o *ovsdbClient) watchForLeaderChange() error {
 
 func (o *ovsdbClient) handleDisconnectNotification() {
 	<-o.rpcClient.DisconnectNotify()
-	// close the stopCh, which will stop the cache event processor
+	// close the stopCh, which will stop the cache event processor and update processing
 	close(o.stopCh)
 	o.metrics.numDisconnects.Inc()
 	o.rpcMutex.Lock()
