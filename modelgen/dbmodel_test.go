@@ -59,8 +59,8 @@ import (
 )
 
 // FullDatabaseModel returns the DatabaseModel object to be used in libovsdb
-func FullDatabaseModel() (*model.DBModel, error) {
-	return model.NewDBModel("AtomicDB", map[string]model.Model{
+func FullDatabaseModel() (*model.DatabaseModelRequest, error) {
+	return model.NewDatabaseModelRequest("AtomicDB", map[string]model.Model{
 		"atomicTable": &AtomicTable{},
 	})
 }

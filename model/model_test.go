@@ -23,7 +23,7 @@ type modelInvalid struct {
 	Foo string
 }
 
-func TestDBModel(t *testing.T) {
+func TestDatabaseModelRequest(t *testing.T) {
 	type Test struct {
 		name  string
 		obj   map[string]Model
@@ -50,10 +50,10 @@ func TestDBModel(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("TestNewModel_%s", tt.name), func(t *testing.T) {
-			db, err := NewDBModel(tt.name, tt.obj)
+			db, err := NewDatabaseModelRequest(tt.name, tt.obj)
 			if tt.valid {
 				assert.Nil(t, err)
-				assert.Len(t, db.Types(), len(tt.obj))
+				assert.Len(t, db.types, len(tt.obj))
 				assert.Equal(t, tt.name, db.Name())
 			} else {
 				assert.NotNil(t, err)
@@ -63,11 +63,11 @@ func TestDBModel(t *testing.T) {
 }
 
 func TestNewModel(t *testing.T) {
-	db, err := NewDBModel("testTable", map[string]Model{"Test_A": &modelA{}, "Test_B": &modelB{}})
+	db, err := NewDatabaseModelRequest("testTable", map[string]Model{"Test_A": &modelA{}, "Test_B": &modelB{}})
 	assert.Nil(t, err)
-	_, err = db.NewModel("Unknown")
+	_, err = db.newModel("Unknown")
 	assert.NotNilf(t, err, "Creating model from unknown table should fail")
-	model, err := db.NewModel("Test_A")
+	model, err := db.newModel("Test_A")
 	assert.Nilf(t, err, "Creating model from valid table should succeed")
 	assert.IsTypef(t, model, &modelA{}, "model creation should return the appropriate type")
 }
@@ -86,7 +86,7 @@ func TestSetUUID(t *testing.T) {
 }
 
 func TestValidate(t *testing.T) {
-	model, err := NewDBModel("TestDB", map[string]Model{
+	model, err := NewDatabaseModelRequest("TestDB", map[string]Model{
 		"TestTable": &struct {
 			aUUID   string            `ovsdb:"_uuid"`
 			aString string            `ovsdb:"aString"`
@@ -324,7 +324,7 @@ func TestValidate(t *testing.T) {
 			var schema ovsdb.DatabaseSchema
 			err := json.Unmarshal(tt.schema, &schema)
 			assert.Nil(t, err)
-			errors := model.Validate(&schema)
+			errors := model.validate(&schema)
 			if tt.err {
 				assert.Greater(t, len(errors), 0)
 			} else {
