@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-logr/logr"
 	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
@@ -18,6 +19,8 @@ var (
 	one      = 1
 	six      = 6
 )
+
+var discardLogger = logr.Discard()
 
 func TestAPIListSimple(t *testing.T) {
 
@@ -91,7 +94,7 @@ func TestAPIListSimple(t *testing.T) {
 			if tt.initialCap != 0 {
 				result = make([]testLogicalSwitch, tt.initialCap)
 			}
-			api := newAPI(tcache)
+			api := newAPI(tcache, &discardLogger)
 			err := api.List(&result)
 			if tt.err {
 				assert.NotNil(t, err)
@@ -107,14 +110,14 @@ func TestAPIListSimple(t *testing.T) {
 
 	t.Run("ApiList: Error wrong type", func(t *testing.T) {
 		var result []string
-		api := newAPI(tcache)
+		api := newAPI(tcache, &discardLogger)
 		err := api.List(&result)
 		assert.NotNil(t, err)
 	})
 
 	t.Run("ApiList: Type Selection", func(t *testing.T) {
 		var result []testLogicalSwitchPort
-		api := newAPI(tcache)
+		api := newAPI(tcache, &discardLogger)
 		err := api.List(&result)
 		assert.Nil(t, err)
 		assert.Len(t, result, 0, "Should be empty since cache is empty")
@@ -122,7 +125,7 @@ func TestAPIListSimple(t *testing.T) {
 
 	t.Run("ApiList: Empty List", func(t *testing.T) {
 		result := []testLogicalSwitch{}
-		api := newAPI(tcache)
+		api := newAPI(tcache, &discardLogger)
 		err := api.List(&result)
 		assert.Nil(t, err)
 		assert.Len(t, result, len(lscacheList))
@@ -208,7 +211,7 @@ func TestAPIListPredicate(t *testing.T) {
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiListPredicate: %s", tt.name), func(t *testing.T) {
 			var result []testLogicalSwitch
-			api := newAPI(tcache)
+			api := newAPI(tcache, &discardLogger)
 			cond := api.WhereCache(tt.predicate)
 			err := cond.List(&result)
 			if tt.err {
@@ -297,7 +300,7 @@ func TestAPIListFields(t *testing.T) {
 			var result []testLogicalSwitchPort
 			// Clean object
 			testObj = testLogicalSwitchPort{}
-			api := newAPI(tcache)
+			api := newAPI(tcache, &discardLogger)
 			err := api.Where(&testObj).List(&result)
 			if tt.err {
 				assert.NotNil(t, err)
@@ -311,7 +314,7 @@ func TestAPIListFields(t *testing.T) {
 
 	t.Run("ApiListFields: Wrong table", func(t *testing.T) {
 		var result []testLogicalSwitchPort
-		api := newAPI(tcache)
+		api := newAPI(tcache, &discardLogger)
 		obj := testLogicalSwitch{
 			UUID: aUUID0,
 		}
@@ -353,7 +356,7 @@ func TestConditionFromFunc(t *testing.T) {
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("conditionFromFunc: %s", tt.name), func(t *testing.T) {
 			cache := apiTestCache(t, nil)
-			apiIface := newAPI(cache)
+			apiIface := newAPI(cache, &discardLogger)
 			condition := apiIface.(api).conditionFromFunc(tt.arg)
 			if tt.err {
 				assert.IsType(t, &errorConditional{}, condition)
@@ -412,7 +415,7 @@ func TestConditionFromModel(t *testing.T) {
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("conditionFromModel: %s", tt.name), func(t *testing.T) {
 			cache := apiTestCache(t, nil)
-			apiIface := newAPI(cache)
+			apiIface := newAPI(cache, &discardLogger)
 			condition := apiIface.(api).conditionFromModel(false, tt.model, tt.conds...)
 			if tt.err {
 				assert.IsType(t, &errorConditional{}, condition)
@@ -498,7 +501,7 @@ func TestAPIGet(t *testing.T) {
 		t.Run(fmt.Sprintf("ApiGet: %s", tt.name), func(t *testing.T) {
 			var result testLogicalSwitchPort
 			tt.prepare(&result)
-			api := newAPI(tcache)
+			api := newAPI(tcache, &discardLogger)
 			err := api.Get(&result)
 			if tt.err {
 				assert.NotNil(t, err)
@@ -613,7 +616,7 @@ func TestAPICreate(t *testing.T) {
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiCreate: %s", tt.name), func(t *testing.T) {
-			api := newAPI(tcache)
+			api := newAPI(tcache, &discardLogger)
 			op, err := api.Create(tt.input...)
 			if tt.err {
 				assert.NotNil(t, err)
@@ -780,7 +783,7 @@ func TestAPIMutate(t *testing.T) {
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiMutate: %s", tt.name), func(t *testing.T) {
-			api := newAPI(tcache)
+			api := newAPI(tcache, &discardLogger)
 			cond := tt.condition(api)
 			ops, err := cond.Mutate(&testObj, tt.mutations...)
 			if tt.err {
@@ -1025,7 +1028,7 @@ func TestAPIUpdate(t *testing.T) {
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiUpdate: %s", tt.name), func(t *testing.T) {
-			api := newAPI(tcache)
+			api := newAPI(tcache, &discardLogger)
 			cond := tt.condition(api)
 			// clean test Object
 			testObj = testLogicalSwitchPort{}
@@ -1215,7 +1218,7 @@ func TestAPIDelete(t *testing.T) {
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiDelete: %s", tt.name), func(t *testing.T) {
-			api := newAPI(tcache)
+			api := newAPI(tcache, &discardLogger)
 			cond := tt.condition(api)
 			ops, err := cond.Delete()
 			if tt.err {
