@@ -222,6 +222,7 @@ func (o *ovsdbClient) connect(ctx context.Context, reconnect bool) error {
 
 	go o.handleDisconnectNotification()
 	for _, db := range o.databases {
+		go o.handleCacheErrors(o.stopCh, db.cache.Errors())
 		go db.cache.Run(o.stopCh)
 	}
 
@@ -866,6 +867,24 @@ func (o *ovsdbClient) watchForLeaderChange() error {
 		}
 	}()
 	return nil
+}
+
+func (o *ovsdbClient) handleCacheErrors(stopCh <-chan struct{}, errorChan <-chan error) {
+	for {
+		select {
+		case <-stopCh:
+			return
+		case err := <-errorChan:
+			if errors.Is(err, &cache.ErrCacheInconsistent{}) || errors.Is(err, &cache.ErrIndexExists{}) {
+				// trigger a reconnect, which will purge the cache
+				// hopefully a rebuild will fix any inconsistency
+				o.options.logger.V(3).Error(err, "triggering reconnect to rebuild cache")
+				o.Disconnect()
+			} else {
+				o.options.logger.V(3).Error(err, "error updating cache")
+			}
+		}
+	}
 }
 
 func (o *ovsdbClient) handleDisconnectNotification() {

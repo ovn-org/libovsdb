@@ -25,6 +25,27 @@ const (
 	columnDelimiter = ","
 )
 
+// ErrCacheInconsistent is an error that can occur when an operation
+// would cause the cache to be inconsistent
+type ErrCacheInconsistent struct {
+	details string
+}
+
+// Error implements the error interface
+func (e *ErrCacheInconsistent) Error() string {
+	msg := "cache inconsistent"
+	if e.details != "" {
+		msg += ": " + e.details
+	}
+	return msg
+}
+
+func NewErrCacheInconsistent(details string) *ErrCacheInconsistent {
+	return &ErrCacheInconsistent{
+		details: details,
+	}
+}
+
 // ErrIndexExists is returned when an item in the database cannot be inserted due to existing indexes
 type ErrIndexExists struct {
 	Table    string
@@ -115,7 +136,7 @@ func (r *RowCache) Create(uuid string, m model.Model, checkIndexes bool) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if _, ok := r.cache[uuid]; ok {
-		return fmt.Errorf("row %s already exists", uuid)
+		return NewErrCacheInconsistent(fmt.Sprintf("cannot create row %s as it already exists", uuid))
 	}
 	if reflect.TypeOf(m) != r.dataType {
 		return fmt.Errorf("expected data of type %s, but got %s", r.dataType.String(), reflect.TypeOf(m).String())
@@ -153,7 +174,7 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if _, ok := r.cache[uuid]; !ok {
-		return fmt.Errorf("row %s does not exist", uuid)
+		return NewErrCacheInconsistent(fmt.Sprintf("cannot update row %s as it does not exist in the cache", uuid))
 	}
 	oldRow := model.Clone(r.cache[uuid])
 	oldInfo, err := mapper.NewInfo(&r.schema, oldRow)
@@ -249,7 +270,7 @@ func (r *RowCache) Delete(uuid string) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if _, ok := r.cache[uuid]; !ok {
-		return fmt.Errorf("row %s does not exist", uuid)
+		return NewErrCacheInconsistent(fmt.Sprintf("cannot delete row %s as it does not exist in the cache", uuid))
 	}
 	oldRow := r.cache[uuid]
 	oldInfo, err := mapper.NewInfo(&r.schema, oldRow)
