@@ -301,11 +301,11 @@ func (r *RowCache) Rows() map[string]model.Model {
 	return result
 }
 
-func (r *RowCache) RowsByCondition(conditions []ovsdb.Condition) ([]model.Model, error) {
-	var results []model.Model
+func (r *RowCache) RowsByCondition(conditions []ovsdb.Condition) (map[string]model.Model, error) {
+	results := make(map[string]model.Model)
 	if len(conditions) == 0 {
-		for _, row := range r.Rows() {
-			results = append(results, row)
+		for uuid, row := range r.Rows() {
+			results[uuid] = row
 		}
 		return results, nil
 	}
@@ -323,11 +323,11 @@ func (r *RowCache) RowsByCondition(conditions []ovsdb.Condition) ([]model.Model,
 					return nil, err
 				}
 				if ok {
-					results = append(results, row)
+					results[rowUUID] = row
 				}
 			}
 		} else if index, err := r.Index(condition.Column); err != nil {
-			for k, v := range index {
+			for k, rowUUID := range index {
 				tSchema := r.schema.Columns[condition.Column]
 				nativeValue, err := ovsdb.OvsToNative(tSchema, condition.Value)
 				if err != nil {
@@ -338,12 +338,12 @@ func (r *RowCache) RowsByCondition(conditions []ovsdb.Condition) ([]model.Model,
 					return nil, err
 				}
 				if ok {
-					row := r.Row(v)
-					results = append(results, row)
+					row := r.Row(rowUUID)
+					results[rowUUID] = row
 				}
 			}
 		} else {
-			for _, row := range r.Rows() {
+			for uuid, row := range r.Rows() {
 				info, err := mapper.NewInfo(&r.schema, row)
 				if err != nil {
 					return nil, err
@@ -357,7 +357,7 @@ func (r *RowCache) RowsByCondition(conditions []ovsdb.Condition) ([]model.Model,
 					return nil, err
 				}
 				if ok {
-					results = append(results, row)
+					results[uuid] = row
 				}
 			}
 		}

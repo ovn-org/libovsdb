@@ -16,7 +16,7 @@ type Database interface {
 	Exists(database string) bool
 	Commit(database string, id uuid.UUID, updates ovsdb.TableUpdates2) error
 	CheckIndexes(database string, table string, m model.Model) error
-	List(database, table string, conditions ...ovsdb.Condition) ([]model.Model, error)
+	List(database, table string, conditions ...ovsdb.Condition) (map[string]model.Model, error)
 	Get(database, table string, uuid string) (model.Model, error)
 }
 
@@ -78,7 +78,7 @@ func (db *inMemoryDatabase) CheckIndexes(database string, table string, m model.
 	return targetTable.IndexExists(m)
 }
 
-func (db *inMemoryDatabase) List(database, table string, conditions ...ovsdb.Condition) ([]model.Model, error) {
+func (db *inMemoryDatabase) List(database, table string, conditions ...ovsdb.Condition) (map[string]model.Model, error) {
 	if !db.Exists(database) {
 		return nil, fmt.Errorf("db does not exist")
 	}
