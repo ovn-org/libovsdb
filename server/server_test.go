@@ -2,6 +2,8 @@ package server
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
@@ -10,6 +12,42 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// bridgeType is the simplified ORM model of the Bridge table
+type bridgeType struct {
+	UUID         string            `ovsdb:"_uuid"`
+	Name         string            `ovsdb:"name"`
+	DatapathType string            `ovsdb:"datapath_type"`
+	DatapathID   *string           `ovsdb:"datapath_id"`
+	OtherConfig  map[string]string `ovsdb:"other_config"`
+	ExternalIds  map[string]string `ovsdb:"external_ids"`
+	Ports        []string          `ovsdb:"ports"`
+	Status       map[string]string `ovsdb:"status"`
+}
+
+// ovsType is the simplified ORM model of the Bridge table
+type ovsType struct {
+	UUID    string   `ovsdb:"_uuid"`
+	Bridges []string `ovsdb:"bridges"`
+}
+
+func getSchema() (*ovsdb.DatabaseSchema, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	path := filepath.Join(wd, "testdata", "ovslite.json")
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	schema, err := ovsdb.SchemaFromFile(f)
+	if err != nil {
+		return nil, err
+	}
+	return schema, nil
+}
 
 func TestExpandNamedUUID(t *testing.T) {
 	testUUID := uuid.NewString()

@@ -22,6 +22,7 @@ build: prebuild
 test: prebuild
 	@echo "+ $@"
 	@go test -race -coverprofile=unit.cov -test.short -timeout 30s -v ./...
+	@IN_MEMORY_DATABASE=1 go test -race -coverprofile=ims-integration.cov -coverpkg=github.com/ovn-org/libovsdb/... -timeout 60s -v ./test/ovs
 
 .PHONY: integration-test
 integration-test:
@@ -31,7 +32,8 @@ integration-test:
 .PHONY: coverage
 coverage: test integration-test
 	@sed -i '1d' integration.cov
-	@cat unit.cov integration.cov > profile.cov
+	@sed -i '1d' ims-integration.cov
+	@cat unit.cov integration.cov ims-integration.cov > profile.cov
 
 .PHONY: bench
 bench: install-deps
