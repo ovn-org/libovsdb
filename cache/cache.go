@@ -428,8 +428,6 @@ type TableCache struct {
 	cache          map[string]*RowCache
 	eventProcessor *eventProcessor
 	dbModel        *model.DatabaseModel
-	updates        chan ovsdb.TableUpdates
-	updates2       chan ovsdb.TableUpdates2
 	errorChan      chan error
 	ovsdb.NotificationHandler
 	mutex  sync.RWMutex
@@ -472,8 +470,6 @@ func NewTableCache(dbModel *model.DatabaseModel, data Data, logger *logr.Logger)
 		eventProcessor: eventProcessor,
 		dbModel:        dbModel,
 		mutex:          sync.RWMutex{},
-		updates:        make(chan ovsdb.TableUpdates, bufferSize),
-		updates2:       make(chan ovsdb.TableUpdates2, bufferSize),
 		errorChan:      make(chan error),
 		logger:         logger,
 	}, nil
@@ -517,7 +513,9 @@ func (t *TableCache) Update(context interface{}, tableUpdates ovsdb.TableUpdates
 	if len(tableUpdates) == 0 {
 		return
 	}
-	t.updates <- tableUpdates
+	if err := t.Populate(tableUpdates); err != nil {
+		t.logger.Error(err, "during cache populate")
+	}
 }
 
 // Update2 implements the update method of the NotificationHandler interface
@@ -527,7 +525,9 @@ func (t *TableCache) Update2(context interface{}, tableUpdates ovsdb.TableUpdate
 	if len(tableUpdates) == 0 {
 		return
 	}
-	t.updates2 <- tableUpdates
+	if err := t.Populate2(tableUpdates); err != nil {
+		t.logger.Error(err, "during cache populate2")
+	}
 }
 
 // Locked implements the locked method of the NotificationHandler interface
@@ -691,44 +691,13 @@ func (t *TableCache) AddEventHandler(handler EventHandler) {
 func (t *TableCache) Run(stopCh <-chan struct{}) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
-	go t.processUpdates(stopCh)
-	wg.Add(1)
 	go t.eventProcessor.Run(stopCh)
 	wg.Wait()
-	t.updates = make(chan ovsdb.TableUpdates, bufferSize)
-	t.updates2 = make(chan ovsdb.TableUpdates2, bufferSize)
 }
 
 // Errors returns a channel where errors that occur during cache propagation can be received
 func (t *TableCache) Errors() <-chan error {
 	return t.errorChan
-}
-
-func (t *TableCache) processUpdates(stopCh <-chan struct{}) {
-	for {
-		select {
-		case <-stopCh:
-			return
-		case update := <-t.updates:
-			if err := t.Populate(update); err != nil {
-				select {
-				case t.errorChan <- err:
-					// error sent to client
-				default:
-					// client not listening for errors
-				}
-			}
-		case update2 := <-t.updates2:
-			if err := t.Populate2(update2); err != nil {
-				select {
-				case t.errorChan <- err:
-					// error sent to client
-				default:
-					// client not listening for errors
-				}
-			}
-		}
-	}
 }
 
 // newRowCache creates a new row cache with the provided data
