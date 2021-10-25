@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/url"
+	"os"
 	"reflect"
 	"strings"
 	"sync"
@@ -15,6 +17,8 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/cenkalti/rpc2"
 	"github.com/cenkalti/rpc2/jsonrpc"
+	"github.com/go-logr/logr"
+	"github.com/go-logr/stdr"
 	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
@@ -86,6 +90,8 @@ type ovsdbClient struct {
 	disconnect    chan struct{}
 	shutdown      bool
 	shutdownMutex sync.Mutex
+
+	logger *logr.Logger
 }
 
 // database is everything needed to map between go types and an ovsdb Database
@@ -139,6 +145,23 @@ func newOVSDBClient(clientDBModel model.ClientDBModel, opts ...Option) (*ovsdbCl
 		return nil, err
 	}
 
+	if ovs.options.logger == nil {
+		// create a new logger to log to stdout
+		l := stdr.NewWithOptions(log.New(os.Stderr, "", log.LstdFlags), stdr.Options{LogCaller: stdr.All}).WithName("libovsdb").WithValues(
+			"database", ovs.primaryDBName,
+		)
+		stdr.SetVerbosity(5)
+		ovs.logger = &l
+	} else {
+		// add the "database" value to the structured logger
+		// to make it easier to tell between different DBs (e.g. ovn nbdb vs. sbdb)
+		l := ovs.options.logger.WithValues(
+			"database", ovs.primaryDBName,
+		)
+		ovs.logger = &l
+	}
+	ovs.registerMetrics()
+
 	// if we should only connect to the leader, then add the special "_Server" database as well
 	if ovs.options.leaderOnly {
 		sm, err := serverdb.FullDatabaseModel()
@@ -160,12 +183,6 @@ func newOVSDBClient(clientDBModel model.ClientDBModel, opts ...Option) (*ovsdbCl
 // The connection can be configured using one or more Option(s), like WithTLSConfig
 // If no WithEndpoint option is supplied, the default of unix:/var/run/openvswitch/ovsdb.sock is used
 func (o *ovsdbClient) Connect(ctx context.Context) error {
-	// add the "model" value to the structured logger
-	// to make it easier to tell between different DBs (e.g. ovn nbdb vs. sbdb)
-	l := o.options.logger.WithValues("model", o.primaryDB().model.Client().Name())
-	o.options.logger = &l
-	o.registerMetrics()
-
 	if err := o.connect(ctx, false); err != nil {
 		if err == ErrAlreadyConnected {
 			return nil
@@ -199,7 +216,7 @@ func (o *ovsdbClient) connect(ctx context.Context, reconnect bool) error {
 				fmt.Errorf("failed to connect to %s: %w", endpoint, err))
 			continue
 		} else {
-			o.options.logger.V(3).Info("successfully connected", "endpoint", endpoint)
+			o.logger.V(3).Info("successfully connected", "endpoint", endpoint)
 			o.activeEndpoint = endpoint
 			connected = true
 			break
@@ -220,7 +237,7 @@ func (o *ovsdbClient) connect(ctx context.Context, reconnect bool) error {
 
 	// if we're reconnecting, re-start all the monitors
 	if reconnect {
-		o.options.logger.V(3).Info("reconnected - restarting monitors")
+		o.logger.V(3).Info("reconnected - restarting monitors")
 		for dbName, db := range o.databases {
 			db.monitorsMutex.Lock()
 			defer db.monitorsMutex.Unlock()
@@ -244,7 +261,7 @@ func (o *ovsdbClient) connect(ctx context.Context, reconnect bool) error {
 }
 
 func (o *ovsdbClient) tryEndpoint(ctx context.Context, u *url.URL) error {
-	o.options.logger.V(5).Info("trying to connect", "endpoint", fmt.Sprintf("%v", u))
+	o.logger.V(5).Info("trying to connect", "endpoint", fmt.Sprintf("%v", u))
 	var dialer net.Dialer
 	var err error
 	var c net.Conn
@@ -320,14 +337,14 @@ func (o *ovsdbClient) tryEndpoint(ctx context.Context, u *url.URL) error {
 
 		db.cacheMutex.Lock()
 		if db.cache == nil {
-			db.cache, err = cache.NewTableCache(db.model, nil, o.options.logger)
+			db.cache, err = cache.NewTableCache(db.model, nil, o.logger)
 			if err != nil {
 				db.cacheMutex.Unlock()
 				o.rpcClient.Close()
 				o.rpcClient = nil
 				return err
 			}
-			db.api = newAPI(db.cache, o.options.logger)
+			db.api = newAPI(db.cache, o.logger)
 		} else {
 			db.cache.Purge(db.model)
 		}
@@ -425,7 +442,7 @@ func (o *ovsdbClient) isEndpointLeader(ctx context.Context) (bool, error) {
 
 	// Extremely unlikely: there is no _Server row for the desired DB (which we made sure existed)
 	// for now, just continue
-	o.options.logger.V(3).Info("Couldn't find a row in _Server for our database. Continuing without leader detection", "database", o.primaryDBName)
+	o.logger.V(3).Info("Couldn't find a row in _Server for our database. Continuing without leader detection", "database", o.primaryDBName)
 	return true, nil
 }
 
@@ -681,7 +698,7 @@ func (o *ovsdbClient) transact(ctx context.Context, dbName string, operation ...
 	if o.rpcClient == nil {
 		return nil, ErrNotConnected
 	}
-	o.options.logger.V(5).Info("transacting operations", "database", dbName, "operations", fmt.Sprintf("%+v", operation))
+	o.logger.V(5).Info("transacting operations", "database", dbName, "operations", fmt.Sprintf("%+v", operation))
 	err := o.rpcClient.CallWithContext(ctx, "transact", args, &reply)
 	if err != nil {
 		if err == rpc2.ErrShutdown {
@@ -824,12 +841,12 @@ func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconne
 		}
 		if err.Error() == "unknown method" {
 			if monitor.Method == ovsdb.ConditionalMonitorSinceRPC {
-				o.options.logger.V(3).Error(err, "method monitor_cond_since not supported, falling back to monitor_cond")
+				o.logger.V(3).Error(err, "method monitor_cond_since not supported, falling back to monitor_cond")
 				monitor.Method = ovsdb.ConditionalMonitorRPC
 				return o.monitor(ctx, cookie, reconnecting, monitor)
 			}
 			if monitor.Method == ovsdb.ConditionalMonitorRPC {
-				o.options.logger.V(3).Error(err, "method monitor_cond not supported, falling back to monitor")
+				o.logger.V(3).Error(err, "method monitor_cond not supported, falling back to monitor")
 				monitor.Method = ovsdb.MonitorRPC
 				return o.monitor(ctx, cookie, reconnecting, monitor)
 			}
@@ -939,7 +956,7 @@ func (o *ovsdbClient) watchForLeaderChange() error {
 			}
 
 			if dbInfo.Model == serverdb.DatabaseModelClustered && !dbInfo.Leader {
-				o.options.logger.V(3).Info("endpoint lost leader, reconnecting", "endpoint", o.activeEndpoint)
+				o.logger.V(3).Info("endpoint lost leader, reconnecting", "endpoint", o.activeEndpoint)
 				o.Disconnect()
 			}
 		}
@@ -956,7 +973,7 @@ func (o *ovsdbClient) handleCacheErrors(stopCh <-chan struct{}, errorChan <-chan
 			if errors.Is(err, &cache.ErrCacheInconsistent{}) || errors.Is(err, &cache.ErrIndexExists{}) {
 				// trigger a reconnect, which will purge the cache
 				// hopefully a rebuild will fix any inconsistency
-				o.options.logger.V(3).Error(err, "triggering reconnect to rebuild cache")
+				o.logger.V(3).Error(err, "triggering reconnect to rebuild cache")
 				// for rebuilding cache with mon_cond_since (not yet fully supported in libovsdb) we
 				// need to reset the last txn ID
 				for _, db := range o.databases {
@@ -968,7 +985,7 @@ func (o *ovsdbClient) handleCacheErrors(stopCh <-chan struct{}, errorChan <-chan
 				}
 				o.Disconnect()
 			} else {
-				o.options.logger.V(3).Error(err, "error updating cache")
+				o.logger.V(3).Error(err, "error updating cache")
 			}
 		}
 	}
@@ -995,11 +1012,11 @@ func (o *ovsdbClient) handleDisconnectNotification() {
 			defer cancel()
 			err := o.connect(ctx, true)
 			if err != nil {
-				o.options.logger.V(2).Error(err, "failed to reconnect")
+				o.logger.V(2).Error(err, "failed to reconnect")
 			}
 			return err
 		}
-		o.options.logger.V(3).Info("connection lost, reconnecting", "endpoint", o.activeEndpoint)
+		o.logger.V(3).Info("connection lost, reconnecting", "endpoint", o.activeEndpoint)
 		err := backoff.Retry(connect, o.options.backoff)
 		if err != nil {
 			// TODO: We should look at passing this back to the

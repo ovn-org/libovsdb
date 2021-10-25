@@ -443,7 +443,7 @@ func NewTableCache(dbModel model.DatabaseModel, data Data, logger *logr.Logger) 
 		return nil, fmt.Errorf("tablecache without valid databasemodel cannot be populated")
 	}
 	if logger == nil {
-		l := stdr.NewWithOptions(log.New(os.Stderr, "", log.LstdFlags), stdr.Options{LogCaller: stdr.All}).WithName("libovsdb/cache")
+		l := stdr.NewWithOptions(log.New(os.Stderr, "", log.LstdFlags), stdr.Options{LogCaller: stdr.All}).WithName("cache")
 		logger = &l
 	} else {
 		l := logger.WithName("cache")
@@ -564,7 +564,8 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) error {
 		}
 		tCache := t.cache[table]
 		for uuid, row := range updates {
-			t.logger.V(5).Info("processing update for row", "uuid", uuid, "table", table)
+			logger := t.logger.WithValues("uuid", uuid, "table", table)
+			logger.V(5).Info("processing update")
 			if row.New != nil {
 				newModel, err := t.CreateModel(table, row.New, uuid)
 				if err != nil {
@@ -572,7 +573,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) error {
 				}
 				if existing := tCache.Row(uuid); existing != nil {
 					if !reflect.DeepEqual(newModel, existing) {
-						t.logger.V(5).Info("updating row", "uuid", uuid, "old:", fmt.Sprintf("%+v", existing), "new", fmt.Sprintf("%+v", newModel))
+						logger.V(5).Info("updating row", "old:", fmt.Sprintf("%+v", existing), "new", fmt.Sprintf("%+v", newModel))
 						if err := tCache.Update(uuid, newModel, false); err != nil {
 							return err
 						}
@@ -581,7 +582,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) error {
 					// no diff
 					continue
 				}
-				t.logger.V(5).Info("creating row", "uuid", uuid, "model", fmt.Sprintf("%+v", newModel))
+				logger.V(5).Info("creating row", "model", fmt.Sprintf("%+v", newModel))
 				if err := tCache.Create(uuid, newModel, false); err != nil {
 					return err
 				}
@@ -592,7 +593,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) error {
 				if err != nil {
 					return err
 				}
-				t.logger.V(5).Info("deleting row", "uuid", uuid, "model", fmt.Sprintf("%+v", oldModel))
+				logger.V(5).Info("deleting row", "model", fmt.Sprintf("%+v", oldModel))
 				if err := tCache.Delete(uuid); err != nil {
 					return err
 				}
@@ -615,14 +616,15 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 		}
 		tCache := t.cache[table]
 		for uuid, row := range updates {
-			t.logger.V(5).Info("processing update for row", "uuid", uuid, "table", table)
+			logger := t.logger.WithValues("uuid", uuid, "table", table)
+			logger.V(5).Info("processing update")
 			switch {
 			case row.Initial != nil:
 				m, err := t.CreateModel(table, row.Initial, uuid)
 				if err != nil {
 					return err
 				}
-				t.logger.V(5).Info("creating row", "uuid", uuid, "model", fmt.Sprintf("%+v", m))
+				logger.V(5).Info("creating row", "model", fmt.Sprintf("%+v", m))
 				if err := tCache.Create(uuid, m, false); err != nil {
 					return err
 				}
@@ -632,7 +634,7 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 				if err != nil {
 					return err
 				}
-				t.logger.V(5).Info("creating row", "uuid", uuid, "model", fmt.Sprintf("%+v", m))
+				logger.V(5).Info("creating row", "model", fmt.Sprintf("%+v", m))
 				if err := tCache.Create(uuid, m, false); err != nil {
 					return err
 				}
@@ -648,7 +650,7 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 					return fmt.Errorf("unable to apply row modifications: %v", err)
 				}
 				if !reflect.DeepEqual(modified, existing) {
-					t.logger.V(5).Info("updating row", "uuid", uuid, "old", fmt.Sprintf("%+v", existing), "new", fmt.Sprintf("%+v", modified))
+					logger.V(5).Info("updating row", "old", fmt.Sprintf("%+v", existing), "new", fmt.Sprintf("%+v", modified))
 					if err := tCache.Update(uuid, modified, false); err != nil {
 						return err
 					}
@@ -663,7 +665,7 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 				if m == nil {
 					return NewErrCacheInconsistent(fmt.Sprintf("row with uuid %s does not exist", uuid))
 				}
-				t.logger.V(5).Info("deleting row", "uuid", uuid, "model", fmt.Sprintf("%+v", m))
+				logger.V(5).Info("deleting row", "model", fmt.Sprintf("%+v", m))
 				if err := tCache.Delete(uuid); err != nil {
 					return err
 				}
