@@ -105,7 +105,7 @@ func TestRowCacheCreate(t *testing.T) {
 		"Open_vSwitch": map[string]model.Model{"bar": &testModel{Foo: "bar"}},
 	}
 
-	dbModel, errs := model.NewDatabaseModel(&schema, db)
+	dbModel, errs := model.NewDatabaseModel(schema, db)
 	require.Empty(t, errs)
 	tc, err := NewTableCache(dbModel, testData, nil)
 	require.Nil(t, err)
@@ -193,7 +193,7 @@ func TestRowCacheCreateMultiIndex(t *testing.T) {
 	testData := Data{
 		"Open_vSwitch": map[string]model.Model{"bar": &testModel{Foo: "bar", Bar: "bar"}},
 	}
-	dbModel, errs := model.NewDatabaseModel(&schema, db)
+	dbModel, errs := model.NewDatabaseModel(schema, db)
 	require.Empty(t, errs)
 	tc, err := NewTableCache(dbModel, testData, nil)
 	require.Nil(t, err)
@@ -290,7 +290,7 @@ func TestRowCacheUpdate(t *testing.T) {
 			"foobar": &testModel{Foo: "foobar"},
 		},
 	}
-	dbModel, errs := model.NewDatabaseModel(&schema, db)
+	dbModel, errs := model.NewDatabaseModel(schema, db)
 	require.Empty(t, errs)
 	tc, err := NewTableCache(dbModel, testData, nil)
 	require.Nil(t, err)
@@ -374,7 +374,7 @@ func TestRowCacheUpdateMultiIndex(t *testing.T) {
 			"foobar": &testModel{Foo: "foobar", Bar: "foobar"},
 		},
 	}
-	dbModel, errs := model.NewDatabaseModel(&schema, db)
+	dbModel, errs := model.NewDatabaseModel(schema, db)
 	assert.Empty(t, errs)
 	tc, err := NewTableCache(dbModel, testData, nil)
 	require.Nil(t, err)
@@ -456,7 +456,7 @@ func TestRowCacheDelete(t *testing.T) {
 			"bar": &testModel{Foo: "bar"},
 		},
 	}
-	dbModel, errs := model.NewDatabaseModel(&schema, db)
+	dbModel, errs := model.NewDatabaseModel(schema, db)
 	require.Empty(t, errs)
 	tc, err := NewTableCache(dbModel, testData, nil)
 	require.Nil(t, err)
@@ -650,7 +650,7 @@ func TestTableCacheTable(t *testing.T) {
 	     }
 	`), &schema)
 	assert.Nil(t, err)
-	dbModel, errs := model.NewDatabaseModel(&schema, db)
+	dbModel, errs := model.NewDatabaseModel(schema, db)
 	require.Empty(t, errs)
 	tests := []struct {
 		name  string
@@ -727,7 +727,7 @@ func TestTableCacheTables(t *testing.T) {
 	     }
 	`), &schema)
 	assert.Nil(t, err)
-	dbModel, errs := model.NewDatabaseModel(&schema, db)
+	dbModel, errs := model.NewDatabaseModel(schema, db)
 	require.Empty(t, errs)
 	tests := []struct {
 		name  string
@@ -783,7 +783,7 @@ func TestTableCache_populate(t *testing.T) {
 	     }
 	`), &schema)
 	assert.Nil(t, err)
-	dbModel, errs := model.NewDatabaseModel(&schema, db)
+	dbModel, errs := model.NewDatabaseModel(schema, db)
 	require.Empty(t, errs)
 	tc, err := NewTableCache(dbModel, nil, nil)
 	assert.Nil(t, err)
@@ -853,7 +853,7 @@ func TestTableCachePopulate(t *testing.T) {
 	     }
 	`), &schema)
 	assert.Nil(t, err)
-	dbModel, errs := model.NewDatabaseModel(&schema, db)
+	dbModel, errs := model.NewDatabaseModel(schema, db)
 	require.Empty(t, errs)
 	tc, err := NewTableCache(dbModel, nil, nil)
 	assert.Nil(t, err)
@@ -922,7 +922,7 @@ func TestTableCachePopulate2(t *testing.T) {
 	     }
 	`), &schema)
 	assert.Nil(t, err)
-	dbModel, errs := model.NewDatabaseModel(&schema, db)
+	dbModel, errs := model.NewDatabaseModel(schema, db)
 	require.Empty(t, errs)
 	tc, err := NewTableCache(dbModel, nil, nil)
 	assert.Nil(t, err)
@@ -1050,7 +1050,7 @@ func TestIndex(t *testing.T) {
 	     }
 	`), &schema)
 	assert.Nil(t, err)
-	dbModel, errs := model.NewDatabaseModel(&schema, db)
+	dbModel, errs := model.NewDatabaseModel(schema, db)
 	assert.Empty(t, errs)
 	tc, err := NewTableCache(dbModel, nil, nil)
 	assert.Nil(t, err)
@@ -1150,7 +1150,7 @@ func TestTableCacheRowByModelSingleIndex(t *testing.T) {
 			"bar": &testModel{Foo: "bar", Bar: "bar"},
 		},
 	}
-	dbModel, errs := model.NewDatabaseModel(&schema, db)
+	dbModel, errs := model.NewDatabaseModel(schema, db)
 	require.Empty(t, errs)
 	tc, err := NewTableCache(dbModel, testData, nil)
 	require.NoError(t, err)
@@ -1201,7 +1201,7 @@ func TestTableCacheRowByModelTwoIndexes(t *testing.T) {
 			"bar": &testModel{Foo: "bar", Bar: "bar"},
 		},
 	}
-	dbModel, errs := model.NewDatabaseModel(&schema, db)
+	dbModel, errs := model.NewDatabaseModel(schema, db)
 	require.Empty(t, errs)
 	tc, err := NewTableCache(dbModel, testData, nil)
 	require.NoError(t, err)
@@ -1251,7 +1251,7 @@ func TestTableCacheRowByModelMultiIndex(t *testing.T) {
 	testData := Data{
 		"Open_vSwitch": map[string]model.Model{"foo": myFoo, "bar": &testModel{Foo: "bar", Bar: "bar"}},
 	}
-	dbModel, errs := model.NewDatabaseModel(&schema, db)
+	dbModel, errs := model.NewDatabaseModel(schema, db)
 	require.Empty(t, errs)
 	tc, err := NewTableCache(dbModel, testData, nil)
 	require.NoError(t, err)
@@ -1400,7 +1400,7 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			  }
 			`), &schema)
 			require.NoError(t, err)
-			dbModel, errs := model.NewDatabaseModel(&schema, db)
+			dbModel, errs := model.NewDatabaseModel(schema, db)
 			require.Empty(t, errs)
 			tc, err := NewTableCache(dbModel, nil, nil)
 			assert.Nil(t, err)

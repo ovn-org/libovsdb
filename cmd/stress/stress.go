@@ -43,7 +43,7 @@ var (
 	parallel      = flag.Bool("parallel", false, "run clients in parallel")
 	verbose       = flag.Bool("verbose", false, "Be verbose")
 	connection    = flag.String("ovsdb", "unix:/var/run/openvswitch/db.sock", "OVSDB connection string")
-	clientDBModel *model.ClientDBModel
+	clientDBModel model.ClientDBModel
 )
 
 type result struct {

@@ -40,7 +40,7 @@ package {{ index . "PackageName" }}
 {{ template "preDBDefinitions" }}
 
 // FullDatabaseModel returns the DatabaseModel object to be used in libovsdb
-func FullDatabaseModel() (*model.ClientDBModel, error) {
+func FullDatabaseModel() (model.ClientDBModel, error) {
 	return model.NewClientDBModel("{{ index . "DatabaseName" }}", map[string]model.Model{
     {{ range index . "Tables" }} "{{ .TableName }}" : &{{ .StructName }}{}, 
     {{ end }}
@@ -72,7 +72,7 @@ type TableInfo struct {
 // DatabaseName: (string) the database name
 // PackageName : (string) the package name
 // Tables: []Table list of Tables that form the Model
-func GetDBTemplateData(pkg string, schema *ovsdb.DatabaseSchema) map[string]interface{} {
+func GetDBTemplateData(pkg string, schema ovsdb.DatabaseSchema) map[string]interface{} {
 	data := map[string]interface{}{}
 	data["DatabaseName"] = schema.Name
 	data["PackageName"] = pkg

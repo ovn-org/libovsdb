@@ -59,7 +59,7 @@ import (
 )
 
 // FullDatabaseModel returns the DatabaseModel object to be used in libovsdb
-func FullDatabaseModel() (*model.ClientDBModel, error) {
+func FullDatabaseModel() (model.ClientDBModel, error) {
 	return model.NewClientDBModel("AtomicDB", map[string]model.Model{
 		"atomicTable": &AtomicTable{},
 	})
@@ -129,7 +129,7 @@ func Schema() ovsdb.DatabaseSchema {
 	for _, tt := range test {
 		t.Run(tt.name, func(t *testing.T) {
 			tmpl := NewDBTemplate()
-			data := GetDBTemplateData("test", &schema)
+			data := GetDBTemplateData("test", schema)
 			if tt.err {
 				assert.NotNil(t, err)
 			} else {

@@ -81,7 +81,7 @@ func main() {
 		}
 	}
 	dbTemplate := modelgen.NewDBTemplate()
-	dbArgs := modelgen.GetDBTemplateData(pkgName, &dbSchema)
+	dbArgs := modelgen.GetDBTemplateData(pkgName, dbSchema)
 	if err := gen.Generate(filepath.Join(outDir, "model.go"), dbTemplate, dbArgs); err != nil {
 		log.Fatal(err)
 	}

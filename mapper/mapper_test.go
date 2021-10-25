@@ -222,7 +222,7 @@ func TestMapperGetData(t *testing.T) {
 		t.Error(err)
 	}
 
-	mapper := NewMapper(&schema)
+	mapper := NewMapper(schema)
 	test := ormTestType{
 		NonTagged: "something",
 	}
@@ -344,7 +344,7 @@ func TestMapperNewRow(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("NewRow: %s", test.name), func(t *testing.T) {
-			mapper := NewMapper(&schema)
+			mapper := NewMapper(schema)
 			info, err := NewInfo("TestTable", schema.Table("TestTable"), test.objInput)
 			assert.NoError(t, err)
 			row, err := mapper.NewRow(info)
@@ -430,7 +430,7 @@ func TestMapperNewRowFields(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("NewRow: %s", test.name), func(t *testing.T) {
-			mapper := NewMapper(&schema)
+			mapper := NewMapper(schema)
 			// Clean the test object
 			testObj.MyString = ""
 			testObj.MyMap = nil
@@ -497,7 +497,7 @@ func TestMapperCondition(t *testing.T) {
 	if err := json.Unmarshal(testSchema, &schema); err != nil {
 		t.Fatal(err)
 	}
-	mapper := NewMapper(&schema)
+	mapper := NewMapper(schema)
 
 	type Test struct {
 		name     string
@@ -671,7 +671,7 @@ func TestMapperEqualIndexes(t *testing.T) {
 	if err := json.Unmarshal(testSchema, &schema); err != nil {
 		t.Fatal(err)
 	}
-	mapper := NewMapper(&schema)
+	mapper := NewMapper(schema)
 
 	type Test struct {
 		name     string
@@ -938,7 +938,7 @@ func TestMapperMutation(t *testing.T) {
 	if err := json.Unmarshal(testSchema, &schema); err != nil {
 		t.Fatal(err)
 	}
-	mapper := NewMapper(&schema)
+	mapper := NewMapper(schema)
 
 	type Test struct {
 		name     string
@@ -1117,7 +1117,7 @@ func TestNewMonitorRequest(t *testing.T) {
 	var schema ovsdb.DatabaseSchema
 	err := json.Unmarshal(testSchema, &schema)
 	require.NoError(t, err)
-	mapper := NewMapper(&schema)
+	mapper := NewMapper(schema)
 	testTable := &testType{}
 	info, err := NewInfo("TestTable", schema.Table("TestTable"), testTable)
 	assert.NoError(t, err)

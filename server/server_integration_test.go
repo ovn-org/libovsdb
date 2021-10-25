@@ -37,20 +37,20 @@ type ovsType struct {
 	Bridges []string `ovsdb:"bridges"`
 }
 
-func getSchema() (*ovsdb.DatabaseSchema, error) {
+func getSchema() (ovsdb.DatabaseSchema, error) {
 	wd, err := os.Getwd()
 	if err != nil {
-		return nil, err
+		return ovsdb.DatabaseSchema{}, err
 	}
 	path := filepath.Join(wd, "testdata", "ovslite.json")
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return ovsdb.DatabaseSchema{}, err
 	}
 	defer f.Close()
 	schema, err := ovsdb.SchemaFromFile(f)
 	if err != nil {
-		return nil, err
+		return ovsdb.DatabaseSchema{}, err
 	}
 	return schema, nil
 }
@@ -64,7 +64,7 @@ func TestClientServerEcho(t *testing.T) {
 	schema, err := getSchema()
 	require.Nil(t, err)
 
-	ovsDB := NewInMemoryDatabase(map[string]*model.ClientDBModel{"Open_vSwitch": defDB})
+	ovsDB := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
 
 	rand.Seed(time.Now().UnixNano())
 	tmpfile := fmt.Sprintf("/tmp/ovsdb-%d.sock", rand.Intn(10000))
@@ -101,7 +101,7 @@ func TestClientServerInsert(t *testing.T) {
 	schema, err := getSchema()
 	require.Nil(t, err)
 
-	ovsDB := NewInMemoryDatabase(map[string]*model.ClientDBModel{"Open_vSwitch": defDB})
+	ovsDB := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
 	rand.Seed(time.Now().UnixNano())
 	tmpfile := fmt.Sprintf("/tmp/ovsdb-%d.sock", rand.Intn(10000))
 	defer os.Remove(tmpfile)
@@ -172,7 +172,7 @@ func TestClientServerMonitor(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ovsDB := NewInMemoryDatabase(map[string]*model.ClientDBModel{"Open_vSwitch": defDB})
+	ovsDB := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
 	rand.Seed(time.Now().UnixNano())
 	tmpfile := fmt.Sprintf("/tmp/ovsdb-%d.sock", rand.Intn(10000))
 	defer os.Remove(tmpfile)
@@ -294,7 +294,7 @@ func TestClientServerInsertAndDelete(t *testing.T) {
 	schema, err := getSchema()
 	require.Nil(t, err)
 
-	ovsDB := NewInMemoryDatabase(map[string]*model.ClientDBModel{"Open_vSwitch": defDB})
+	ovsDB := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
 	rand.Seed(time.Now().UnixNano())
 	tmpfile := fmt.Sprintf("/tmp/ovsdb-%d.sock", rand.Intn(10000))
 	defer os.Remove(tmpfile)
@@ -360,7 +360,7 @@ func TestClientServerInsertDuplicate(t *testing.T) {
 	schema, err := getSchema()
 	require.Nil(t, err)
 
-	ovsDB := NewInMemoryDatabase(map[string]*model.ClientDBModel{"Open_vSwitch": defDB})
+	ovsDB := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
 	rand.Seed(time.Now().UnixNano())
 	tmpfile := fmt.Sprintf("/tmp/ovsdb-%d.sock", rand.Intn(10000))
 	defer os.Remove(tmpfile)
@@ -414,7 +414,7 @@ func TestClientServerInsertAndUpdate(t *testing.T) {
 	schema, err := getSchema()
 	require.Nil(t, err)
 
-	ovsDB := NewInMemoryDatabase(map[string]*model.ClientDBModel{"Open_vSwitch": defDB})
+	ovsDB := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
 	rand.Seed(time.Now().UnixNano())
 	tmpfile := fmt.Sprintf("/tmp/ovsdb-%d.sock", rand.Intn(10000))
 	defer os.Remove(tmpfile)

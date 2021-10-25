@@ -57,7 +57,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ovsDB := server.NewInMemoryDatabase(map[string]*model.ClientDBModel{
+	ovsDB := server.NewInMemoryDatabase(map[string]model.ClientDBModel{
 		schema.Name: clientDBModel,
 	})
 

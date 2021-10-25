@@ -564,7 +564,7 @@ func BenchmarkUpdate1(b *testing.B) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	dbModel, errs := model.NewDatabaseModel(&s, clientDBModel)
+	dbModel, errs := model.NewDatabaseModel(s, clientDBModel)
 	require.Empty(b, errs)
 	ovs.primaryDB().cache, err = cache.NewTableCache(dbModel, nil, nil)
 	require.NoError(b, err)
@@ -590,7 +590,7 @@ func BenchmarkUpdate2(b *testing.B) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	dbModel, errs := model.NewDatabaseModel(&s, clientDBModel)
+	dbModel, errs := model.NewDatabaseModel(s, clientDBModel)
 	require.Empty(b, errs)
 	ovs.primaryDB().cache, err = cache.NewTableCache(dbModel, nil, nil)
 	require.NoError(b, err)
@@ -617,7 +617,7 @@ func BenchmarkUpdate3(b *testing.B) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	dbModel, errs := model.NewDatabaseModel(&s, clientDBModel)
+	dbModel, errs := model.NewDatabaseModel(s, clientDBModel)
 	require.Empty(b, errs)
 	ovs.primaryDB().cache, err = cache.NewTableCache(dbModel, nil, nil)
 	require.NoError(b, err)
@@ -645,7 +645,7 @@ func BenchmarkUpdate5(b *testing.B) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	dbModel, errs := model.NewDatabaseModel(&s, clientDBModel)
+	dbModel, errs := model.NewDatabaseModel(s, clientDBModel)
 	require.Empty(b, errs)
 	ovs.primaryDB().cache, err = cache.NewTableCache(dbModel, nil, nil)
 	require.NoError(b, err)
@@ -675,7 +675,7 @@ func BenchmarkUpdate8(b *testing.B) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(b, err)
-	dbModel, errs := model.NewDatabaseModel(&s, clientDBModel)
+	dbModel, errs := model.NewDatabaseModel(s, clientDBModel)
 	require.Empty(b, errs)
 	ovs.primaryDB().cache, err = cache.NewTableCache(dbModel, nil, nil)
 	require.NoError(b, err)
@@ -722,7 +722,7 @@ func TestUpdate(t *testing.T) {
 		"Open_vSwitch": &OpenvSwitch{},
 	})
 	require.NoError(t, err)
-	dbModel, errs := model.NewDatabaseModel(&s, clientDBModel)
+	dbModel, errs := model.NewDatabaseModel(s, clientDBModel)
 	require.Empty(t, errs)
 	ovs.primaryDB().cache, err = cache.NewTableCache(dbModel, nil, nil)
 	require.NoError(t, err)
@@ -742,13 +742,12 @@ func TestUpdate(t *testing.T) {
 	}
 }
 
-func TestOperationWhenNotConnected(t *testing.T) {
+func TestOperationWhenNeverConnected(t *testing.T) {
 	ovs, err := newOVSDBClient(defDB)
 	require.NoError(t, err)
 	var s ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(schema), &s)
 	require.NoError(t, err)
-	_ = ovs.primaryDB().model.SetSchema(&s)
 
 	tests := []struct {
 		name string
@@ -783,8 +782,61 @@ func TestOperationWhenNotConnected(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		err := tt.fn()
-		assert.EqualError(t, err, ErrNotConnected.Error())
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.fn()
+			assert.EqualError(t, err, ErrNotConnected.Error())
+		})
+	}
+}
+
+func TestOperationWhenNotConnected(t *testing.T) {
+	ovs, err := newOVSDBClient(defDB)
+	require.NoError(t, err)
+	var s ovsdb.DatabaseSchema
+	err = json.Unmarshal([]byte(schema), &s)
+	require.NoError(t, err)
+	var errs []error
+	fullModel, errs := model.NewDatabaseModel(s, ovs.primaryDB().model.Client())
+	require.Equalf(t, len(errs), 0, "expected no error but some occurred: %+v", errs)
+	ovs.primaryDB().model = fullModel
+
+	tests := []struct {
+		name string
+		fn   func() error
+	}{
+		{
+			"echo",
+			func() error {
+				return ovs.Echo(context.TODO())
+			},
+		},
+		{
+			"transact",
+			func() error {
+				comment := "this is only a test"
+				_, err := ovs.Transact(context.TODO(), ovsdb.Operation{Op: ovsdb.OperationComment, Comment: &comment})
+				return err
+			},
+		},
+		{
+			"monitor/monitor all",
+			func() error {
+				_, err := ovs.MonitorAll(context.TODO())
+				return err
+			},
+		},
+		{
+			"monitor cancel",
+			func() error {
+				return ovs.MonitorCancel(context.TODO(), newMonitorCookie(s.Name))
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.fn()
+			assert.EqualError(t, err, ErrNotConnected.Error())
+		})
 	}
 }
 
