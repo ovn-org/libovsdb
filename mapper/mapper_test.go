@@ -226,7 +226,11 @@ func TestMapperGetData(t *testing.T) {
 	test := ormTestType{
 		NonTagged: "something",
 	}
-	err := mapper.GetRowData("TestTable", &ovsRow, &test)
+	testInfo, err := NewInfo("TestTable", schema.Table("TestTable"), &test)
+	assert.NoError(t, err)
+
+	err = mapper.GetRowData(&ovsRow, testInfo)
+	assert.NoError(t, err)
 	/*End code under test*/
 
 	if err != nil {
@@ -341,7 +345,9 @@ func TestMapperNewRow(t *testing.T) {
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("NewRow: %s", test.name), func(t *testing.T) {
 			mapper := NewMapper(&schema)
-			row, err := mapper.NewRow("TestTable", test.objInput)
+			info, err := NewInfo("TestTable", schema.Table("TestTable"), test.objInput)
+			assert.NoError(t, err)
+			row, err := mapper.NewRow(info)
 			if test.shoulderr {
 				assert.NotNil(t, err)
 			} else {
@@ -432,7 +438,9 @@ func TestMapperNewRowFields(t *testing.T) {
 			testObj.MyFloat = 0
 
 			test.prepare(&testObj)
-			row, err := mapper.NewRow("TestTable", &testObj, test.fields...)
+			info, err := NewInfo("TestTable", schema.Table("TestTable"), &testObj)
+			assert.NoError(t, err)
+			row, err := mapper.NewRow(info, test.fields...)
 			if test.err {
 				assert.NotNil(t, err)
 			} else {
@@ -584,7 +592,10 @@ func TestMapperCondition(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("newEqualityCondition_%s", tt.name), func(t *testing.T) {
 			tt.prepare(&testObj)
-			conds, err := mapper.NewEqualityCondition("TestTable", &testObj, tt.index...)
+			info, err := NewInfo("TestTable", schema.Table("TestTable"), &testObj)
+			assert.NoError(t, err)
+
+			conds, err := mapper.NewEqualityCondition(info, tt.index...)
 			if tt.err {
 				if err == nil {
 					t.Errorf("expected an error but got none")
@@ -835,7 +846,11 @@ func TestMapperEqualIndexes(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("Equal %s", test.name), func(t *testing.T) {
-			eq, err := mapper.equalIndexes(mapper.Schema.Table("TestTable"), &test.obj1, &test.obj2, test.indexes...)
+			info1, err := NewInfo("TestTable", schema.Table("TestTable"), &test.obj1)
+			assert.NoError(t, err)
+			info2, err := NewInfo("TestTable", schema.Table("TestTable"), &test.obj2)
+			assert.NoError(t, err)
+			eq, err := mapper.equalIndexes(info1, info2, test.indexes...)
 			assert.Nil(t, err)
 			assert.Equalf(t, test.expected, eq, "equal value should match expected")
 		})
@@ -858,11 +873,15 @@ func TestMapperEqualIndexes(t *testing.T) {
 		Int1:   42,
 		Int2:   25,
 	}
-	eq, err := mapper.EqualFields("TestTable", &obj1, &obj2, &obj1.Int1, &obj1.Int2)
+	info1, err := NewInfo("TestTable", schema.Table("TestTable"), &obj1)
+	assert.NoError(t, err)
+	info2, err := NewInfo("TestTable", schema.Table("TestTable"), &obj2)
+	assert.NoError(t, err)
+	eq, err := mapper.EqualFields(info1, info2, &obj1.Int1, &obj1.Int2)
 	assert.Nil(t, err)
 	assert.True(t, eq)
 	// Using pointers to second value is not supported
-	_, err = mapper.EqualFields("TestTable", &obj1, &obj2, &obj2.Int1, &obj2.Int2)
+	_, err = mapper.EqualFields(info1, info2, &obj2.Int1, &obj2.Int2)
 	assert.NotNil(t, err)
 
 }
@@ -1012,7 +1031,10 @@ func TestMapperMutation(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("newMutation%s", test.name), func(t *testing.T) {
-			mutation, err := mapper.NewMutation("TestTable", &test.obj, test.column, test.mutator, test.value)
+			info, err := NewInfo("TestTable", schema.Table("TestTable"), &test.obj)
+			assert.NoError(t, err)
+
+			mutation, err := mapper.NewMutation(info, test.column, test.mutator, test.value)
 			if test.err {
 				if err == nil {
 					t.Errorf("expected an error but got none")
@@ -1097,10 +1119,12 @@ func TestNewMonitorRequest(t *testing.T) {
 	require.NoError(t, err)
 	mapper := NewMapper(&schema)
 	testTable := &testType{}
-	mr, err := mapper.NewMonitorRequest("TestTable", testTable, nil)
+	info, err := NewInfo("TestTable", schema.Table("TestTable"), testTable)
+	assert.NoError(t, err)
+	mr, err := mapper.NewMonitorRequest(info, nil)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, mr.Columns, []string{"name", "config", "composed_1", "composed_2", "int1", "int2"})
-	mr2, err := mapper.NewMonitorRequest("TestTable", testTable, []interface{}{&testTable.Int1, &testTable.MyName})
+	mr2, err := mapper.NewMonitorRequest(info, []interface{}{&testTable.Int1, &testTable.MyName})
 	require.NoError(t, err)
 	assert.ElementsMatch(t, mr2.Columns, []string{"int1", "name"})
 }

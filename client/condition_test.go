@@ -128,7 +128,7 @@ func TestEqualityConditional(t *testing.T) {
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("Equality Conditional: %s", tt.name), func(t *testing.T) {
-			cond, err := newEqualityConditional(tcache.Mapper(), "Logical_Switch_Port", tt.all, tt.model)
+			cond, err := newEqualityConditional(tcache.DatabaseModel(), "Logical_Switch_Port", tt.all, tt.model)
 			assert.Nil(t, err)
 			for model, shouldMatch := range tt.matches {
 				matches, err := cond.Matches(model)
@@ -431,7 +431,7 @@ func TestExplicitConditional(t *testing.T) {
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("Explicit Conditional: %s", tt.name), func(t *testing.T) {
-			cond, err := newExplicitConditional(tcache.Mapper(), "Logical_Switch_Port", tt.all, testObj, tt.args...)
+			cond, err := newExplicitConditional(tcache.DatabaseModel(), "Logical_Switch_Port", tt.all, testObj, tt.args...)
 			assert.Nil(t, err)
 			_, err = cond.Matches(testObj)
 			assert.NotNilf(t, err, "Explicit conditions should fail to match on cache")

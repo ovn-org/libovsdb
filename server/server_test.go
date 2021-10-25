@@ -66,7 +66,7 @@ func TestExpandNamedUUID(t *testing.T) {
 }
 
 func TestOvsdbServerMonitor(t *testing.T) {
-	defDB, err := model.NewDBModel("Open_vSwitch", map[string]model.Model{
+	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
 		"Bridge":       &bridgeType{}})
 	if err != nil {
@@ -76,9 +76,10 @@ func TestOvsdbServerMonitor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ovsDB := NewInMemoryDatabase(map[string]*model.DBModel{"Open_vSwitch": defDB})
-	o, err := NewOvsdbServer(ovsDB, DatabaseModel{
-		Model: defDB, Schema: schema})
+	ovsDB := NewInMemoryDatabase(map[string]*model.ClientDBModel{"Open_vSwitch": defDB})
+	dbModel, errs := model.NewDatabaseModel(schema, defDB)
+	require.Empty(t, errs)
+	o, err := NewOvsdbServer(ovsDB, dbModel)
 	require.Nil(t, err)
 	requests := make(map[string]ovsdb.MonitorRequest)
 	for table, tableSchema := range schema.Tables {
