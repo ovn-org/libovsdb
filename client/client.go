@@ -523,9 +523,10 @@ func (o *ovsdbClient) update(params []json.RawMessage, reply *[]interface{}) err
 
 	// Update the local DB cache with the tableUpdates
 	db.cacheMutex.RLock()
-	db.cache.Update(cookie.ID, updates)
+	err = db.cache.Update(cookie.ID, updates)
 	db.cacheMutex.RUnlock()
-	return nil
+
+	return err
 }
 
 // update2 handling from ovsdb-server.7
@@ -559,9 +560,10 @@ func (o *ovsdbClient) update2(params []json.RawMessage, reply *[]interface{}) er
 
 	// Update the local DB cache with the tableUpdates
 	db.cacheMutex.RLock()
-	db.cache.Update2(cookie, updates)
+	err = db.cache.Update2(cookie, updates)
 	db.cacheMutex.RUnlock()
-	return nil
+
+	return err
 }
 
 // update3 handling from ovsdb-server.7
@@ -601,14 +603,17 @@ func (o *ovsdbClient) update3(params []json.RawMessage, reply *[]interface{}) er
 
 	// Update the local DB cache with the tableUpdates
 	db.cacheMutex.RLock()
-	db.cache.Update2(cookie, updates)
+	err = db.cache.Update2(cookie, updates)
 	db.cacheMutex.RUnlock()
 
-	db.monitorsMutex.Lock()
-	mon := db.monitors[cookie.ID]
-	mon.LastTransactionID = lastTransactionID
-	db.monitorsMutex.Unlock()
-	return nil
+	if err == nil {
+		db.monitorsMutex.Lock()
+		mon := db.monitors[cookie.ID]
+		mon.LastTransactionID = lastTransactionID
+		db.monitorsMutex.Unlock()
+	}
+
+	return err
 }
 
 // getSchema returns the schema in use for the provided database name
@@ -943,6 +948,15 @@ func (o *ovsdbClient) handleCacheErrors(stopCh <-chan struct{}, errorChan <-chan
 				// trigger a reconnect, which will purge the cache
 				// hopefully a rebuild will fix any inconsistency
 				o.options.logger.V(3).Error(err, "triggering reconnect to rebuild cache")
+				// for rebuilding cache with mon_cond_since (not yet fully supported in libovsdb) we
+				// need to reset the last txn ID
+				for _, db := range o.databases {
+					db.monitorsMutex.Lock()
+					for _, mon := range db.monitors {
+						mon.LastTransactionID = emptyUUID
+					}
+					db.monitorsMutex.Unlock()
+				}
 				o.Disconnect()
 			} else {
 				o.options.logger.V(3).Error(err, "error updating cache")
