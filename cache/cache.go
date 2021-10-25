@@ -428,8 +428,6 @@ type TableCache struct {
 	cache          map[string]*RowCache
 	eventProcessor *eventProcessor
 	dbModel        *model.DatabaseModel
-	updates        chan ovsdb.TableUpdates
-	updates2       chan ovsdb.TableUpdates2
 	errorChan      chan error
 	ovsdb.NotificationHandler
 	mutex  sync.RWMutex
@@ -472,8 +470,6 @@ func NewTableCache(dbModel *model.DatabaseModel, data Data, logger *logr.Logger)
 		eventProcessor: eventProcessor,
 		dbModel:        dbModel,
 		mutex:          sync.RWMutex{},
-		updates:        make(chan ovsdb.TableUpdates, bufferSize),
-		updates2:       make(chan ovsdb.TableUpdates2, bufferSize),
 		errorChan:      make(chan error),
 		logger:         logger,
 	}, nil
@@ -513,21 +509,31 @@ func (t *TableCache) Tables() []string {
 // Update implements the update method of the NotificationHandler interface
 // this populates a channel with updates so they can be processed after the initial
 // state has been Populated
-func (t *TableCache) Update(context interface{}, tableUpdates ovsdb.TableUpdates) {
+func (t *TableCache) Update(context interface{}, tableUpdates ovsdb.TableUpdates) error {
 	if len(tableUpdates) == 0 {
-		return
+		return nil
 	}
-	t.updates <- tableUpdates
+	if err := t.Populate(tableUpdates); err != nil {
+		t.logger.Error(err, "during libovsdb cache populate")
+		t.errorChan <- NewErrCacheInconsistent(err.Error())
+		return err
+	}
+	return nil
 }
 
 // Update2 implements the update method of the NotificationHandler interface
 // this populates a channel with updates so they can be processed after the initial
 // state has been Populated
-func (t *TableCache) Update2(context interface{}, tableUpdates ovsdb.TableUpdates2) {
+func (t *TableCache) Update2(context interface{}, tableUpdates ovsdb.TableUpdates2) error {
 	if len(tableUpdates) == 0 {
-		return
+		return nil
 	}
-	t.updates2 <- tableUpdates
+	if err := t.Populate2(tableUpdates); err != nil {
+		t.logger.Error(err, "during libovsdb cache populate2")
+		t.errorChan <- NewErrCacheInconsistent(err.Error())
+		return err
+	}
+	return nil
 }
 
 // Locked implements the locked method of the NotificationHandler interface
@@ -634,12 +640,12 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 			case row.Modify != nil:
 				existing := tCache.Row(uuid)
 				if existing == nil {
-					panic(fmt.Errorf("row with uuid %s does not exist", uuid))
+					return fmt.Errorf("row with uuid %s does not exist", uuid)
 				}
 				modified := tCache.Row(uuid)
 				err := t.ApplyModifications(table, modified, *row.Modify)
 				if err != nil {
-					return err
+					return fmt.Errorf("unable to apply row modifications: %v", err)
 				}
 				if !reflect.DeepEqual(modified, existing) {
 					t.logger.V(5).Info("updating row", "uuid", uuid, "old", fmt.Sprintf("%+v", existing), "new", fmt.Sprintf("%+v", modified))
@@ -655,7 +661,7 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 				// no value on the wire), then process a delete
 				m := tCache.Row(uuid)
 				if m == nil {
-					panic(fmt.Errorf("row with uuid %s does not exist", uuid))
+					return fmt.Errorf("row with uuid %s does not exist", uuid)
 				}
 				t.logger.V(5).Info("deleting row", "uuid", uuid, "model", fmt.Sprintf("%+v", m))
 				if err := tCache.Delete(uuid); err != nil {
@@ -691,44 +697,13 @@ func (t *TableCache) AddEventHandler(handler EventHandler) {
 func (t *TableCache) Run(stopCh <-chan struct{}) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
-	go t.processUpdates(stopCh)
-	wg.Add(1)
 	go t.eventProcessor.Run(stopCh)
 	wg.Wait()
-	t.updates = make(chan ovsdb.TableUpdates, bufferSize)
-	t.updates2 = make(chan ovsdb.TableUpdates2, bufferSize)
 }
 
 // Errors returns a channel where errors that occur during cache propagation can be received
 func (t *TableCache) Errors() <-chan error {
 	return t.errorChan
-}
-
-func (t *TableCache) processUpdates(stopCh <-chan struct{}) {
-	for {
-		select {
-		case <-stopCh:
-			return
-		case update := <-t.updates:
-			if err := t.Populate(update); err != nil {
-				select {
-				case t.errorChan <- err:
-					// error sent to client
-				default:
-					// client not listening for errors
-				}
-			}
-		case update2 := <-t.updates2:
-			if err := t.Populate2(update2); err != nil {
-				select {
-				case t.errorChan <- err:
-					// error sent to client
-				default:
-					// client not listening for errors
-				}
-			}
-		}
-	}
 }
 
 // newRowCache creates a new row cache with the provided data
@@ -955,7 +930,7 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 			}
 			// With a pointer type, an update value could be a set with 2 elements [old, new]
 			if nv.Len() != 2 {
-				panic("expected a slice with 2 elements")
+				return fmt.Errorf("expected a slice with 2 elements for update: %+v", update)
 			}
 			// the new value is the value in the slice which isn't equal to the existing string
 			for i := 0; i < nv.Len(); i++ {
