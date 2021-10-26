@@ -640,7 +640,7 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 			case row.Modify != nil:
 				existing := tCache.Row(uuid)
 				if existing == nil {
-					return fmt.Errorf("row with uuid %s does not exist", uuid)
+					return NewErrCacheInconsistent(fmt.Sprintf("row with uuid %s does not exist", uuid))
 				}
 				modified := tCache.Row(uuid)
 				err := t.ApplyModifications(table, modified, *row.Modify)
@@ -661,7 +661,7 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 				// no value on the wire), then process a delete
 				m := tCache.Row(uuid)
 				if m == nil {
-					return fmt.Errorf("row with uuid %s does not exist", uuid)
+					return NewErrCacheInconsistent(fmt.Sprintf("row with uuid %s does not exist", uuid))
 				}
 				t.logger.V(5).Info("deleting row", "uuid", uuid, "model", fmt.Sprintf("%+v", m))
 				if err := tCache.Delete(uuid); err != nil {
