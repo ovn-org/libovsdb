@@ -275,7 +275,7 @@ func (suite *OVSIntegrationSuite) TestWithReconnect() {
 
 	// Reconfigure
 	err = suite.client.SetOption(
-		client.WithReconnect(500*time.Millisecond, &backoff.ZeroBackOff{}),
+		client.WithReconnect(2*time.Second, &backoff.ZeroBackOff{}),
 	)
 	require.NoError(suite.T(), err)
 
