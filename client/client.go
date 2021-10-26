@@ -878,6 +878,8 @@ func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconne
 			db.monitorsMutex.Unlock()
 		}
 	}
+	// clear deferred updates for next time
+	db.deferredUpdates = make([]*bufferedUpdate, 0)
 
 	return err
 }
@@ -982,6 +984,13 @@ func (o *ovsdbClient) handleDisconnectNotification() {
 		o.rpcClient = nil
 		o.rpcMutex.Unlock()
 		connect := func() error {
+			// need to ensure deferredUpdates is cleared on every reconnect attempt
+			for _, db := range o.databases {
+				db.cacheMutex.Lock()
+				db.deferredUpdates = make([]*bufferedUpdate, 0)
+				db.deferUpdates = true
+				db.cacheMutex.Unlock()
+			}
 			ctx, cancel := context.WithTimeout(context.Background(), o.options.timeout)
 			defer cancel()
 			err := o.connect(ctx, true)
@@ -1009,8 +1018,9 @@ func (o *ovsdbClient) handleDisconnectNotification() {
 		db.cacheMutex.Lock()
 		defer db.cacheMutex.Unlock()
 		db.cache = nil
-		// need to defer updates if/when we reconnect
+		// need to defer updates if/when we reconnect and clear any stale updates
 		db.deferUpdates = true
+		db.deferredUpdates = make([]*bufferedUpdate, 0)
 
 		db.modelMutex.Lock()
 		defer db.modelMutex.Unlock()
