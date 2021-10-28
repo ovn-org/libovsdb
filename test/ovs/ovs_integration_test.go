@@ -275,7 +275,7 @@ func (suite *OVSIntegrationSuite) TestWithReconnect() {
 
 	// Reconfigure
 	err = suite.client.SetOption(
-		client.WithReconnect(500*time.Millisecond, &backoff.ZeroBackOff{}),
+		client.WithReconnect(2*time.Second, &backoff.ZeroBackOff{}),
 	)
 	require.NoError(suite.T(), err)
 
@@ -346,7 +346,7 @@ func (suite *OVSIntegrationSuite) TestWithReconnect() {
 LOOP:
 	for {
 		select {
-		case <-time.After(2 * time.Second):
+		case <-time.After(5 * time.Second):
 			suite.T().Fatal("timed out waiting for bridge")
 		case b := <-brChan:
 			if b.Name == bridgeName {

@@ -324,7 +324,7 @@ func TestValidate(t *testing.T) {
 			var schema ovsdb.DatabaseSchema
 			err := json.Unmarshal(tt.schema, &schema)
 			assert.Nil(t, err)
-			errors := model.validate(&schema)
+			errors := model.validate(schema)
 			if tt.err {
 				assert.Greater(t, len(errors), 0)
 			} else {

@@ -22,7 +22,7 @@ func TestMutateOp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ovsDB := NewInMemoryDatabase(map[string]*model.ClientDBModel{"Open_vSwitch": defDB})
+	ovsDB := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
 	dbModel, errs := model.NewDatabaseModel(schema, defDB)
 	require.Empty(t, errs)
 	o, err := NewOvsdbServer(ovsDB, dbModel)
@@ -219,7 +219,7 @@ func TestOvsdbServerInsert(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ovsDB := NewInMemoryDatabase(map[string]*model.ClientDBModel{"Open_vSwitch": defDB})
+	ovsDB := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
 	dbModel, errs := model.NewDatabaseModel(schema, defDB)
 	require.Empty(t, errs)
 	o, err := NewOvsdbServer(ovsDB, dbModel)
@@ -275,7 +275,7 @@ func TestOvsdbServerUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ovsDB := NewInMemoryDatabase(map[string]*model.ClientDBModel{"Open_vSwitch": defDB})
+	ovsDB := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
 	dbModel, errs := model.NewDatabaseModel(schema, defDB)
 	require.Empty(t, errs)
 	o, err := NewOvsdbServer(ovsDB, dbModel)

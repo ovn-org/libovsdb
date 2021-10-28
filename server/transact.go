@@ -74,7 +74,7 @@ func (o *OvsdbServer) Insert(database string, table string, rowUUID string, row 
 	dbModel := o.models[database]
 	o.modelsMutex.Unlock()
 
-	m := dbModel.Mapper()
+	m := dbModel.Mapper
 
 	if rowUUID == "" {
 		rowUUID = uuid.NewString()
@@ -153,7 +153,7 @@ func (o *OvsdbServer) Select(database string, table string, where []ovsdb.Condit
 	dbModel := o.models[database]
 	o.modelsMutex.Unlock()
 
-	m := dbModel.Mapper()
+	m := dbModel.Mapper
 
 	var results []ovsdb.Row
 	rows, err := o.db.List(database, table, where...)
@@ -186,8 +186,8 @@ func (o *OvsdbServer) Update(database, table string, where []ovsdb.Condition, ro
 	dbModel := o.models[database]
 	o.modelsMutex.Unlock()
 
-	m := dbModel.Mapper()
-	schema := dbModel.Schema().Table(table)
+	m := dbModel.Mapper
+	schema := dbModel.Schema.Table(table)
 	tableUpdate := make(ovsdb.TableUpdate2)
 	rows, err := o.db.List(database, table, where...)
 	if err != nil {
@@ -315,8 +315,8 @@ func (o *OvsdbServer) Mutate(database, table string, where []ovsdb.Condition, mu
 	dbModel := o.models[database]
 	o.modelsMutex.Unlock()
 
-	m := dbModel.Mapper()
-	schema := dbModel.Schema().Table(table)
+	m := dbModel.Mapper
+	schema := dbModel.Schema.Table(table)
 
 	tableUpdate := make(ovsdb.TableUpdate2)
 
@@ -454,7 +454,7 @@ func (o *OvsdbServer) Delete(database, table string, where []ovsdb.Condition) (o
 	o.modelsMutex.Lock()
 	dbModel := o.models[database]
 	o.modelsMutex.Unlock()
-	m := dbModel.Mapper()
+	m := dbModel.Mapper
 
 	tableUpdate := make(ovsdb.TableUpdate2)
 	rows, err := o.db.List(database, table, where...)
