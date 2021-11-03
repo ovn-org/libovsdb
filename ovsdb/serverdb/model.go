@@ -14,7 +14,7 @@ import (
 func FullDatabaseModel() (model.ClientDBModel, error) {
 	return model.NewClientDBModel("_Server", map[string]model.Model{
 		"Database": &Database{},
-	})
+	}, nil)
 }
 
 var schema = `{

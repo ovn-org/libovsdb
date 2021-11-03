@@ -44,7 +44,7 @@ func FullDatabaseModel() (model.ClientDBModel, error) {
 	return model.NewClientDBModel("{{ index . "DatabaseName" }}", map[string]model.Model{
     {{ range index . "Tables" }} "{{ .TableName }}" : &{{ .StructName }}{}, 
     {{ end }}
-	})
+	}, nil)
 }
 
 var schema = {{ index . "Schema" | escape }}

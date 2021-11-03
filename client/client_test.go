@@ -92,6 +92,7 @@ var defDB, _ = model.NewClientDBModel("Open_vSwitch",
 		"Open_vSwitch": &OpenvSwitch{},
 		"Bridge":       &Bridge{},
 	},
+	nil,
 )
 
 var schema = `{
@@ -562,7 +563,7 @@ func BenchmarkUpdate1(b *testing.B) {
 	clientDBModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Bridge":       &Bridge{},
 		"Open_vSwitch": &OpenvSwitch{},
-	})
+	}, nil)
 	require.NoError(b, err)
 	dbModel, errs := model.NewDatabaseModel(s, clientDBModel)
 	require.Empty(b, errs)
@@ -588,7 +589,7 @@ func BenchmarkUpdate2(b *testing.B) {
 	clientDBModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Bridge":       &Bridge{},
 		"Open_vSwitch": &OpenvSwitch{},
-	})
+	}, nil)
 	require.NoError(b, err)
 	dbModel, errs := model.NewDatabaseModel(s, clientDBModel)
 	require.Empty(b, errs)
@@ -615,7 +616,7 @@ func BenchmarkUpdate3(b *testing.B) {
 	clientDBModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Bridge":       &Bridge{},
 		"Open_vSwitch": &OpenvSwitch{},
-	})
+	}, nil)
 	require.NoError(b, err)
 	dbModel, errs := model.NewDatabaseModel(s, clientDBModel)
 	require.Empty(b, errs)
@@ -643,7 +644,7 @@ func BenchmarkUpdate5(b *testing.B) {
 	clientDBModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Bridge":       &Bridge{},
 		"Open_vSwitch": &OpenvSwitch{},
-	})
+	}, nil)
 	require.NoError(b, err)
 	dbModel, errs := model.NewDatabaseModel(s, clientDBModel)
 	require.Empty(b, errs)
@@ -673,7 +674,7 @@ func BenchmarkUpdate8(b *testing.B) {
 	clientDBModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Bridge":       &Bridge{},
 		"Open_vSwitch": &OpenvSwitch{},
-	})
+	}, nil)
 	require.NoError(b, err)
 	dbModel, errs := model.NewDatabaseModel(s, clientDBModel)
 	require.Empty(b, errs)
@@ -720,7 +721,7 @@ func TestUpdate(t *testing.T) {
 	clientDBModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Bridge":       &Bridge{},
 		"Open_vSwitch": &OpenvSwitch{},
-	})
+	}, nil)
 	require.NoError(t, err)
 	dbModel, errs := model.NewDatabaseModel(s, clientDBModel)
 	require.Empty(t, errs)

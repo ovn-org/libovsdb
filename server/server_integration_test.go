@@ -58,7 +58,7 @@ func getSchema() (ovsdb.DatabaseSchema, error) {
 func TestClientServerEcho(t *testing.T) {
 	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
-		"Bridge":       &bridgeType{}})
+		"Bridge":       &bridgeType{}}, nil)
 	require.Nil(t, err)
 
 	schema, err := getSchema()
@@ -95,7 +95,7 @@ func TestClientServerEcho(t *testing.T) {
 func TestClientServerInsert(t *testing.T) {
 	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
-		"Bridge":       &bridgeType{}})
+		"Bridge":       &bridgeType{}}, nil)
 	require.Nil(t, err)
 
 	schema, err := getSchema()
@@ -162,7 +162,7 @@ func TestClientServerInsert(t *testing.T) {
 func TestClientServerMonitor(t *testing.T) {
 	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
-		"Bridge":       &bridgeType{}})
+		"Bridge":       &bridgeType{}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -288,7 +288,7 @@ func TestClientServerMonitor(t *testing.T) {
 func TestClientServerInsertAndDelete(t *testing.T) {
 	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
-		"Bridge":       &bridgeType{}})
+		"Bridge":       &bridgeType{}}, nil)
 	require.Nil(t, err)
 
 	schema, err := getSchema()
@@ -354,7 +354,7 @@ func TestClientServerInsertDuplicate(t *testing.T) {
 	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
 		"Bridge":       &bridgeType{},
-	})
+	}, nil)
 	require.Nil(t, err)
 
 	schema, err := getSchema()
@@ -408,7 +408,7 @@ func TestClientServerInsertDuplicate(t *testing.T) {
 func TestClientServerInsertAndUpdate(t *testing.T) {
 	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
-		"Bridge":       &bridgeType{}})
+		"Bridge":       &bridgeType{}}, nil)
 	require.Nil(t, err)
 
 	schema, err := getSchema()

@@ -10,8 +10,9 @@ import (
 
 // ClientDBModel contains the client information needed to build a DatabaseModel
 type ClientDBModel struct {
-	name  string
-	types map[string]reflect.Type
+	name     string
+	types    map[string]reflect.Type
+	optional map[string]bool
 }
 
 // NewModel returns a new instance of a model from a specific string
@@ -41,7 +42,9 @@ func (db ClientDBModel) validate(schema ovsdb.DatabaseSchema) []error {
 	for tableName := range db.types {
 		tableSchema := schema.Table(tableName)
 		if tableSchema == nil {
-			errors = append(errors, fmt.Errorf("database model contains a model for table %s that does not exist in schema", tableName))
+			if !db.optional[tableName] {
+				errors = append(errors, fmt.Errorf("database model contains a model for table %s that does not exist in schema", tableName))
+			}
 			continue
 		}
 		model, err := db.newModel(tableName)
@@ -57,7 +60,12 @@ func (db ClientDBModel) validate(schema ovsdb.DatabaseSchema) []error {
 }
 
 // NewClientDBModel constructs a ClientDBModel based on a database name and dictionary of models indexed by table name
-func NewClientDBModel(name string, models map[string]Model) (ClientDBModel, error) {
+// You can also provide a map of optional tables. The absence of these tables will not cause schema validation to fail,
+// the contract with the caller is as follows:
+// 1. You must ensure you check that a table exists before trying to use it
+// 2. Optional columns will be ignored when processing transactions or cache updates if the runtime schema does not support them.
+//    Therefore, you may also wish to check for support before writing/reading from your Model
+func NewClientDBModel(name string, models map[string]Model, optional map[string]bool) (ClientDBModel, error) {
 	types := make(map[string]reflect.Type, len(models))
 	for table, model := range models {
 		modelType := reflect.TypeOf(model)
@@ -77,8 +85,12 @@ func NewClientDBModel(name string, models map[string]Model) (ClientDBModel, erro
 
 		types[table] = reflect.TypeOf(model)
 	}
+	if optional == nil {
+		optional = make(map[string]bool)
+	}
 	return ClientDBModel{
-		types: types,
-		name:  name,
+		types:    types,
+		name:     name,
+		optional: optional,
 	}, nil
 }

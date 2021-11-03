@@ -62,7 +62,7 @@ import (
 func FullDatabaseModel() (model.ClientDBModel, error) {
 	return model.NewClientDBModel("AtomicDB", map[string]model.Model{
 		"atomicTable": &AtomicTable{},
-	})
+	}, nil)
 }
 ` + `
 var schema = ` + "`" + `{
