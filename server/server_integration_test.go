@@ -145,12 +145,12 @@ func TestClientServerInsert(t *testing.T) {
 	uuid := reply[0].UUID.GoUUID
 	require.Eventually(t, func() bool {
 		br := &bridgeType{UUID: uuid}
-		err := ovs.Get(br)
+		err := ovs.Get(context.Background(), br)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 
 	br := &bridgeType{UUID: uuid}
-	err = ovs.Get(br)
+	err = ovs.Get(context.Background(), br)
 	require.NoError(t, err)
 
 	assert.Equal(t, bridgeRow.Name, br.Name)
@@ -335,7 +335,7 @@ func TestClientServerInsertAndDelete(t *testing.T) {
 	uuid := reply[0].UUID.GoUUID
 	assert.Eventually(t, func() bool {
 		br := &bridgeType{UUID: uuid}
-		err := ovs.Get(br)
+		err := ovs.Get(context.Background(), br)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 
@@ -457,7 +457,7 @@ func TestClientServerInsertAndUpdate(t *testing.T) {
 	uuid := reply[0].UUID.GoUUID
 	assert.Eventually(t, func() bool {
 		br := &bridgeType{UUID: uuid}
-		err := ovs.Get(br)
+		err := ovs.Get(context.Background(), br)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 
@@ -482,7 +482,7 @@ func TestClientServerInsertAndUpdate(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		br := &bridgeType{UUID: uuid}
-		err = ovs.Get(br)
+		err = ovs.Get(context.Background(), br)
 		if err != nil {
 			return false
 		}
@@ -500,7 +500,7 @@ func TestClientServerInsertAndUpdate(t *testing.T) {
 
 	assert.Eventually(t, func() bool {
 		br := &bridgeType{UUID: uuid}
-		err = ovs.Get(br)
+		err = ovs.Get(context.Background(), br)
 		if err != nil {
 			return false
 		}
@@ -508,7 +508,7 @@ func TestClientServerInsertAndUpdate(t *testing.T) {
 	}, 2*time.Second, 500*time.Millisecond)
 
 	br := &bridgeType{UUID: uuid}
-	err = ovs.Get(br)
+	err = ovs.Get(context.Background(), br)
 	assert.NoError(t, err)
 
 	assert.Equal(t, bridgeRow, br)

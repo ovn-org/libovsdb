@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/cenkalti/rpc2"
@@ -1095,13 +1096,56 @@ func (o *ovsdbClient) Close() {
 	o.rpcClient.Close()
 }
 
+// Ensures the cache is consistent by evaluating that the client is connected
+// and the monitor is fully setup, with the cache populated
+func isCacheConsistent(db *database) bool {
+	// This works because when a client is disconnected the deferUpdates variable
+	// will be set to true. deferUpdates is also protected by the db.cacheMutex.
+	// When the client reconnects and then re-establishes the monitor; the final step
+	// is to process all deferred updates, set deferUpdates back to false, and unlock cacheMutex
+	db.cacheMutex.RLock()
+	defer db.cacheMutex.RUnlock()
+	return !db.deferUpdates
+}
+
+// best effort to ensure cache is in a good state for reading
+func waitForCacheConsistent(ctx context.Context, db *database, logger *logr.Logger, dbName string) {
+	if !hasMonitors(db) {
+		return
+	}
+	ticker := time.NewTicker(50 * time.Millisecond)
+	for {
+		select {
+		case <-ctx.Done():
+			logger.V(3).Info("warning: unable to ensure cache consistency for reading",
+				"database", dbName)
+			return
+		case <-ticker.C:
+			if isCacheConsistent(db) {
+				return
+			}
+
+		}
+	}
+}
+
+func hasMonitors(db *database) bool {
+	db.monitorsMutex.Lock()
+	defer db.monitorsMutex.Unlock()
+	return len(db.monitors) > 0
+}
+
 // Client API interface wrapper functions
 // We add this wrapper to allow users to access the API directly on the
 // client object
 
 //Get implements the API interface's Get function
-func (o *ovsdbClient) Get(model model.Model) error {
-	return o.primaryDB().api.Get(model)
+func (o *ovsdbClient) Get(ctx context.Context, model model.Model) error {
+	primaryDB := o.primaryDB()
+	waitForCacheConsistent(ctx, primaryDB, o.logger, o.primaryDBName)
+	primaryDB.cacheMutex.RLock()
+	defer primaryDB.cacheMutex.RUnlock()
+	return primaryDB.api.Get(ctx, model)
 }
 
 //Create implements the API interface's Create function
@@ -1110,8 +1154,12 @@ func (o *ovsdbClient) Create(models ...model.Model) ([]ovsdb.Operation, error) {
 }
 
 //List implements the API interface's List function
-func (o *ovsdbClient) List(result interface{}) error {
-	return o.primaryDB().api.List(result)
+func (o *ovsdbClient) List(ctx context.Context, result interface{}) error {
+	primaryDB := o.primaryDB()
+	waitForCacheConsistent(ctx, primaryDB, o.logger, o.primaryDBName)
+	primaryDB.cacheMutex.RLock()
+	defer primaryDB.cacheMutex.RUnlock()
+	return primaryDB.api.List(ctx, result)
 }
 
 //Where implements the API interface's Where function

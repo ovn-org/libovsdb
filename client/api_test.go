@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -95,7 +96,7 @@ func TestAPIListSimple(t *testing.T) {
 				result = make([]testLogicalSwitch, tt.initialCap)
 			}
 			api := newAPI(tcache, &discardLogger)
-			err := api.List(&result)
+			err := api.List(context.Background(), &result)
 			if tt.err {
 				assert.NotNil(t, err)
 			} else {
@@ -111,14 +112,14 @@ func TestAPIListSimple(t *testing.T) {
 	t.Run("ApiList: Error wrong type", func(t *testing.T) {
 		var result []string
 		api := newAPI(tcache, &discardLogger)
-		err := api.List(&result)
+		err := api.List(context.Background(), &result)
 		assert.NotNil(t, err)
 	})
 
 	t.Run("ApiList: Type Selection", func(t *testing.T) {
 		var result []testLogicalSwitchPort
 		api := newAPI(tcache, &discardLogger)
-		err := api.List(&result)
+		err := api.List(context.Background(), &result)
 		assert.Nil(t, err)
 		assert.Len(t, result, 0, "Should be empty since cache is empty")
 	})
@@ -126,7 +127,7 @@ func TestAPIListSimple(t *testing.T) {
 	t.Run("ApiList: Empty List", func(t *testing.T) {
 		result := []testLogicalSwitch{}
 		api := newAPI(tcache, &discardLogger)
-		err := api.List(&result)
+		err := api.List(context.Background(), &result)
 		assert.Nil(t, err)
 		assert.Len(t, result, len(lscacheList))
 	})
@@ -213,7 +214,7 @@ func TestAPIListPredicate(t *testing.T) {
 			var result []testLogicalSwitch
 			api := newAPI(tcache, &discardLogger)
 			cond := api.WhereCache(tt.predicate)
-			err := cond.List(&result)
+			err := cond.List(context.Background(), &result)
 			if tt.err {
 				assert.NotNil(t, err)
 			} else {
@@ -301,7 +302,7 @@ func TestAPIListFields(t *testing.T) {
 			// Clean object
 			testObj = testLogicalSwitchPort{}
 			api := newAPI(tcache, &discardLogger)
-			err := api.Where(&testObj).List(&result)
+			err := api.Where(&testObj).List(context.Background(), &result)
 			if tt.err {
 				assert.NotNil(t, err)
 			} else {
@@ -319,7 +320,7 @@ func TestAPIListFields(t *testing.T) {
 			UUID: aUUID0,
 		}
 
-		err := api.Where(&obj).List(&result)
+		err := api.Where(&obj).List(context.Background(), &result)
 		assert.NotNil(t, err)
 	})
 }
@@ -502,7 +503,7 @@ func TestAPIGet(t *testing.T) {
 			var result testLogicalSwitchPort
 			tt.prepare(&result)
 			api := newAPI(tcache, &discardLogger)
-			err := api.Get(&result)
+			err := api.Get(context.Background(), &result)
 			if tt.err {
 				assert.NotNil(t, err)
 			} else {
