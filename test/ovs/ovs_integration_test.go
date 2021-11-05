@@ -195,7 +195,7 @@ func (suite *OVSIntegrationSuite) TestConnectReconnect() {
 
 	bridgeUUID, err := suite.createBridge(bridgeName)
 	require.NoError(suite.T(), err)
-	br := <-brChan
+	<-brChan
 
 	// make another connect call, this should return without error as we're already connected
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -234,12 +234,12 @@ func (suite *OVSIntegrationSuite) TestConnectReconnect() {
 	err = suite.client.Connect(ctx)
 	require.NoError(suite.T(), err)
 
-	br = &bridgeType{
+	br := &bridgeType{
 		UUID: bridgeUUID,
 	}
 
 	// assert cache has been purged
-	err = suite.client.Get(br)
+	err = suite.client.Get(ctx, br)
 	require.Error(suite.T(), err, client.ErrNotFound)
 
 	err = suite.client.Echo(context.TODO())
@@ -254,10 +254,7 @@ func (suite *OVSIntegrationSuite) TestConnectReconnect() {
 	require.NoError(suite.T(), err)
 
 	// assert cache has been re-populated
-	require.Eventually(suite.T(), func() bool {
-		err := suite.client.Get(br)
-		return err == nil
-	}, 2*time.Second, 500*time.Millisecond)
+	require.NoError(suite.T(), suite.client.Get(ctx, br))
 
 }
 
@@ -335,7 +332,7 @@ func (suite *OVSIntegrationSuite) TestWithReconnect() {
 	require.NoError(suite.T(), err)
 
 	// check our original bridge is in the cache
-	err = suite.client.Get(br)
+	err = suite.client.Get(ctx, br)
 	require.NoError(suite.T(), err)
 
 	// create a new bridge to ensure the monitor and cache handler is still working
@@ -400,7 +397,7 @@ func (suite *OVSIntegrationSuite) TestInsertTransactIntegration() {
 	require.NoError(suite.T(), err)
 	require.Eventually(suite.T(), func() bool {
 		br := &bridgeType{UUID: uuid}
-		err := suite.client.Get(br)
+		err := suite.client.Get(context.Background(), br)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 }
@@ -411,7 +408,7 @@ func (suite *OVSIntegrationSuite) TestMultipleOpsTransactIntegration() {
 	require.NoError(suite.T(), err)
 	require.Eventually(suite.T(), func() bool {
 		br := &bridgeType{UUID: uuid}
-		err := suite.client.Get(br)
+		err := suite.client.Get(context.Background(), br)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 
@@ -456,7 +453,7 @@ func (suite *OVSIntegrationSuite) TestMultipleOpsTransactIntegration() {
 	require.NoError(suite.T(), err)
 
 	require.Eventually(suite.T(), func() bool {
-		err := suite.client.Get(br)
+		err := suite.client.Get(context.Background(), br)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 
@@ -477,7 +474,7 @@ func (suite *OVSIntegrationSuite) TestInsertAndDeleteTransactIntegration() {
 
 	require.Eventually(suite.T(), func() bool {
 		br := &bridgeType{UUID: bridgeUUID}
-		err := suite.client.Get(br)
+		err := suite.client.Get(context.Background(), br)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 
@@ -508,7 +505,7 @@ func (suite *OVSIntegrationSuite) TestInsertAndDeleteTransactIntegration() {
 
 	require.Eventually(suite.T(), func() bool {
 		br := &bridgeType{UUID: bridgeUUID}
-		err := suite.client.Get(br)
+		err := suite.client.Get(context.Background(), br)
 		return err != nil
 	}, 2*time.Second, 500*time.Millisecond)
 }
@@ -571,7 +568,7 @@ func (suite *OVSIntegrationSuite) TestMonitorCancelIntegration() {
 	require.NoError(suite.T(), err)
 	require.Eventually(suite.T(), func() bool {
 		q := &queueType{UUID: uuid}
-		err = suite.client.Get(q)
+		err = suite.client.Get(context.Background(), q)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 
@@ -582,7 +579,7 @@ func (suite *OVSIntegrationSuite) TestMonitorCancelIntegration() {
 	require.NoError(suite.T(), err)
 	assert.Never(suite.T(), func() bool {
 		q := &queueType{UUID: uuid}
-		err = suite.client.Get(q)
+		err = suite.client.Get(context.Background(), q)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 }
@@ -593,7 +590,7 @@ func (suite *OVSIntegrationSuite) TestInsertDuplicateTransactIntegration() {
 
 	require.Eventually(suite.T(), func() bool {
 		br := &bridgeType{UUID: uuid}
-		err := suite.client.Get(br)
+		err := suite.client.Get(context.Background(), br)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 
@@ -608,12 +605,12 @@ func (suite *OVSIntegrationSuite) TestUpdate() {
 
 	require.Eventually(suite.T(), func() bool {
 		br := &bridgeType{UUID: uuid}
-		err := suite.client.Get(br)
+		err := suite.client.Get(context.Background(), br)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 
 	bridgeRow := &bridgeType{UUID: uuid}
-	err = suite.client.Get(bridgeRow)
+	err = suite.client.Get(context.Background(), bridgeRow)
 	require.NoError(suite.T(), err)
 
 	// try to modify immutable field
@@ -633,7 +630,7 @@ func (suite *OVSIntegrationSuite) TestUpdate() {
 
 	require.Eventually(suite.T(), func() bool {
 		br := &bridgeType{UUID: uuid}
-		err = suite.client.Get(br)
+		err = suite.client.Get(context.Background(), br)
 		if err != nil {
 			return false
 		}
@@ -651,7 +648,7 @@ func (suite *OVSIntegrationSuite) TestUpdate() {
 
 	assert.Eventually(suite.T(), func() bool {
 		br := &bridgeType{UUID: uuid}
-		err = suite.client.Get(br)
+		err = suite.client.Get(context.Background(), br)
 		if err != nil {
 			return false
 		}
@@ -737,7 +734,7 @@ func (suite *OVSIntegrationSuite) TestCreateIPFIX() {
 
 	//Assert the IPFIX table is empty
 	ipfixes := []ipfixType{}
-	err = suite.client.List(&ipfixes)
+	err = suite.client.List(context.Background(), &ipfixes)
 	require.NoError(suite.T(), err)
 	require.Empty(suite.T(), ipfixes)
 

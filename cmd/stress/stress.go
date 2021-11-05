@@ -77,7 +77,7 @@ func cleanup(ctx context.Context) {
 
 	// Remove all existing bridges
 	var bridges []bridgeType
-	if err := ovs.List(&bridges); err == nil {
+	if err := ovs.List(context.Background(), &bridges); err == nil {
 		log.Printf("%d existing bridges found", len(bridges))
 		for _, bridge := range bridges {
 			deleteBridge(ctx, ovs, rootUUID, &bridge)

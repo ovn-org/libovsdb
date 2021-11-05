@@ -37,7 +37,7 @@ func play(ovs client.Client) {
 		} else {
 			fmt.Printf("Current list of bridges:\n")
 			var bridges []vswitchd.Bridge
-			if err := ovs.List(&bridges); err != nil {
+			if err := ovs.List(context.Background(), &bridges); err != nil {
 				log.Fatal(err)
 			}
 			for _, b := range bridges {
