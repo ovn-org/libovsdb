@@ -96,7 +96,7 @@ func WithLeaderOnly(leaderOnly bool) Option {
 
 // WithReconnect tells the client to automatically reconnect when
 // disconnected. The timeout is used to construct the context on
-// each call to Connect, while backoff dicates the backoff
+// each call to Connect, while backoff dictates the backoff
 // algorithm to use
 func WithReconnect(timeout time.Duration, backoff backoff.BackOff) Option {
 	return func(o *options) error {

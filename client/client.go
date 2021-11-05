@@ -227,7 +227,7 @@ func (o *ovsdbClient) connect(ctx context.Context, reconnect bool) error {
 		if len(connectErrors) == 1 {
 			return connectErrors[0]
 		}
-		combined := []string{}
+		var combined []string
 		for _, e := range connectErrors {
 			combined = append(combined, e.Error())
 		}
@@ -1000,6 +1000,7 @@ func (o *ovsdbClient) handleDisconnectNotification() {
 	if o.options.reconnect && !o.shutdown {
 		o.rpcClient = nil
 		o.rpcMutex.Unlock()
+		suppressionCounter := 1
 		connect := func() error {
 			// need to ensure deferredUpdates is cleared on every reconnect attempt
 			for _, db := range o.databases {
@@ -1012,8 +1013,14 @@ func (o *ovsdbClient) handleDisconnectNotification() {
 			defer cancel()
 			err := o.connect(ctx, true)
 			if err != nil {
-				o.logger.V(2).Error(err, "failed to reconnect")
+				if suppressionCounter < 5 {
+					o.logger.V(2).Error(err, "failed to reconnect")
+				} else if suppressionCounter == 5 {
+					o.logger.V(2).Error(err, "reconnect has failed 5 times, suppressing logging "+
+						"for future attempts")
+				}
 			}
+			suppressionCounter++
 			return err
 		}
 		o.logger.V(3).Info("connection lost, reconnecting", "endpoint", o.activeEndpoint)
