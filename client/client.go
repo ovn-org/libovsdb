@@ -675,10 +675,31 @@ func (o *ovsdbClient) listDbs(ctx context.Context) ([]string, error) {
 // RFC 7047 : transact
 func (o *ovsdbClient) Transact(ctx context.Context, operation ...ovsdb.Operation) ([]ovsdb.OperationResult, error) {
 	o.rpcMutex.Lock()
-	defer o.rpcMutex.Unlock()
 	if o.rpcClient == nil {
-		return nil, ErrNotConnected
+		o.rpcMutex.Unlock()
+		if o.options.reconnect {
+			o.logger.V(5).Info("blocking transaction until reconnected", "operations",
+				fmt.Sprintf("%+v", operation))
+			ticker := time.NewTicker(50 * time.Millisecond)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return nil, fmt.Errorf("%w: while awaiting reconnection", ctx.Err())
+				case <-ticker.C:
+					o.rpcMutex.Lock()
+					if o.rpcClient != nil {
+						break
+					}
+					o.rpcMutex.Unlock()
+				}
+			}
+		} else {
+			return nil, ErrNotConnected
+		}
 	}
+	defer o.rpcMutex.Unlock()
+
 	return o.transact(ctx, o.primaryDBName, operation...)
 }
 
