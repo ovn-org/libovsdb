@@ -134,7 +134,7 @@ func (r *RowCache) RowByModel(m model.Model) model.Model {
 }
 
 // Create writes the provided content to the cache
-func (r *RowCache) Create(uuid string, m model.Model, checkIndexes bool) error {
+func (r *RowCache) Create(uuid string, m model.Model) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if _, ok := r.cache[uuid]; ok {
@@ -154,7 +154,7 @@ func (r *RowCache) Create(uuid string, m model.Model, checkIndexes bool) error {
 			return err
 		}
 
-		if existing, ok := r.indexes[index][val]; ok && checkIndexes {
+		if existing, ok := r.indexes[index][val]; ok {
 			return NewIndexExistsError(r.name, val, string(index), uuid, existing)
 		}
 
@@ -172,7 +172,7 @@ func (r *RowCache) Create(uuid string, m model.Model, checkIndexes bool) error {
 }
 
 // Update updates the content in the cache
-func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) error {
+func (r *RowCache) Update(uuid string, m model.Model) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	if _, ok := r.cache[uuid]; !ok {
@@ -209,7 +209,7 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) error {
 		// old and new values are NOT the same
 
 		// check that there are no conflicts
-		if conflict, ok := r.indexes[index][newVal]; ok && checkIndexes && conflict != uuid {
+		if conflict, ok := r.indexes[index][newVal]; ok && conflict != uuid {
 			errs = append(errs, NewIndexExistsError(
 				r.name,
 				newVal,
@@ -460,7 +460,7 @@ func NewTableCache(dbModel model.DatabaseModel, data Data, logger *logr.Logger) 
 			return nil, fmt.Errorf("table %s is not in schema", table)
 		}
 		for uuid, row := range rowData {
-			if err := cache[table].Create(uuid, row, true); err != nil {
+			if err := cache[table].Create(uuid, row); err != nil {
 				return nil, err
 			}
 		}
@@ -574,7 +574,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) error {
 				if existing := tCache.Row(uuid); existing != nil {
 					if !reflect.DeepEqual(newModel, existing) {
 						logger.V(5).Info("updating row", "old:", fmt.Sprintf("%+v", existing), "new", fmt.Sprintf("%+v", newModel))
-						if err := tCache.Update(uuid, newModel, false); err != nil {
+						if err := tCache.Update(uuid, newModel); err != nil {
 							return err
 						}
 						t.eventProcessor.AddEvent(updateEvent, table, existing, newModel)
@@ -583,7 +583,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) error {
 					continue
 				}
 				logger.V(5).Info("creating row", "model", fmt.Sprintf("%+v", newModel))
-				if err := tCache.Create(uuid, newModel, false); err != nil {
+				if err := tCache.Create(uuid, newModel); err != nil {
 					return err
 				}
 				t.eventProcessor.AddEvent(addEvent, table, nil, newModel)
@@ -625,7 +625,7 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 					return err
 				}
 				logger.V(5).Info("creating row", "model", fmt.Sprintf("%+v", m))
-				if err := tCache.Create(uuid, m, false); err != nil {
+				if err := tCache.Create(uuid, m); err != nil {
 					return err
 				}
 				t.eventProcessor.AddEvent(addEvent, table, nil, m)
@@ -634,8 +634,8 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 				if err != nil {
 					return err
 				}
-				logger.V(5).Info("creating row", "model", fmt.Sprintf("%+v", m))
-				if err := tCache.Create(uuid, m, false); err != nil {
+				logger.V(5).Info("inserting row", "model", fmt.Sprintf("%+v", m))
+				if err := tCache.Create(uuid, m); err != nil {
 					return err
 				}
 				t.eventProcessor.AddEvent(addEvent, table, nil, m)
@@ -651,7 +651,7 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 				}
 				if !reflect.DeepEqual(modified, existing) {
 					logger.V(5).Info("updating row", "old", fmt.Sprintf("%+v", existing), "new", fmt.Sprintf("%+v", modified))
-					if err := tCache.Update(uuid, modified, false); err != nil {
+					if err := tCache.Update(uuid, modified); err != nil {
 						return err
 					}
 					t.eventProcessor.AddEvent(updateEvent, table, existing, modified)
