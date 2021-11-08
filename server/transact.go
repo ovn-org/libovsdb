@@ -111,7 +111,7 @@ func (t *Transaction) rowsFromTransactionCacheAndDatabase(table string, where []
 			rows[rowUUID] = txnRow
 		} else {
 			// warm the transaction cache with the current contents of the row
-			if err := t.Cache.Table(table).Create(rowUUID, row); err != nil {
+			if err := t.Cache.Table(table).Create(rowUUID, row, false); err != nil {
 				return nil, fmt.Errorf("failed warming transaction cache row %s %v for table %s: %v", rowUUID, row, table, err)
 			}
 			txnRows[rowUUID] = row
