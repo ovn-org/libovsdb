@@ -988,6 +988,85 @@ func TestTableCachePopulate2(t *testing.T) {
 	assert.False(t, ok)
 }
 
+// ovsdb-server can break index uniqueness inside a monitor update
+// the cache needs to be able to recover from this
+func TestTableCachePopulate2BrokenIndexes(t *testing.T) {
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	assert.Nil(t, err)
+	var schema ovsdb.DatabaseSchema
+	err = json.Unmarshal([]byte(`
+		 {"name": "Open_vSwitch",
+		  "tables": {
+		    "Open_vSwitch": {
+			  "indexes": [["foo"]],
+		      "columns": {
+		        "foo": {
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
+		      }
+		    }
+		 }
+	     }
+	`), &schema)
+	assert.Nil(t, err)
+	dbModel, errs := model.NewDatabaseModel(schema, db)
+	require.Empty(t, errs)
+	tc, err := NewTableCache(dbModel, nil, nil)
+	assert.Nil(t, err)
+
+	t.Log("Insert")
+	testRow := ovsdb.Row(map[string]interface{}{"_uuid": "test1", "foo": "bar"})
+	testRowModel := &testModel{UUID: "test1", Foo: "bar"}
+	updates := ovsdb.TableUpdates2{
+		"Open_vSwitch": {
+			"test1": &ovsdb.RowUpdate2{
+				Insert: &testRow,
+			},
+		},
+	}
+	err = tc.Populate2(updates)
+	require.NoError(t, err)
+	got := tc.Table("Open_vSwitch").Row("test1")
+	assert.Equal(t, testRowModel, got)
+
+	t.Log("Insert Duplicate Index")
+	testRow2 := ovsdb.Row(map[string]interface{}{"_uuid": "test2", "foo": "bar"})
+	testRowModel2 := &testModel{UUID: "test2", Foo: "bar"}
+	updates = ovsdb.TableUpdates2{
+		"Open_vSwitch": {
+			"test2": &ovsdb.RowUpdate2{
+				Insert: &testRow2,
+			},
+		},
+	}
+
+	err = tc.Populate2(updates)
+	require.NoError(t, err)
+	got = tc.Table("Open_vSwitch").Row("test2")
+	assert.Equal(t, testRowModel2, got)
+
+	t.Log("Delete")
+	deletedRow := ovsdb.Row(map[string]interface{}{"_uuid": "test1", "foo": "bar"})
+	updates = ovsdb.TableUpdates2{
+		"Open_vSwitch": {
+			"test1": &ovsdb.RowUpdate2{
+				Delete: &deletedRow,
+			},
+		},
+	}
+	err = tc.Populate2(updates)
+	require.NoError(t, err)
+	_, ok := tc.cache["Open_vSwitch"].cache["test1"]
+	assert.False(t, ok)
+
+	t.Log("Lookup Original Insert By Index")
+	result := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "bar"})
+	require.NotNil(t, result)
+}
+
 func TestEventProcessor_AddEvent(t *testing.T) {
 	logger := logr.Discard()
 	ep := newEventProcessor(16, &logger)
