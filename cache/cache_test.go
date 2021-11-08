@@ -90,11 +90,11 @@ func TestRowCacheCreate(t *testing.T) {
 			  "indexes": [["foo"]],
 		      "columns": {
 		        "foo": {
-			      "type": "string"
-			    },
-			    "bar": {
-				  "type": "string"
-			    }
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
 		      }
 		    }
 		 }
@@ -111,15 +111,17 @@ func TestRowCacheCreate(t *testing.T) {
 	require.Nil(t, err)
 
 	tests := []struct {
-		name    string
-		uuid    string
-		model   *testModel
-		wantErr bool
+		name       string
+		uuid       string
+		model      *testModel
+		checkIndex bool
+		wantErr    bool
 	}{
 		{
 			"inserts a new row",
 			"foo",
 			&testModel{Foo: "foo"},
+			true,
 			false,
 		},
 		{
@@ -127,25 +129,35 @@ func TestRowCacheCreate(t *testing.T) {
 			"bar",
 			&testModel{Foo: "foo"},
 			true,
+			true,
 		},
 		{
 			"error duplicate index",
 			"baz",
 			&testModel{Foo: "bar"},
 			true,
+			true,
 		},
 		{
-			"error duplicate uuid and index",
+			"error duplicate uuid, no index check",
 			"bar",
 			&testModel{Foo: "bar"},
+			false,
 			true,
+		},
+		{
+			"no error duplicate index",
+			"baz",
+			&testModel{Foo: "bar"},
+			false,
+			false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rc := tc.Table("Open_vSwitch")
 			require.NotNil(t, rc)
-			err := rc.Create(tt.uuid, tt.model)
+			err := rc.Create(tt.uuid, tt.model, tt.checkIndex)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -167,11 +179,11 @@ func TestRowCacheCreateMultiIndex(t *testing.T) {
 			  "indexes": [["foo", "bar"]],
 		      "columns": {
 		        "foo": {
-			      "type": "string"
-			    },
-			    "bar": {
-				  "type": "string"
-			    }
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
 		      }
 		    }
 		 }
@@ -232,7 +244,7 @@ func TestRowCacheCreateMultiIndex(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rc := tc.Table("Open_vSwitch")
 			require.NotNil(t, rc)
-			err := rc.Create(tt.uuid, tt.model)
+			err := rc.Create(tt.uuid, tt.model, true)
 			if tt.wantErr {
 				assert.Error(t, err)
 				if tt.wantIndexExistsErr {
@@ -261,11 +273,11 @@ func TestRowCacheUpdate(t *testing.T) {
 			  "indexes": [["foo"]],
 		      "columns": {
 		        "foo": {
-			      "type": "string"
-			    },
-			    "bar": {
-				  "type": "string"
-			    }
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
 		      }
 		    }
 		 }
@@ -284,21 +296,24 @@ func TestRowCacheUpdate(t *testing.T) {
 	require.Nil(t, err)
 
 	tests := []struct {
-		name    string
-		uuid    string
-		model   *testModel
-		wantErr bool
+		name       string
+		uuid       string
+		model      *testModel
+		checkIndex bool
+		wantErr    bool
 	}{
 		{
 			"error if row does not exist",
 			"foo",
 			&testModel{Foo: "foo"},
 			true,
+			true,
 		},
 		{
 			"update",
 			"bar",
 			&testModel{Foo: "baz"},
+			true,
 			false,
 		},
 		{
@@ -306,13 +321,21 @@ func TestRowCacheUpdate(t *testing.T) {
 			"bar",
 			&testModel{Foo: "foobar"},
 			true,
+			true,
+		},
+		{
+			"no error new index would cause duplicate",
+			"bar",
+			&testModel{Foo: "foobar"},
+			false,
+			false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rc := tc.Table("Open_vSwitch")
 			require.NotNil(t, rc)
-			err := rc.Update(tt.uuid, tt.model)
+			err := rc.Update(tt.uuid, tt.model, tt.checkIndex)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -334,11 +357,11 @@ func TestRowCacheUpdateMultiIndex(t *testing.T) {
 			  "indexes": [["foo", "bar"]],
 		      "columns": {
 		        "foo": {
-			      "type": "string"
-			    },
-			    "bar": {
-				  "type": "string"
-			    }
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
 		      }
 		    }
 		 }
@@ -391,7 +414,7 @@ func TestRowCacheUpdateMultiIndex(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rc := tc.Table("Open_vSwitch")
 			require.NotNil(t, rc)
-			err := rc.Update(tt.uuid, tt.model)
+			err := rc.Update(tt.uuid, tt.model, true)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -417,11 +440,11 @@ func TestRowCacheDelete(t *testing.T) {
 			  "indexes": [["foo"]],
 		      "columns": {
 		        "foo": {
-			      "type": "string"
-			    },
-			    "bar": {
-				  "type": "string"
-			    }
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
 		      }
 		    }
 		 }
@@ -616,11 +639,11 @@ func TestTableCacheTable(t *testing.T) {
 			  "indexes": [["foo"]],
 		      "columns": {
 		        "foo": {
-			      "type": "string"
-			    },
-			    "bar": {
-				  "type": "string"
-			    }
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
 		      }
 		    }
 		 }
@@ -673,31 +696,31 @@ func TestTableCacheTables(t *testing.T) {
 		    "test1": {
 		      "columns": {
 		        "foo": {
-			      "type": "string"
-			    },
-			    "bar": {
-				  "type": "string"
-			    }
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
 		      }
 		    },
 		    "test2": {
 		      "columns": {
 		        "foo": {
-			      "type": "string"
-			    },
-			    "bar": {
-				  "type": "string"
-			    }
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
 		      }
 		    },
 		    "test3": {
 		      "columns": {
 		        "foo": {
-			      "type": "string"
-			    },
-			    "bar": {
-				  "type": "string"
-			    }
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
 		      }
 		    }
 		 }
@@ -749,11 +772,11 @@ func TestTableCache_populate(t *testing.T) {
 			  "indexes": [["foo"]],
 		      "columns": {
 		        "foo": {
-			      "type": "string"
-			    },
-			    "bar": {
-				  "type": "string"
-			    }
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
 		      }
 		    }
 		 }
@@ -819,11 +842,11 @@ func TestTableCachePopulate(t *testing.T) {
 			  "indexes": [["foo"]],
 		      "columns": {
 		        "foo": {
-			      "type": "string"
-			    },
-			    "bar": {
-				  "type": "string"
-			    }
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
 		      }
 		    }
 		 }
@@ -888,11 +911,11 @@ func TestTableCachePopulate2(t *testing.T) {
 			  "indexes": [["foo"]],
 		      "columns": {
 		        "foo": {
-			      "type": "string"
-			    },
-			    "bar": {
-				  "type": "string"
-			    }
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
 		      }
 		    }
 		 }
@@ -965,6 +988,85 @@ func TestTableCachePopulate2(t *testing.T) {
 	assert.False(t, ok)
 }
 
+// ovsdb-server can break index uniqueness inside a monitor update
+// the cache needs to be able to recover from this
+func TestTableCachePopulate2BrokenIndexes(t *testing.T) {
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	assert.Nil(t, err)
+	var schema ovsdb.DatabaseSchema
+	err = json.Unmarshal([]byte(`
+		 {"name": "Open_vSwitch",
+		  "tables": {
+		    "Open_vSwitch": {
+			  "indexes": [["foo"]],
+		      "columns": {
+		        "foo": {
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
+		      }
+		    }
+		 }
+	     }
+	`), &schema)
+	assert.Nil(t, err)
+	dbModel, errs := model.NewDatabaseModel(schema, db)
+	require.Empty(t, errs)
+	tc, err := NewTableCache(dbModel, nil, nil)
+	assert.Nil(t, err)
+
+	t.Log("Insert")
+	testRow := ovsdb.Row(map[string]interface{}{"_uuid": "test1", "foo": "bar"})
+	testRowModel := &testModel{UUID: "test1", Foo: "bar"}
+	updates := ovsdb.TableUpdates2{
+		"Open_vSwitch": {
+			"test1": &ovsdb.RowUpdate2{
+				Insert: &testRow,
+			},
+		},
+	}
+	err = tc.Populate2(updates)
+	require.NoError(t, err)
+	got := tc.Table("Open_vSwitch").Row("test1")
+	assert.Equal(t, testRowModel, got)
+
+	t.Log("Insert Duplicate Index")
+	testRow2 := ovsdb.Row(map[string]interface{}{"_uuid": "test2", "foo": "bar"})
+	testRowModel2 := &testModel{UUID: "test2", Foo: "bar"}
+	updates = ovsdb.TableUpdates2{
+		"Open_vSwitch": {
+			"test2": &ovsdb.RowUpdate2{
+				Insert: &testRow2,
+			},
+		},
+	}
+
+	err = tc.Populate2(updates)
+	require.NoError(t, err)
+	got = tc.Table("Open_vSwitch").Row("test2")
+	assert.Equal(t, testRowModel2, got)
+
+	t.Log("Delete")
+	deletedRow := ovsdb.Row(map[string]interface{}{"_uuid": "test1", "foo": "bar"})
+	updates = ovsdb.TableUpdates2{
+		"Open_vSwitch": {
+			"test1": &ovsdb.RowUpdate2{
+				Delete: &deletedRow,
+			},
+		},
+	}
+	err = tc.Populate2(updates)
+	require.NoError(t, err)
+	_, ok := tc.cache["Open_vSwitch"].cache["test1"]
+	assert.False(t, ok)
+
+	t.Log("Lookup Original Insert By Index")
+	result := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "bar"})
+	require.NotNil(t, result)
+}
+
 func TestEventProcessor_AddEvent(t *testing.T) {
 	logger := logr.Discard()
 	ep := newEventProcessor(16, &logger)
@@ -1013,14 +1115,14 @@ func TestIndex(t *testing.T) {
 			  "indexes": [["foo"], ["bar","baz"]],
 		      "columns": {
 		        "foo": {
-			      "type": "string"
-			    },
-			    "bar": {
-				  "type": "string"
-		    	},
-			    "baz": {
-				  "type": "integer"
-			    }
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			},
+			"baz": {
+				"type": "integer"
+			}
 		      }
 		    }
 		 }
@@ -1039,7 +1141,7 @@ func TestIndex(t *testing.T) {
 	}
 	table := tc.Table("Open_vSwitch")
 
-	err = table.Create(obj.UUID, obj)
+	err = table.Create(obj.UUID, obj, true)
 	assert.Nil(t, err)
 	t.Run("Index by single column", func(t *testing.T) {
 		idx, err := table.Index("foo")
@@ -1109,11 +1211,11 @@ func TestTableCacheRowByModelSingleIndex(t *testing.T) {
 			  "indexes": [["foo"]],
 		      "columns": {
 		        "foo": {
-			      "type": "string"
-			    },
-			    "bar": {
-				  "type": "string"
-			    }
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
 		      }
 		    }
 		 }
@@ -1160,11 +1262,11 @@ func TestTableCacheRowByModelTwoIndexes(t *testing.T) {
 			  "indexes": [["foo"], ["bar"]],
 		      "columns": {
 		        "foo": {
-			      "type": "string"
-			    },
-			    "bar": {
-				  "type": "string"
-			    }
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
 		      }
 		    }
 		 }
@@ -1213,11 +1315,11 @@ func TestTableCacheRowByModelMultiIndex(t *testing.T) {
 			  "indexes": [["foo", "bar"]],
 		      "columns": {
 		        "foo": {
-			      "type": "string"
-			    },
-			    "bar": {
-				  "type": "string"
-			    }
+			  "type": "string"
+			},
+			"bar": {
+				"type": "string"
+			  }
 		      }
 		    }
 		 }
