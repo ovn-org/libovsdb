@@ -78,6 +78,7 @@ type bufferedUpdate struct {
 type ovsdbClient struct {
 	options        *options
 	metrics        metrics
+	connected      bool
 	rpcClient      *rpc2.Client
 	rpcMutex       sync.RWMutex
 	activeEndpoint string
@@ -258,6 +259,7 @@ func (o *ovsdbClient) connect(ctx context.Context, reconnect bool) error {
 		go db.cache.Run(o.stopCh)
 	}
 
+	o.connected = true
 	return nil
 }
 
@@ -485,7 +487,7 @@ func (o *ovsdbClient) SetOption(opt Option) error {
 func (o *ovsdbClient) Connected() bool {
 	o.rpcMutex.RLock()
 	defer o.rpcMutex.RUnlock()
-	return o.rpcClient != nil
+	return o.connected
 }
 
 func (o *ovsdbClient) CurrentEndpoint() string {
@@ -675,21 +677,22 @@ func (o *ovsdbClient) listDbs(ctx context.Context) ([]string, error) {
 // RFC 7047 : transact
 func (o *ovsdbClient) Transact(ctx context.Context, operation ...ovsdb.Operation) ([]ovsdb.OperationResult, error) {
 	o.rpcMutex.Lock()
-	if o.rpcClient == nil {
+	if o.rpcClient == nil || !o.connected {
 		o.rpcMutex.Unlock()
 		if o.options.reconnect {
 			o.logger.V(5).Info("blocking transaction until reconnected", "operations",
 				fmt.Sprintf("%+v", operation))
 			ticker := time.NewTicker(50 * time.Millisecond)
 			defer ticker.Stop()
+		ReconnectWaitLoop:
 			for {
 				select {
 				case <-ctx.Done():
 					return nil, fmt.Errorf("%w: while awaiting reconnection", ctx.Err())
 				case <-ticker.C:
 					o.rpcMutex.Lock()
-					if o.rpcClient != nil {
-						break
+					if o.rpcClient != nil && o.connected {
+						break ReconnectWaitLoop
 					}
 					o.rpcMutex.Unlock()
 				}
@@ -699,7 +702,6 @@ func (o *ovsdbClient) Transact(ctx context.Context, operation ...ovsdb.Operation
 		}
 	}
 	defer o.rpcMutex.Unlock()
-
 	return o.transact(ctx, o.primaryDBName, operation...)
 }
 
@@ -1096,6 +1098,7 @@ func (o *ovsdbClient) handleDisconnectNotification() {
 func (o *ovsdbClient) Disconnect() {
 	o.rpcMutex.Lock()
 	defer o.rpcMutex.Unlock()
+	o.connected = false
 	if o.rpcClient == nil {
 		return
 	}
@@ -1108,6 +1111,7 @@ func (o *ovsdbClient) Disconnect() {
 func (o *ovsdbClient) Close() {
 	o.rpcMutex.Lock()
 	defer o.rpcMutex.Unlock()
+	o.connected = false
 	if o.rpcClient == nil {
 		return
 	}

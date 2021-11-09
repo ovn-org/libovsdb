@@ -5,6 +5,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -64,7 +65,13 @@ func (suite *OVSIntegrationSuite) SetupSuite() {
 
 	// let the container start before we attempt connection
 	time.Sleep(5 * time.Second)
+}
 
+func (suite *OVSIntegrationSuite) SetupTest() {
+	if suite.client != nil {
+		suite.client.Close()
+	}
+	var err error
 	err = suite.pool.Retry(func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
@@ -752,4 +759,49 @@ func (suite *OVSIntegrationSuite) createQueue(queueName string, dscp int) (strin
 
 	_, err = ovsdb.CheckOperationResults(reply, insertOp)
 	return reply[0].UUID.GoUUID, err
+}
+
+func (suite *OVSIntegrationSuite) TestOpsWaitForReconnect() {
+	namedUUID := "trozet"
+	ipfix := ipfixType{
+		UUID:    namedUUID,
+		Targets: []string{"127.0.0.1:6650"},
+	}
+
+	// Shutdown client
+	suite.client.Disconnect()
+
+	require.Eventually(suite.T(), func() bool {
+		return !suite.client.Connected()
+	}, 5*time.Second, 1*time.Second)
+
+	err := suite.client.SetOption(
+		client.WithReconnect(2*time.Second, &backoff.ZeroBackOff{}),
+	)
+	require.NoError(suite.T(), err)
+	var insertOp []ovsdb.Operation
+	insertOp, err = suite.client.Create(&ipfix)
+	require.NoError(suite.T(), err)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	// delay reconnecting for 5 seconds
+	go func() {
+		time.Sleep(5 * time.Second)
+		err := suite.client.Connect(context.Background())
+		require.NoError(suite.T(), err)
+		wg.Done()
+	}()
+
+	// execute the transaction, should not fail and execute after reconnection
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	reply, err := suite.client.Transact(ctx, insertOp...)
+	require.NoError(suite.T(), err)
+
+	_, err = ovsdb.CheckOperationResults(reply, insertOp)
+	require.NoError(suite.T(), err)
+
+	wg.Wait()
+
 }
