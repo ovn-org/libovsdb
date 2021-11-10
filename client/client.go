@@ -979,7 +979,7 @@ func (o *ovsdbClient) watchForLeaderChange() error {
 				continue
 			}
 
-			if dbInfo.Model == serverdb.DatabaseModelClustered && !dbInfo.Leader {
+			if dbInfo.Model == serverdb.DatabaseModelClustered && !dbInfo.Leader && o.Connected() {
 				o.logger.V(3).Info("endpoint lost leader, reconnecting", "endpoint", o.activeEndpoint)
 				o.Disconnect()
 			}
