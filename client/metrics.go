@@ -64,7 +64,7 @@ func (m *metrics) register(r prometheus.Registerer) {
 	)
 }
 
-func (o *ovsdbClient) registerMetrics() {
+func (o *OvsdbClient) registerMetrics() {
 	if !o.options.shouldRegisterMetrics || o.options.registry == nil {
 		return
 	}

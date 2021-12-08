@@ -489,7 +489,7 @@ func testOvsMap(t *testing.T, set interface{}) ovsdb.OvsMap {
 	return oMap
 }
 
-func updateBenchmark(ovs *ovsdbClient, updates []byte, b *testing.B) {
+func updateBenchmark(ovs *OvsdbClient, updates []byte, b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		params := []json.RawMessage{[]byte(`{"databaseName":"Open_vSwitch","id":"v1"}`), updates}
 		var reply []interface{}

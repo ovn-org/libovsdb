@@ -74,8 +74,8 @@ type bufferedUpdate struct {
 	lastTxnID string
 }
 
-// ovsdbClient is an OVSDB client
-type ovsdbClient struct {
+// OvsdbClient is an OVSDB client
+type OvsdbClient struct {
 	options        *options
 	metrics        metrics
 	connected      bool
@@ -95,6 +95,9 @@ type ovsdbClient struct {
 
 	logger *logr.Logger
 }
+
+// OvsdbClient implements the Client interface
+var _ Client = &OvsdbClient{}
 
 // database is everything needed to map between go types and an ovsdb Database
 type database struct {
@@ -123,13 +126,13 @@ type database struct {
 // database model. The client can be configured using one or more Option(s),
 // like WithTLSConfig. If no WithEndpoint option is supplied, the default of
 // unix:/var/run/openvswitch/ovsdb.sock is used
-func NewOVSDBClient(clientDBModel model.ClientDBModel, opts ...Option) (Client, error) {
+func NewOVSDBClient(clientDBModel model.ClientDBModel, opts ...Option) (*OvsdbClient, error) {
 	return newOVSDBClient(clientDBModel, opts...)
 }
 
-// newOVSDBClient creates a new ovsdbClient
-func newOVSDBClient(clientDBModel model.ClientDBModel, opts ...Option) (*ovsdbClient, error) {
-	ovs := &ovsdbClient{
+// newOVSDBClient creates a new OvsdbClient
+func newOVSDBClient(clientDBModel model.ClientDBModel, opts ...Option) (*OvsdbClient, error) {
+	ovs := &OvsdbClient{
 		primaryDBName: clientDBModel.Name(),
 		databases: map[string]*database{
 			clientDBModel.Name(): {
@@ -184,7 +187,7 @@ func newOVSDBClient(clientDBModel model.ClientDBModel, opts ...Option) (*ovsdbCl
 // endpoint provided when the Client was created.
 // The connection can be configured using one or more Option(s), like WithTLSConfig
 // If no WithEndpoint option is supplied, the default of unix:/var/run/openvswitch/ovsdb.sock is used
-func (o *ovsdbClient) Connect(ctx context.Context) error {
+func (o *OvsdbClient) Connect(ctx context.Context) error {
 	if err := o.connect(ctx, false); err != nil {
 		if err == ErrAlreadyConnected {
 			return nil
@@ -199,7 +202,7 @@ func (o *ovsdbClient) Connect(ctx context.Context) error {
 	return nil
 }
 
-func (o *ovsdbClient) connect(ctx context.Context, reconnect bool) error {
+func (o *OvsdbClient) connect(ctx context.Context, reconnect bool) error {
 	o.rpcMutex.Lock()
 	defer o.rpcMutex.Unlock()
 	if o.rpcClient != nil {
@@ -263,7 +266,7 @@ func (o *ovsdbClient) connect(ctx context.Context, reconnect bool) error {
 	return nil
 }
 
-func (o *ovsdbClient) tryEndpoint(ctx context.Context, u *url.URL) error {
+func (o *OvsdbClient) tryEndpoint(ctx context.Context, u *url.URL) error {
 	o.logger.V(5).Info("trying to connect", "endpoint", fmt.Sprintf("%v", u))
 	var dialer net.Dialer
 	var err error
@@ -376,7 +379,7 @@ func (o *ovsdbClient) tryEndpoint(ctx context.Context, u *url.URL) error {
 // createRPC2Client creates an rpcClient using the provided connection
 // It is also responsible for setting up go routines for client-side event handling
 // Should only be called when the mutex is held
-func (o *ovsdbClient) createRPC2Client(conn net.Conn) {
+func (o *OvsdbClient) createRPC2Client(conn net.Conn) {
 	o.stopCh = make(chan struct{})
 	o.rpcClient = rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
 	o.rpcClient.SetBlocking(true)
@@ -397,7 +400,7 @@ func (o *ovsdbClient) createRPC2Client(conn net.Conn) {
 
 // isEndpointLeader returns true if the currently connected endpoint is leader.
 // assumes rpcMutex is held
-func (o *ovsdbClient) isEndpointLeader(ctx context.Context) (bool, error) {
+func (o *OvsdbClient) isEndpointLeader(ctx context.Context) (bool, error) {
 	op := ovsdb.Operation{
 		Op:      ovsdb.OperationSelect,
 		Table:   "Database",
@@ -449,13 +452,13 @@ func (o *ovsdbClient) isEndpointLeader(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func (o *ovsdbClient) primaryDB() *database {
+func (o *OvsdbClient) primaryDB() *database {
 	return o.databases[o.primaryDBName]
 }
 
 // Schema returns the DatabaseSchema that is being used by the client
 // it will be nil until a connection has been established
-func (o *ovsdbClient) Schema() ovsdb.DatabaseSchema {
+func (o *OvsdbClient) Schema() ovsdb.DatabaseSchema {
 	db := o.primaryDB()
 	db.modelMutex.RLock()
 	defer db.modelMutex.RUnlock()
@@ -465,7 +468,7 @@ func (o *ovsdbClient) Schema() ovsdb.DatabaseSchema {
 // Cache returns the TableCache that is populated from
 // ovsdb update notifications. It will be nil until a connection
 // has been established, and empty unless you call Monitor
-func (o *ovsdbClient) Cache() *cache.TableCache {
+func (o *OvsdbClient) Cache() *cache.TableCache {
 	db := o.primaryDB()
 	db.cacheMutex.RLock()
 	defer db.cacheMutex.RUnlock()
@@ -474,7 +477,7 @@ func (o *ovsdbClient) Cache() *cache.TableCache {
 
 // SetOption sets a new value for an option.
 // It may only be called when the client is not connected
-func (o *ovsdbClient) SetOption(opt Option) error {
+func (o *OvsdbClient) SetOption(opt Option) error {
 	o.rpcMutex.RLock()
 	defer o.rpcMutex.RUnlock()
 	if o.rpcClient != nil {
@@ -484,13 +487,13 @@ func (o *ovsdbClient) SetOption(opt Option) error {
 }
 
 // Connected returns whether or not the client is currently connected to the server
-func (o *ovsdbClient) Connected() bool {
+func (o *OvsdbClient) Connected() bool {
 	o.rpcMutex.RLock()
 	defer o.rpcMutex.RUnlock()
 	return o.connected
 }
 
-func (o *ovsdbClient) CurrentEndpoint() string {
+func (o *OvsdbClient) CurrentEndpoint() string {
 	o.rpcMutex.RLock()
 	defer o.rpcMutex.RUnlock()
 	if o.rpcClient == nil {
@@ -501,12 +504,12 @@ func (o *ovsdbClient) CurrentEndpoint() string {
 
 // DisconnectNotify returns a channel which will notify the caller when the
 // server has disconnected
-func (o *ovsdbClient) DisconnectNotify() chan struct{} {
+func (o *OvsdbClient) DisconnectNotify() chan struct{} {
 	return o.disconnect
 }
 
 // RFC 7047 : Section 4.1.6 : Echo
-func (o *ovsdbClient) echo(args []interface{}, reply *[]interface{}) error {
+func (o *OvsdbClient) echo(args []interface{}, reply *[]interface{}) error {
 	*reply = args
 	return nil
 }
@@ -515,7 +518,7 @@ func (o *ovsdbClient) echo(args []interface{}, reply *[]interface{}) error {
 // params is an array of length 2: [json-value, table-updates]
 // - json-value: the arbitrary json-value passed when creating the Monitor, i.e. the "cookie"
 // - table-updates: map of table name to table-update. Table-update is a map of uuid to (old, new) row paris
-func (o *ovsdbClient) update(params []json.RawMessage, reply *[]interface{}) error {
+func (o *OvsdbClient) update(params []json.RawMessage, reply *[]interface{}) error {
 	cookie := MonitorCookie{}
 	*reply = []interface{}{}
 	if len(params) > 2 {
@@ -556,7 +559,7 @@ func (o *ovsdbClient) update(params []json.RawMessage, reply *[]interface{}) err
 }
 
 // update2 handling from ovsdb-server.7
-func (o *ovsdbClient) update2(params []json.RawMessage, reply *[]interface{}) error {
+func (o *OvsdbClient) update2(params []json.RawMessage, reply *[]interface{}) error {
 	cookie := MonitorCookie{}
 	*reply = []interface{}{}
 	if len(params) > 2 {
@@ -593,7 +596,7 @@ func (o *ovsdbClient) update2(params []json.RawMessage, reply *[]interface{}) er
 }
 
 // update3 handling from ovsdb-server.7
-func (o *ovsdbClient) update3(params []json.RawMessage, reply *[]interface{}) error {
+func (o *OvsdbClient) update3(params []json.RawMessage, reply *[]interface{}) error {
 	cookie := MonitorCookie{}
 	*reply = []interface{}{}
 	if len(params) > 3 {
@@ -645,7 +648,7 @@ func (o *ovsdbClient) update3(params []json.RawMessage, reply *[]interface{}) er
 // getSchema returns the schema in use for the provided database name
 // RFC 7047 : get_schema
 // Should only be called when mutex is held
-func (o *ovsdbClient) getSchema(ctx context.Context, dbName string) (ovsdb.DatabaseSchema, error) {
+func (o *OvsdbClient) getSchema(ctx context.Context, dbName string) (ovsdb.DatabaseSchema, error) {
 	args := ovsdb.NewGetSchemaArgs(dbName)
 	var reply ovsdb.DatabaseSchema
 	err := o.rpcClient.CallWithContext(ctx, "get_schema", args, &reply)
@@ -661,7 +664,7 @@ func (o *ovsdbClient) getSchema(ctx context.Context, dbName string) (ovsdb.Datab
 // listDbs returns the list of databases on the server
 // RFC 7047 : list_dbs
 // Should only be called when mutex is held
-func (o *ovsdbClient) listDbs(ctx context.Context) ([]string, error) {
+func (o *OvsdbClient) listDbs(ctx context.Context) ([]string, error) {
 	var dbs []string
 	err := o.rpcClient.CallWithContext(ctx, "list_dbs", nil, &dbs)
 	if err != nil {
@@ -675,7 +678,7 @@ func (o *ovsdbClient) listDbs(ctx context.Context) ([]string, error) {
 
 // Transact performs the provided Operations on the database
 // RFC 7047 : transact
-func (o *ovsdbClient) Transact(ctx context.Context, operation ...ovsdb.Operation) ([]ovsdb.OperationResult, error) {
+func (o *OvsdbClient) Transact(ctx context.Context, operation ...ovsdb.Operation) ([]ovsdb.OperationResult, error) {
 	o.rpcMutex.RLock()
 	if o.rpcClient == nil || !o.connected {
 		o.rpcMutex.RUnlock()
@@ -705,7 +708,7 @@ func (o *ovsdbClient) Transact(ctx context.Context, operation ...ovsdb.Operation
 	return o.transact(ctx, o.primaryDBName, operation...)
 }
 
-func (o *ovsdbClient) transact(ctx context.Context, dbName string, operation ...ovsdb.Operation) ([]ovsdb.OperationResult, error) {
+func (o *OvsdbClient) transact(ctx context.Context, dbName string, operation ...ovsdb.Operation) ([]ovsdb.OperationResult, error) {
 	var reply []ovsdb.OperationResult
 	db := o.databases[dbName]
 	db.modelMutex.RLock()
@@ -734,7 +737,7 @@ func (o *ovsdbClient) transact(ctx context.Context, dbName string, operation ...
 }
 
 // MonitorAll is a convenience method to monitor every table/column
-func (o *ovsdbClient) MonitorAll(ctx context.Context) (MonitorCookie, error) {
+func (o *OvsdbClient) MonitorAll(ctx context.Context) (MonitorCookie, error) {
 	m := newMonitor()
 	for name := range o.primaryDB().model.Types() {
 		m.Tables = append(m.Tables, TableMonitor{Table: name})
@@ -744,7 +747,7 @@ func (o *ovsdbClient) MonitorAll(ctx context.Context) (MonitorCookie, error) {
 
 // MonitorCancel will request cancel a previously issued monitor request
 // RFC 7047 : monitor_cancel
-func (o *ovsdbClient) MonitorCancel(ctx context.Context, cookie MonitorCookie) error {
+func (o *OvsdbClient) MonitorCancel(ctx context.Context, cookie MonitorCookie) error {
 	var reply ovsdb.OperationResult
 	args := ovsdb.NewMonitorCancelArgs(cookie)
 	o.rpcMutex.Lock()
@@ -773,7 +776,7 @@ func (o *ovsdbClient) MonitorCancel(ctx context.Context, cookie MonitorCookie) e
 // and populate the cache with them. Subsequent updates will be processed
 // by the Update Notifications
 // RFC 7047 : monitor
-func (o *ovsdbClient) Monitor(ctx context.Context, monitor *Monitor) (MonitorCookie, error) {
+func (o *OvsdbClient) Monitor(ctx context.Context, monitor *Monitor) (MonitorCookie, error) {
 	cookie := newMonitorCookie(o.primaryDBName)
 	db := o.databases[o.primaryDBName]
 	db.monitorsMutex.Lock()
@@ -783,7 +786,7 @@ func (o *ovsdbClient) Monitor(ctx context.Context, monitor *Monitor) (MonitorCoo
 
 //gocyclo:ignore
 // monitor must only be called with a lock on monitorsMutex
-func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconnecting bool, monitor *Monitor) error {
+func (o *OvsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconnecting bool, monitor *Monitor) error {
 	// if we're reconnecting, we already hold the rpcMutex
 	if !reconnecting {
 		o.rpcMutex.RLock()
@@ -926,7 +929,7 @@ func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconne
 }
 
 // Echo tests the liveness of the OVSDB connetion
-func (o *ovsdbClient) Echo(ctx context.Context) error {
+func (o *OvsdbClient) Echo(ctx context.Context) error {
 	args := ovsdb.NewEchoArgs()
 	var reply []interface{}
 	o.rpcMutex.RLock()
@@ -948,7 +951,7 @@ func (o *ovsdbClient) Echo(ctx context.Context) error {
 
 // watchForLeaderChange will trigger a reconnect if the connected endpoint
 // ever loses leadership
-func (o *ovsdbClient) watchForLeaderChange() error {
+func (o *OvsdbClient) watchForLeaderChange() error {
 	updates := make(chan model.Model)
 	o.databases[serverDB].cache.AddEventHandler(&cache.EventHandlerFuncs{
 		UpdateFunc: func(table string, _, new model.Model) {
@@ -991,7 +994,7 @@ func (o *ovsdbClient) watchForLeaderChange() error {
 	return nil
 }
 
-func (o *ovsdbClient) handleCacheErrors(stopCh <-chan struct{}, errorChan <-chan error) {
+func (o *OvsdbClient) handleCacheErrors(stopCh <-chan struct{}, errorChan <-chan error) {
 	for {
 		select {
 		case <-stopCh:
@@ -1018,7 +1021,7 @@ func (o *ovsdbClient) handleCacheErrors(stopCh <-chan struct{}, errorChan <-chan
 	}
 }
 
-func (o *ovsdbClient) handleDisconnectNotification() {
+func (o *OvsdbClient) handleDisconnectNotification() {
 	<-o.rpcClient.DisconnectNotify()
 	// close the stopCh, which will stop the cache event processor
 	close(o.stopCh)
@@ -1098,7 +1101,7 @@ func (o *ovsdbClient) handleDisconnectNotification() {
 // Disconnect will close the connection to the OVSDB server
 // If the client was created with WithReconnect then the client
 // will reconnect afterwards
-func (o *ovsdbClient) Disconnect() {
+func (o *OvsdbClient) Disconnect() {
 	o.rpcMutex.Lock()
 	defer o.rpcMutex.Unlock()
 	o.connected = false
@@ -1111,7 +1114,7 @@ func (o *ovsdbClient) Disconnect() {
 // Close will close the connection to the OVSDB server
 // It will remove all stored state ready for the next connection
 // Even If the client was created with WithReconnect it will not reconnect afterwards
-func (o *ovsdbClient) Close() {
+func (o *OvsdbClient) Close() {
 	o.rpcMutex.Lock()
 	defer o.rpcMutex.Unlock()
 	o.connected = false
@@ -1168,7 +1171,7 @@ func hasMonitors(db *database) bool {
 // client object
 
 //Get implements the API interface's Get function
-func (o *ovsdbClient) Get(ctx context.Context, model model.Model) error {
+func (o *OvsdbClient) Get(ctx context.Context, model model.Model) error {
 	primaryDB := o.primaryDB()
 	waitForCacheConsistent(ctx, primaryDB, o.logger, o.primaryDBName)
 	primaryDB.cacheMutex.RLock()
@@ -1177,12 +1180,12 @@ func (o *ovsdbClient) Get(ctx context.Context, model model.Model) error {
 }
 
 //Create implements the API interface's Create function
-func (o *ovsdbClient) Create(models ...model.Model) ([]ovsdb.Operation, error) {
+func (o *OvsdbClient) Create(models ...model.Model) ([]ovsdb.Operation, error) {
 	return o.primaryDB().api.Create(models...)
 }
 
 //List implements the API interface's List function
-func (o *ovsdbClient) List(ctx context.Context, result interface{}) error {
+func (o *OvsdbClient) List(ctx context.Context, result interface{}) error {
 	primaryDB := o.primaryDB()
 	waitForCacheConsistent(ctx, primaryDB, o.logger, o.primaryDBName)
 	primaryDB.cacheMutex.RLock()
@@ -1191,16 +1194,16 @@ func (o *ovsdbClient) List(ctx context.Context, result interface{}) error {
 }
 
 //Where implements the API interface's Where function
-func (o *ovsdbClient) Where(m model.Model, conditions ...model.Condition) ConditionalAPI {
+func (o *OvsdbClient) Where(m model.Model, conditions ...model.Condition) ConditionalAPI {
 	return o.primaryDB().api.Where(m, conditions...)
 }
 
 //WhereAll implements the API interface's WhereAll function
-func (o *ovsdbClient) WhereAll(m model.Model, conditions ...model.Condition) ConditionalAPI {
+func (o *OvsdbClient) WhereAll(m model.Model, conditions ...model.Condition) ConditionalAPI {
 	return o.primaryDB().api.WhereAll(m, conditions...)
 }
 
 //WhereCache implements the API interface's WhereCache function
-func (o *ovsdbClient) WhereCache(predicate interface{}) ConditionalAPI {
+func (o *OvsdbClient) WhereCache(predicate interface{}) ConditionalAPI {
 	return o.primaryDB().api.WhereCache(predicate)
 }

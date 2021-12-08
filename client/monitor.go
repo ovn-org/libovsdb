@@ -29,7 +29,7 @@ func newMonitor() *Monitor {
 }
 
 // NewMonitor creates a new Monitor with the provided options
-func (o *ovsdbClient) NewMonitor(opts ...MonitorOption) *Monitor {
+func (o *OvsdbClient) NewMonitor(opts ...MonitorOption) *Monitor {
 	m := newMonitor()
 	for _, opt := range opts {
 		err := opt(o, m)
@@ -41,7 +41,7 @@ func (o *ovsdbClient) NewMonitor(opts ...MonitorOption) *Monitor {
 }
 
 // MonitorOption adds Tables to a Monitor
-type MonitorOption func(o *ovsdbClient, m *Monitor) error
+type MonitorOption func(o *OvsdbClient, m *Monitor) error
 
 // MonitorCookie is the struct we pass to correlate from updates back to their
 // originating Monitor request.
@@ -69,7 +69,7 @@ type TableMonitor struct {
 }
 
 func WithTable(m model.Model, fields ...interface{}) MonitorOption {
-	return func(o *ovsdbClient, monitor *Monitor) error {
+	return func(o *OvsdbClient, monitor *Monitor) error {
 		tableName := o.primaryDB().model.FindTable(reflect.TypeOf(m))
 		if tableName == "" {
 			return fmt.Errorf("object of type %s is not part of the ClientDBModel", reflect.TypeOf(m))
@@ -84,7 +84,7 @@ func WithTable(m model.Model, fields ...interface{}) MonitorOption {
 }
 
 func WithConditionalTable(m model.Model, condition model.Condition, fields ...interface{}) MonitorOption {
-	return func(o *ovsdbClient, monitor *Monitor) error {
+	return func(o *OvsdbClient, monitor *Monitor) error {
 		tableName := o.primaryDB().model.FindTable(reflect.TypeOf(m))
 		if tableName == "" {
 			return fmt.Errorf("object of type %s is not part of the ClientDBModel", reflect.TypeOf(m))
