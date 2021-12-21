@@ -710,7 +710,10 @@ func (t *TableCache) AddEventHandler(handler EventHandler) {
 func (t *TableCache) Run(stopCh <-chan struct{}) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
-	go t.eventProcessor.Run(stopCh)
+	go func() {
+		defer wg.Done()
+		t.eventProcessor.Run(stopCh)
+	}()
 	wg.Wait()
 }
 
