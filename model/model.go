@@ -1,7 +1,6 @@
 package model
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 
@@ -23,15 +22,6 @@ import (
 //	LoadBalancers []string          `ovsdb:"load_balancer"`
 //}
 type Model interface{}
-
-// Clone creates a deep copy of a model
-func Clone(a Model) Model {
-	val := reflect.Indirect(reflect.ValueOf(a))
-	b := reflect.New(val.Type()).Interface()
-	aBytes, _ := json.Marshal(a)
-	_ = json.Unmarshal(aBytes, b)
-	return b
-}
 
 func modelSetUUID(model Model, uuid string) error {
 	modelVal := reflect.ValueOf(model).Elem()

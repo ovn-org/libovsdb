@@ -21,7 +21,7 @@ type testModel struct {
 func TestRowCache_Row(t *testing.T) {
 
 	type fields struct {
-		cache map[string]model.Model
+		cache map[string]interface{}
 	}
 	type args struct {
 		uuid string
@@ -30,17 +30,17 @@ func TestRowCache_Row(t *testing.T) {
 		name   string
 		fields fields
 		args   args
-		want   model.Model
+		want   interface{}
 	}{
 		{
 			"returns a row that exists",
-			fields{cache: map[string]model.Model{"test": &testModel{}}},
+			fields{cache: map[string]interface{}{"test": &testModel{}}},
 			args{uuid: "test"},
 			&testModel{},
 		},
 		{
 			"returns a nil for a row that does not exist",
-			fields{cache: map[string]model.Model{"test": &testModel{}}},
+			fields{cache: map[string]interface{}{"test": &testModel{}}},
 			args{uuid: "foo"},
 			nil,
 		},
@@ -59,12 +59,12 @@ func TestRowCache_Row(t *testing.T) {
 func TestRowCache_Rows(t *testing.T) {
 	tests := []struct {
 		name  string
-		cache map[string]model.Model
+		cache map[string]interface{}
 		want  map[string]model.Model
 	}{
 		{
 			"returns a rows that exist",
-			map[string]model.Model{"test1": &testModel{}, "test2": &testModel{}, "test3": &testModel{}},
+			map[string]interface{}{"test1": &testModel{}, "test2": &testModel{}, "test3": &testModel{}},
 			map[string]model.Model{"test1": &testModel{}, "test2": &testModel{}, "test3": &testModel{}},
 		},
 	}
@@ -1483,10 +1483,10 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			require.Empty(t, errs)
 			tc, err := NewTableCache(dbModel, nil, nil)
 			assert.Nil(t, err)
-			original := model.Clone(tt.base).(*testDBModel)
-			err = tc.ApplyModifications("Open_vSwitch", original, tt.update)
+			original := tt.base
+			modified, err := tc.ApplyModifications("Open_vSwitch", tt.base, tt.update)
 			require.NoError(t, err)
-			require.Equal(t, tt.expected, original)
+			require.Equal(t, tt.expected, modified)
 			if !reflect.DeepEqual(tt.expected, tt.base) {
 				require.NotEqual(t, tt.base, original)
 			}

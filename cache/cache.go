@@ -91,7 +91,7 @@ type RowCache struct {
 	name     string
 	dbModel  model.DatabaseModel
 	dataType reflect.Type
-	cache    map[string]model.Model
+	cache    map[string]interface{}
 	indexes  columnToValue
 	mutex    sync.RWMutex
 }
@@ -100,7 +100,7 @@ type RowCache struct {
 // cache lock.
 func (r *RowCache) rowByUUID(uuid string) model.Model {
 	if row, ok := r.cache[uuid]; ok {
-		return model.Clone(row)
+		return row.(model.Model)
 	}
 	return nil
 }
@@ -173,7 +173,7 @@ func (r *RowCache) Create(uuid string, m model.Model, checkIndexes bool) error {
 			r.indexes[k1][k2] = v2
 		}
 	}
-	r.cache[uuid] = model.Clone(m)
+	r.cache[uuid] = m.(interface{})
 	return nil
 }
 
@@ -184,7 +184,7 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) error {
 	if _, ok := r.cache[uuid]; !ok {
 		return NewErrCacheInconsistent(fmt.Sprintf("cannot update row %s as it does not exist in the cache", uuid))
 	}
-	oldRow := model.Clone(r.cache[uuid])
+	oldRow := r.cache[uuid]
 	oldInfo, err := r.dbModel.NewModelInfo(oldRow)
 	if err != nil {
 		return err
@@ -243,7 +243,7 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) error {
 			delete(r.indexes[k1], k2)
 		}
 	}
-	r.cache[uuid] = model.Clone(m)
+	r.cache[uuid] = m.(interface{})
 	return nil
 }
 
@@ -308,7 +308,7 @@ func (r *RowCache) Rows() map[string]model.Model {
 	defer r.mutex.RUnlock()
 	result := make(map[string]model.Model)
 	for k, v := range r.cache {
-		result[k] = model.Clone(v)
+		result[k] = v.(model.Model)
 	}
 	return result
 }
@@ -655,8 +655,7 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 				if existing == nil {
 					return NewErrCacheInconsistent(fmt.Sprintf("row with uuid %s does not exist", uuid))
 				}
-				modified := tCache.Row(uuid)
-				err := t.ApplyModifications(table, modified, *row.Modify)
+				modified, err := t.ApplyModifications(table, existing, *row.Modify)
 				if err != nil {
 					return fmt.Errorf("unable to apply row modifications: %v", err)
 				}
@@ -727,7 +726,7 @@ func newRowCache(name string, dbModel model.DatabaseModel, dataType reflect.Type
 		dbModel:  dbModel,
 		indexes:  newColumnToValue(dbModel.Schema.Table(name).Indexes),
 		dataType: dataType,
-		cache:    make(map[string]model.Model),
+		cache:    make(map[string]interface{}),
 		mutex:    sync.RWMutex{},
 	}
 	return r
@@ -865,21 +864,21 @@ func (t *TableCache) CreateModel(tableName string, row *ovsdb.Row, uuid string) 
 
 // ApplyModifications applies the contents of a RowUpdate2.Modify to a model
 // nolint: gocyclo
-func (t *TableCache) ApplyModifications(tableName string, base model.Model, update ovsdb.Row) error {
+func (t *TableCache) ApplyModifications(tableName string, base model.Model, update ovsdb.Row) (model.Model, error) {
 	if !t.dbModel.Valid() {
-		return fmt.Errorf("database model not valid")
+		return nil, fmt.Errorf("database model not valid")
 	}
 	table := t.dbModel.Schema.Table(tableName)
 	if table == nil {
-		return fmt.Errorf("table %s not found", tableName)
+		return nil, fmt.Errorf("table %s not found", tableName)
 	}
 	schema := t.dbModel.Schema.Table(tableName)
 	if schema == nil {
-		return fmt.Errorf("no schema for table %s", tableName)
+		return nil, fmt.Errorf("no schema for table %s", tableName)
 	}
 	info, err := t.dbModel.NewModelInfo(base)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for k, v := range update {
 		if k == "_uuid" {
@@ -888,7 +887,7 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 
 		current, err := info.FieldByColumn(k)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		var value interface{}
@@ -899,7 +898,7 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 			value, err = ovsdb.OvsToNativeSlice(schema.Column(k).TypeObj.Key.Type, v)
 		}
 		if err != nil {
-			return err
+			return nil, err
 		}
 		nv := reflect.ValueOf(value)
 
@@ -911,7 +910,7 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 				// search for match in base values
 				baseValue, err := info.FieldByColumn(k)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				bv := reflect.ValueOf(baseValue)
 				var found bool
@@ -922,7 +921,7 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 						newValue := reflect.AppendSlice(bv.Slice(0, j), bv.Slice(j+1, bv.Len()))
 						err = info.SetField(k, newValue.Interface())
 						if err != nil {
-							return err
+							return nil, err
 						}
 						break
 					}
@@ -931,7 +930,7 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 					newValue := reflect.Append(bv, nv.Index(i))
 					err = info.SetField(k, newValue.Interface())
 					if err != nil {
-						return err
+						return nil, err
 					}
 				}
 			}
@@ -939,23 +938,23 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 			// if NativeToOVS was successful, then simply assign
 			if nv.Type() == reflect.ValueOf(current).Type() {
 				err = info.SetField(k, nv.Interface())
-				return err
+				return nil, err
 			}
 			// With a pointer type, an update value could be a set with 2 elements [old, new]
 			if nv.Len() != 2 {
-				return fmt.Errorf("expected a slice with 2 elements for update: %+v", update)
+				return nil, fmt.Errorf("expected a slice with 2 elements for update: %+v", update)
 			}
 			// the new value is the value in the slice which isn't equal to the existing string
 			for i := 0; i < nv.Len(); i++ {
 				baseValue, err := info.FieldByColumn(k)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				bv := reflect.ValueOf(baseValue)
 				if nv.Index(i) != bv {
 					err = info.SetField(k, nv.Index(i).Addr().Interface())
 					if err != nil {
-						return err
+						return nil, err
 					}
 				}
 			}
@@ -967,7 +966,7 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 
 			baseValue, err := info.FieldByColumn(k)
 			if err != nil {
-				return err
+				return nil, err
 			}
 
 			bv := reflect.ValueOf(baseValue)
@@ -997,18 +996,18 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 			}
 			err = info.SetField(k, bv.Interface())
 			if err != nil {
-				return err
+				return nil, err
 			}
 
 		default:
 			// For columns with single value, the difference is the value of the new column.
 			err = info.SetField(k, value)
 			if err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
-	return nil
+	return base, nil
 }
 
 func valueFromIndex(info *mapper.Info, index index) (interface{}, error) {

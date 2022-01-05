@@ -334,13 +334,3 @@ func TestValidate(t *testing.T) {
 	}
 
 }
-
-func TestClone(t *testing.T) {
-	a := &modelB{UID: "foo", Foo: "bar", Bar: "baz"}
-	b := Clone(a).(*modelB)
-	assert.Equal(t, a, b)
-	a.UID = "baz"
-	assert.NotEqual(t, a, b)
-	b.UID = "quux"
-	assert.NotEqual(t, a, b)
-}
