@@ -8,12 +8,15 @@ import (
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
-// NewDBTemplate return a new ClientDBModel template
-// It includes the following other templates that can be overridden to customize the generated file
-// "header"
-// "preDBDefinitions"
-// "postDBDefinitions"
-// It is design to be used with a map[string] interface and some defined keys (see GetDBTemplateData)
+// NewDBTemplate returns a new ClientDBModel template. It includes the following
+// other templates that can be overridden to customize the generated file:
+//
+//   - `header`: to include a comment as a header before package definition
+//   - `preDBDefinitions`: to include code after package definition
+//   - `postDBDefinitions`: to include code at the end
+//
+// It is designed to be used with a map[string] interface and some defined keys
+// (see GetDBTemplateData)
 func NewDBTemplate() *template.Template {
 	return template.Must(template.New("").Funcs(
 		template.FuncMap{
@@ -62,16 +65,18 @@ func Schema() ovsdb.DatabaseSchema {
 `))
 }
 
-//TableInfo represents the information of a table needed by the Model template
+// TableInfo represents the information of a table needed by the Model template
 type TableInfo struct {
 	TableName  string
 	StructName string
 }
 
-// GetDBTemplateData returns the map needed to execute the DBTemplate. It has the following keys:
-// DatabaseName: (string) the database name
-// PackageName : (string) the package name
-// Tables: []Table list of Tables that form the Model
+// GetDBTemplateData returns the map needed to execute the DBTemplate. It has
+// the following keys:
+//
+//   - `DatabaseName`: (string) the database name
+//   - `PackageName`: (string) the package name
+//   - `Tables`: []Table list of Tables that form the Model
 func GetDBTemplateData(pkg string, schema ovsdb.DatabaseSchema) map[string]interface{} {
 	data := map[string]interface{}{}
 	data["DatabaseName"] = schema.Name
