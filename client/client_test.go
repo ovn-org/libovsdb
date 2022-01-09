@@ -3,14 +3,23 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"math/rand"
+	"os"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/cenkalti/rpc2"
+	"github.com/google/uuid"
 	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
+	"github.com/ovn-org/libovsdb/ovsdb/serverdb"
+	"github.com/ovn-org/libovsdb/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -854,4 +863,153 @@ func TestSetOption(t *testing.T) {
 
 	err = o.SetOption(WithEndpoint("tcp::6641"))
 	assert.EqualError(t, err, "cannot set option when client is connected")
+}
+
+func newOVSDBServer(t *testing.T, dbModel model.ClientDBModel, schema ovsdb.DatabaseSchema) (*server.OvsdbServer, string) {
+	serverDBModel, err := serverdb.FullDatabaseModel()
+	require.NoError(t, err)
+	serverSchema := serverdb.Schema()
+
+	db := server.NewInMemoryDatabase(map[string]model.ClientDBModel{
+		schema.Name:       dbModel,
+		serverSchema.Name: serverDBModel,
+	})
+
+	dbMod, errs := model.NewDatabaseModel(schema, dbModel)
+	require.Empty(t, errs)
+
+	servMod, errs := model.NewDatabaseModel(serverSchema, serverDBModel)
+	require.Empty(t, errs)
+
+	server, err := server.NewOvsdbServer(db, dbMod, servMod)
+	require.NoError(t, err)
+
+	tmpfile := fmt.Sprintf("/tmp/ovsdb-%d.sock", rand.Intn(10000))
+	t.Cleanup(func() {
+		os.Remove(tmpfile)
+	})
+	go func() {
+		if err := server.Serve("unix", tmpfile); err != nil {
+			t.Error(err)
+		}
+	}()
+	t.Cleanup(server.Close)
+	require.Eventually(t, func() bool {
+		return server.Ready()
+	}, 1*time.Second, 10*time.Millisecond)
+
+	return server, tmpfile
+}
+
+func newClientServerPair(t *testing.T, connectCounter *int32, isLeader bool) (Client, *serverdb.Database, string) {
+	var defSchema ovsdb.DatabaseSchema
+	err := json.Unmarshal([]byte(schema), &defSchema)
+	require.NoError(t, err)
+
+	serverDBModel, err := serverdb.FullDatabaseModel()
+	require.NoError(t, err)
+
+	// Create server
+	s, sock := newOVSDBServer(t, defDB, defSchema)
+	s.OnConnect(func(_ *rpc2.Client) {
+		atomic.AddInt32(connectCounter, 1)
+	})
+
+	// Create client for this server's Server database
+	endpoint := fmt.Sprintf("unix:%s", sock)
+	cli, err := newOVSDBClient(serverDBModel, WithEndpoint(endpoint))
+	require.NoError(t, err)
+	err = cli.Connect(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(cli.Close)
+
+	// Populate the _Server database table
+	sid := fmt.Sprintf("%04x", rand.Uint32())
+	row := &serverdb.Database{
+		UUID:      uuid.NewString(),
+		Name:      defDB.Name(),
+		Connected: true,
+		Leader:    isLeader,
+		Model:     serverdb.DatabaseModelClustered,
+		Sid:       &sid,
+	}
+	ops, err := cli.Create(row)
+	require.Nil(t, err)
+	reply, err := cli.Transact(context.Background(), ops...)
+	assert.Nil(t, err)
+	opErr, err := ovsdb.CheckOperationResults(reply, ops)
+	assert.NoErrorf(t, err, "%+v", opErr)
+
+	row.UUID = reply[0].UUID.GoUUID
+	return cli, row, endpoint
+}
+
+func setLeader(t *testing.T, cli Client, row *serverdb.Database, isLeader bool) {
+	row.Leader = isLeader
+	ops, err := cli.Where(row).Update(row, &row.Leader)
+	require.Nil(t, err)
+	reply, err := cli.Transact(context.Background(), ops...)
+	require.Nil(t, err)
+	opErr, err := ovsdb.CheckOperationResults(reply, ops)
+	assert.NoErrorf(t, err, "%+v", opErr)
+}
+
+func TestClientReconnectLeaderOnly(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
+
+	var connected1, connected2 int32
+	cli1, row1, endpoint1 := newClientServerPair(t, &connected1, true)
+	cli2, row2, endpoint2 := newClientServerPair(t, &connected2, false)
+
+	// Create client to test reconnection for
+	ovs, err := newOVSDBClient(defDB,
+		WithLeaderOnly(true),
+		WithReconnect(5*time.Second, &backoff.ZeroBackOff{}),
+		WithEndpoint(endpoint1),
+		WithEndpoint(endpoint2))
+	require.NoError(t, err)
+	err = ovs.Connect(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(ovs.Close)
+
+	// Server1 should have 2 connections: cli1 and ovs
+	require.Eventually(t, func() bool {
+		return atomic.LoadInt32(&connected1) == 2
+	}, 2*time.Second, 10*time.Millisecond)
+
+	// Server2 should have 1 connection: cli2
+	require.Never(t, func() bool {
+		return atomic.LoadInt32(&connected2) > 1
+	}, 2*time.Second, 10*time.Millisecond)
+
+	// First leadership change
+	setLeader(t, cli2, row2, true)
+	setLeader(t, cli1, row1, false)
+
+	// Server2 should have 2 connections: cli2 and ovs
+	require.Eventually(t, func() bool {
+		return atomic.LoadInt32(&connected2) == 2
+	}, 2*time.Second, 10*time.Millisecond)
+
+	// Server1 should still only have 2 total connections; eg the
+	// client under test should not have reconnected
+	require.Never(t, func() bool {
+		return atomic.LoadInt32(&connected1) > 2
+	}, 2*time.Second, 10*time.Millisecond)
+
+	// Second leadership change
+	setLeader(t, cli1, row1, true)
+	setLeader(t, cli2, row2, false)
+
+	// Server1 should now have 3 total connections: cli1, original ovs,
+	// and second ovs
+	require.Eventually(t, func() bool {
+		return atomic.LoadInt32(&connected1) == 3
+	}, 2*time.Second, 10*time.Millisecond)
+
+	// Server2 should still only have 2 total connections; eg the
+	// client under test should not have reconnected
+	require.Never(t, func() bool {
+		return atomic.LoadInt32(&connected2) > 2
+	}, 2*time.Second, 10*time.Millisecond)
 }
