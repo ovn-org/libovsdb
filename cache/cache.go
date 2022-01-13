@@ -127,12 +127,12 @@ func (r *RowCache) RowByModel(m model.Model) model.Model {
 	if uuid.(string) != "" {
 		return r.rowByUUID(uuid.(string))
 	}
-	for index := range r.indexes {
+	for index, vals := range r.indexes {
 		val, err := valueFromIndex(info, index)
 		if err != nil {
 			continue
 		}
-		if uuid, ok := r.indexes[index][val]; ok {
+		if uuid, ok := vals[val]; ok {
 			return r.rowByUUID(uuid)
 		}
 	}
@@ -154,13 +154,13 @@ func (r *RowCache) Create(uuid string, m model.Model, checkIndexes bool) error {
 		return err
 	}
 	newIndexes := newColumnToValue(r.dbModel.Schema.Table(r.name).Indexes)
-	for index := range r.indexes {
+	for index, vals := range r.indexes {
 		val, err := valueFromIndex(info, index)
 		if err != nil {
 			return err
 		}
 
-		if existing, ok := r.indexes[index][val]; ok && checkIndexes {
+		if existing, ok := vals[val]; ok && checkIndexes {
 			return NewIndexExistsError(r.name, val, string(index), uuid, existing)
 		}
 
@@ -169,8 +169,9 @@ func (r *RowCache) Create(uuid string, m model.Model, checkIndexes bool) error {
 
 	// write indexes
 	for k1, v1 := range newIndexes {
+		vals := r.indexes[k1]
 		for k2, v2 := range v1 {
-			r.indexes[k1][k2] = v2
+			vals[k2] = v2
 		}
 	}
 	r.cache[uuid] = model.Clone(m)
@@ -197,7 +198,7 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) error {
 	newIndexes := newColumnToValue(indexes)
 	oldIndexes := newColumnToValue(indexes)
 	var errs []error
-	for index := range r.indexes {
+	for index, vals := range r.indexes {
 		var err error
 		oldVal, err := valueFromIndex(oldInfo, index)
 		if err != nil {
@@ -215,7 +216,7 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) error {
 		// old and new values are NOT the same
 
 		// check that there are no conflicts
-		if conflict, ok := r.indexes[index][newVal]; ok && checkIndexes && conflict != uuid {
+		if conflict, ok := vals[newVal]; ok && checkIndexes && conflict != uuid {
 			errs = append(errs, NewIndexExistsError(
 				r.name,
 				newVal,
@@ -233,14 +234,16 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) error {
 	}
 	// write indexes
 	for k1, v1 := range newIndexes {
+		vals := r.indexes[k1]
 		for k2, v2 := range v1 {
-			r.indexes[k1][k2] = v2
+			vals[k2] = v2
 		}
 	}
 	// delete old indexes
 	for k1, v1 := range oldIndexes {
+		vals := r.indexes[k1]
 		for k2 := range v1 {
-			delete(r.indexes[k1], k2)
+			delete(vals, k2)
 		}
 	}
 	r.cache[uuid] = model.Clone(m)
@@ -256,12 +259,12 @@ func (r *RowCache) IndexExists(row model.Model) error {
 	if err != nil {
 		return nil
 	}
-	for index := range r.indexes {
+	for index, vals := range r.indexes {
 		val, err := valueFromIndex(info, index)
 		if err != nil {
 			continue
 		}
-		if existing, ok := r.indexes[index][val]; ok && existing != uuid.(string) {
+		if existing, ok := vals[val]; ok && existing != uuid.(string) {
 			return NewIndexExistsError(
 				r.name,
 				val,
@@ -286,7 +289,7 @@ func (r *RowCache) Delete(uuid string) error {
 	if err != nil {
 		return err
 	}
-	for index := range r.indexes {
+	for index, vals := range r.indexes {
 		oldVal, err := valueFromIndex(oldInfo, index)
 		if err != nil {
 			return err
@@ -294,8 +297,8 @@ func (r *RowCache) Delete(uuid string) error {
 		// only remove the index if it is pointing to this uuid
 		// otherwise we can cause a consistency issue if we've processed
 		// updates out of order
-		if r.indexes[index][oldVal] == uuid {
-			delete(r.indexes[index], oldVal)
+		if vals[oldVal] == uuid {
+			delete(vals, oldVal)
 		}
 	}
 	delete(r.cache, uuid)
@@ -470,8 +473,9 @@ func NewTableCache(dbModel model.DatabaseModel, data Data, logger *logr.Logger) 
 		if _, ok := dbModel.Schema.Tables[table]; !ok {
 			return nil, fmt.Errorf("table %s is not in schema", table)
 		}
+		rowCache := cache[table]
 		for uuid, row := range rowData {
-			if err := cache[table].Create(uuid, row, true); err != nil {
+			if err := rowCache.Create(uuid, row, true); err != nil {
 				return nil, err
 			}
 		}
