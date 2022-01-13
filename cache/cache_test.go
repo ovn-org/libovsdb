@@ -2,6 +2,7 @@ package cache
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -1200,7 +1201,7 @@ func TestIndex(t *testing.T) {
 	})
 }
 
-func TestTableCacheRowByModelSingleIndex(t *testing.T) {
+func setupRowByModelSingleIndex(t require.TestingT) (*testModel, *TableCache) {
 	var schema ovsdb.DatabaseSchema
 	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
 	require.Nil(t, err)
@@ -1214,8 +1215,8 @@ func TestTableCacheRowByModelSingleIndex(t *testing.T) {
 			  "type": "string"
 			},
 			"bar": {
-				"type": "string"
-			  }
+			  "type": "string"
+			}
 		      }
 		    }
 		 }
@@ -1234,6 +1235,12 @@ func TestTableCacheRowByModelSingleIndex(t *testing.T) {
 	tc, err := NewTableCache(dbModel, testData, nil)
 	require.NoError(t, err)
 
+	return myFoo, tc
+}
+
+func TestTableCacheRowByModelSingleIndex(t *testing.T) {
+	myFoo, tc := setupRowByModelSingleIndex(t)
+
 	t.Run("get foo by index", func(t *testing.T) {
 		foo := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo"})
 		assert.NotNil(t, foo)
@@ -1249,6 +1256,67 @@ func TestTableCacheRowByModelSingleIndex(t *testing.T) {
 		foo := tc.Table("Open_vSwitch").RowByModel(&testModel{Bar: "foo"})
 		assert.Nil(t, foo)
 	})
+}
+
+func benchmarkDoCreate(b *testing.B, numRows int) *RowCache {
+	_, tc := setupRowByModelSingleIndex(b)
+
+	rc := tc.Table("Open_vSwitch")
+	for i := 0; i < numRows; i++ {
+		uuid := fmt.Sprintf("%d", i)
+		model := &testModel{Foo: uuid}
+		err := rc.Create(uuid, model, true)
+		require.NoError(b, err)
+	}
+
+	return rc
+}
+
+const numRows int = 10000
+
+func BenchmarkSingleIndexCreate(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		_ = benchmarkDoCreate(b, numRows)
+	}
+}
+
+func BenchmarkSingleIndexUpdate(b *testing.B) {
+	rc := benchmarkDoCreate(b, numRows)
+
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		for i := 0; i < numRows; i++ {
+			uuid := fmt.Sprintf("%d", i)
+			model := &testModel{Foo: fmt.Sprintf("%d-%d", n, i)}
+			err := rc.Update(uuid, model, true)
+			require.NoError(b, err)
+		}
+	}
+}
+
+func BenchmarkSingleIndexDelete(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		rc := benchmarkDoCreate(b, numRows)
+		for i := 0; i < numRows; i++ {
+			uuid := fmt.Sprintf("%d", i)
+			err := rc.Delete(uuid)
+			require.NoError(b, err)
+		}
+	}
+}
+
+func BenchmarkIndexExists(b *testing.B) {
+	rc := benchmarkDoCreate(b, numRows)
+
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		for i := 0; i < numRows; i++ {
+			uuid := fmt.Sprintf("%d", i)
+			model := &testModel{UUID: uuid, Foo: uuid}
+			err := rc.IndexExists(model)
+			require.NoError(b, err)
+		}
+	}
 }
 
 func TestTableCacheRowByModelTwoIndexes(t *testing.T) {
