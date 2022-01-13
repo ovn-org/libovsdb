@@ -655,7 +655,7 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 				if existing == nil {
 					return NewErrCacheInconsistent(fmt.Sprintf("row with uuid %s does not exist", uuid))
 				}
-				modified := tCache.Row(uuid)
+				modified := model.Clone(existing)
 				err := t.ApplyModifications(table, modified, *row.Modify)
 				if err != nil {
 					return fmt.Errorf("unable to apply row modifications: %v", err)
