@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/ovn-org/libovsdb/ovsdb"
@@ -335,7 +336,28 @@ func TestValidate(t *testing.T) {
 
 }
 
-func TestClone(t *testing.T) {
+type modelC struct {
+	modelB
+	NoClone string
+}
+
+func (a *modelC) CloneModel() Model {
+	return &modelC{
+		modelB: a.modelB,
+	}
+}
+
+func (a *modelC) CloneModelInto(b Model) {
+	c := b.(*modelC)
+	c.modelB = a.modelB
+}
+
+func (a *modelC) EqualsModel(b Model) bool {
+	c := b.(*modelC)
+	return reflect.DeepEqual(a.modelB, c.modelB)
+}
+
+func TestCloneViaMarshalling(t *testing.T) {
 	a := &modelB{UID: "foo", Foo: "bar", Bar: "baz"}
 	b := Clone(a).(*modelB)
 	assert.Equal(t, a, b)
@@ -343,4 +365,74 @@ func TestClone(t *testing.T) {
 	assert.NotEqual(t, a, b)
 	b.UID = "quux"
 	assert.NotEqual(t, a, b)
+}
+
+func TestCloneIntoViaMarshalling(t *testing.T) {
+	a := &modelB{UID: "foo", Foo: "bar", Bar: "baz"}
+	b := &modelB{}
+	CloneInto(a, b)
+	assert.Equal(t, a, b)
+	a.UID = "baz"
+	assert.NotEqual(t, a, b)
+	b.UID = "quux"
+	assert.NotEqual(t, a, b)
+}
+
+func TestCloneViaCloneable(t *testing.T) {
+	a := &modelC{modelB: modelB{UID: "foo", Foo: "bar", Bar: "baz"}, NoClone: "noClone"}
+	func(a interface{}) {
+		_, ok := a.(CloneableModel)
+		assert.True(t, ok, "is not cloneable")
+	}(a)
+	// test that Clone() uses the cloneable interface, in which
+	// case modelC.NoClone won't be copied
+	b := Clone(a).(*modelC)
+	assert.NotEqual(t, a, b)
+	b.NoClone = a.NoClone
+	assert.Equal(t, a, b)
+	a.UID = "baz"
+	assert.NotEqual(t, a, b)
+	b.UID = "quux"
+	assert.NotEqual(t, a, b)
+}
+
+func TestCloneIntoViaCloneable(t *testing.T) {
+	a := &modelC{modelB: modelB{UID: "foo", Foo: "bar", Bar: "baz"}, NoClone: "noClone"}
+	func(a interface{}) {
+		_, ok := a.(CloneableModel)
+		assert.True(t, ok, "is not cloneable")
+	}(a)
+	// test that CloneInto() uses the cloneable interface, in which
+	// case modelC.NoClone won't be copied
+	b := &modelC{}
+	CloneInto(a, b)
+	assert.NotEqual(t, a, b)
+	b.NoClone = a.NoClone
+	assert.Equal(t, a, b)
+	a.UID = "baz"
+	assert.NotEqual(t, a, b)
+	b.UID = "quux"
+	assert.NotEqual(t, a, b)
+}
+
+func TestEqualViaDeepEqual(t *testing.T) {
+	a := &modelB{UID: "foo", Foo: "bar", Bar: "baz"}
+	b := &modelB{UID: "foo", Foo: "bar", Bar: "baz"}
+	assert.True(t, Equal(a, b))
+	a.UID = "baz"
+	assert.False(t, Equal(a, b))
+}
+
+func TestEqualViaComparable(t *testing.T) {
+	a := &modelC{modelB: modelB{UID: "foo", Foo: "bar", Bar: "baz"}, NoClone: "noClone"}
+	func(a interface{}) {
+		_, ok := a.(ComparableModel)
+		assert.True(t, ok, "is not comparable")
+	}(a)
+	b := a.CloneModel().(*modelC)
+	// test that Equal() uses the comparable interface, in which
+	// case the difference on modelC.NoClone won't be noticed
+	assert.True(t, Equal(a, b))
+	a.UID = "baz"
+	assert.False(t, Equal(a, b))
 }

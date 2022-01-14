@@ -583,7 +583,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) error {
 					return err
 				}
 				if existing := tCache.Row(uuid); existing != nil {
-					if !reflect.DeepEqual(newModel, existing) {
+					if !model.Equal(newModel, existing) {
 						logger.V(5).Info("updating row", "old:", fmt.Sprintf("%+v", existing), "new", fmt.Sprintf("%+v", newModel))
 						if err := tCache.Update(uuid, newModel, false); err != nil {
 							return err
@@ -660,7 +660,7 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 				if err != nil {
 					return fmt.Errorf("unable to apply row modifications: %v", err)
 				}
-				if !reflect.DeepEqual(modified, existing) {
+				if !model.Equal(modified, existing) {
 					logger.V(5).Info("updating row", "old", fmt.Sprintf("%+v", existing), "new", fmt.Sprintf("%+v", modified))
 					if err := tCache.Update(uuid, modified, false); err != nil {
 						return err

@@ -1,3 +1,3 @@
 package vswitchd
 
-//go:generate ../../bin/modelgen -p vswitchd -o . ovs.ovsschema
+//go:generate ../../bin/modelgen --extended -p vswitchd -o . ovs.ovsschema

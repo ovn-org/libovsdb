@@ -9,21 +9,170 @@ import (
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
-// NewTableTemplate returns a new table template
-// It includes the following other templates that can be overridden to customize the generated file
-// "header"
-// "preStructDefinitions"
-// "structComment"
-// "extraFields"
-// "extraTags"
-// "postStructDefinitions"
-// It is design to be used with a map[string] interface and some defined keys (see GetTableTemplateData)
-// In addition, the following functions can be used within the template:
-// "PrintVal": prints a field value
-// "FieldName": prints the name of a field based on its column
-// "FieldType": prints the field name based on its column and schema
-// "FieldTypeWithEnums": same as FieldType but with enum type expansion
-// "OvsdbTag": prints the ovsdb tag
+// extendedGenTemplate include additional code generation that is optional, like
+// deep copy methods.
+var extendedGenTemplate = `
+{{- define "deepCopyExtraFields" }}{{ end }}
+{{- define "equalExtraFields" }}{{ end }}
+{{- define "extendedGenImports" }}
+{{- if index . "WithExtendedGen" }}
+import "github.com/ovn-org/libovsdb/model"
+{{- end }}
+{{- end }}
+{{- define "extendedGen" }}
+{{- if index . "WithExtendedGen" }}
+{{- $tableName := index . "TableName" }}
+{{- $structName := index . "StructName" }}
+{{- range $field := index . "Fields" }}
+{{- $fieldName := FieldName $field.Column }}
+{{- $type := "" }}
+{{- if index $ "WithEnumTypes" }}
+{{- $type = FieldTypeWithEnums $tableName $field.Column $field.Schema }}
+{{- else }}
+{{- $type = FieldType $tableName $field.Column $field.Schema }}
+{{- end }}
+{{- if or (eq (index $type 0) '*') (eq (slice $type 0 2) "[]") (eq (slice $type 0 3) "map") }}
+func copy{{ $structName }}{{ $fieldName }}(a {{ $type }}) {{ $type }} {
+	if a == nil {
+		return nil
+	}
+	{{- if eq (index $type 0) '*' }}
+	b := *a
+	return &b
+	{{- else if eq (slice $type 0 2) "[]" }}
+	b := make({{ $type }}, len(a))
+	copy(b, a)
+	return b
+	{{- else }}
+	b := make({{ $type }}, len(a))
+	for k, v := range a {
+		b[k] = v
+	}
+	return b
+	{{- end }}
+}
+
+func equal{{ $structName }}{{ $fieldName }}(a, b {{ $type }}) bool {
+	if (a == nil) != (b == nil) {
+		return false
+	}
+	{{- if eq (index $type 0) '*' }}
+	if a == b {
+		return true
+	}
+	return *a == *b
+	{{- else if eq (slice $type 0 2) "[]" }}
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		if b[i] != v {
+			return false
+		}
+	}
+	return true
+	{{- else }}
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if w, ok := b[k]; !ok || v != w {
+			return false
+		}
+	}
+	return true
+	{{- end }}
+}
+
+{{ end }}
+{{- end }}
+
+func (a *{{ $structName }}) DeepCopyInto(b *{{ $structName }}) {
+	*b = *a
+	{{- range $field := index . "Fields" }}
+	{{- $fieldName := FieldName $field.Column }}
+	{{- $type := "" }}
+	{{- if index $ "WithEnumTypes" }}
+	{{- $type = FieldTypeWithEnums $tableName $field.Column $field.Schema }}
+	{{- else }}
+	{{- $type = FieldType $tableName $field.Column $field.Schema }}
+	{{- end }}
+	{{- if or (eq (index $type 0) '*') (eq (slice $type 0 2) "[]") (eq (slice $type 0 3) "map") }}
+	b.{{ $fieldName }} = copy{{ $structName }}{{ $fieldName }}(a.{{ $fieldName }})
+	{{- end }}
+	{{- end }}
+	{{- template "deepCopyExtraFields" . }}
+}
+
+func (a *{{ $structName }}) DeepCopy() *{{ $structName }} {
+	b := new({{ $structName }})
+	a.DeepCopyInto(b)
+	return b
+}
+
+func (a *{{ $structName }}) CloneModelInto(b model.Model) {
+	c := b.(*{{ $structName }})
+	a.DeepCopyInto(c)
+}
+
+func (a *{{ $structName }}) CloneModel() model.Model {
+	return a.DeepCopy()
+}
+
+func (a *{{ $structName }}) Equals(b *{{ $structName }}) bool {
+	{{- range $i, $field := index . "Fields" }}
+	{{- $fieldName := FieldName $field.Column }}
+	{{- $type := "" }}
+	{{- if index $ "WithEnumTypes" }}
+	{{- $type = FieldTypeWithEnums $tableName $field.Column $field.Schema }}
+	{{- else }}
+	{{- $type = FieldType $tableName $field.Column $field.Schema }}
+	{{- end }}
+	{{- if $i }}&&
+	{{ else }}return {{ end }}
+	{{- if or (eq (index $type 0) '*') (eq (slice $type 0 2) "[]") (eq (slice $type 0 3) "map") -}}
+	equal{{ $structName }}{{ $fieldName }}(a.{{ $fieldName }}, b.{{ $fieldName }})
+	{{- else -}}
+	a.{{ $fieldName }} == b.{{ $fieldName }}
+	{{- end }}
+	{{- end }}
+	{{- template "equalExtraFields" . }}
+}
+
+func (a *{{ $structName }}) EqualsModel(b model.Model) bool {
+	c := b.(*{{ $structName }})
+	return a.Equals(c)
+}
+
+var _ model.CloneableModel = &{{ $structName }}{}
+var _ model.ComparableModel = &{{ $structName }}{}
+{{- end }}
+{{- end }}
+`
+
+// NewTableTemplate returns a new table template. It includes the following
+// other templates that can be overridden to customize the generated file:
+//
+//   - `header`: override the comment as header before package definition
+//   - `preStructDefinitions`: deprecated in favor of `extraImports`
+//   - `extraImports`: include additional imports
+//   - `structComment`: override the comment generated for the table
+//   - `extraFields`: add extra fields to the table
+//   - `extraTags`: add tags to the extra fields
+//   - `deepCopyExtraFields`: copy extra fields when copying a table
+//   - `equalExtraFields`: compare extra fields when comparing a table
+//   - `postStructDefinitions`: deprecated in favor of `extraDefinitions`
+//   - `extraDefinitions`: include additional definitions like functions etc.
+//
+// It is designed to be used with a map[string] interface and some defined keys
+// (see GetTableTemplateData). In addition, the following functions can be used
+// within the template:
+//
+//    - `PrintVal`: prints a field value
+//    - `FieldName`: prints the name of a field based on its column
+//    - `FieldType`: prints the field type based on its column and schema
+//    - `FieldTypeWithEnums`: same as FieldType but with enum type expansion
+//    - `OvsdbTag`: prints the ovsdb tag
 func NewTableTemplate() *template.Template {
 	return template.Must(template.New("").Funcs(
 		template.FuncMap{
@@ -33,19 +182,21 @@ func NewTableTemplate() *template.Template {
 			"FieldTypeWithEnums": FieldTypeWithEnums,
 			"OvsdbTag":           Tag,
 		},
-	).Parse(`
+	).Parse(extendedGenTemplate + `
 {{- define "header" }}
 // Code generated by "libovsdb.modelgen"
 // DO NOT EDIT.
 {{- end }}
+{{ define "extraImports" }}{{ end }}
 {{ define "preStructDefinitions" }}{{ end }}
 {{- define "structComment" }}
 // {{ index . "StructName" }} defines an object in {{ index . "TableName" }} table
 {{- end }}
 {{ define "extraTags" }}{{ end }}
 {{ define "extraFields" }}{{ end }}
-{{ template "header" . }}
+{{ define "extraDefinitions" }}{{ end }}
 {{ define "postStructDefinitions" }}{{ end }}
+{{ template "header" . }}
 {{ define "enums" }}
 {{ if index . "WithEnumTypes" }}
 {{ if index . "Enums" }}
@@ -67,7 +218,9 @@ var (
 {{- end }}
 {{- end }}
 package {{ index . "PackageName" }}
-{{ template "preStructDefinitions" }}
+{{ template "extendedGenImports" . }}
+{{ template "extraImports" . }}
+{{ template "preStructDefinitions" . }}
 {{ template "enums" . }}
 {{ template "structComment" . }}
 type {{ index . "StructName" }} struct {
@@ -81,8 +234,9 @@ type {{ index . "StructName" }} struct {
 {{ end }}
 {{ template "extraFields" . }}
 }
-
 {{ template "postStructDefinitions" . }}
+{{ template "extraDefinitions" . }}
+{{ template "extendedGen" . }}
 `))
 }
 
@@ -109,11 +263,19 @@ func (t TableTemplateData) WithEnumTypes(val bool) {
 	t["WithEnumTypes"] = val
 }
 
-// GetTableTemplateData returns the TableTemplateData map. It has the following keys:
-// TableName: (string) the table name
-// PackageName : (string) the package name
-// StructName: (string) the struct name
-// Fields: []Field a list of Fields that the struct has
+// WithExtendedGen configures whether the Template should generate code to deep
+// copy models.
+func (t TableTemplateData) WithExtendedGen(val bool) {
+	t["WithExtendedGen"] = val
+}
+
+// GetTableTemplateData returns the TableTemplateData map. It has the following
+// keys:
+//
+//   - `TableName`: (string) the table name
+//   - `TPackageName`: (string) the package name
+//   - `TStructName`: (string) the struct name
+//   - `TFields`: []Field a list of Fields that the struct has
 func GetTableTemplateData(pkg, name string, table *ovsdb.TableSchema) TableTemplateData {
 	data := map[string]interface{}{}
 	data["TableName"] = name
@@ -143,6 +305,7 @@ func GetTableTemplateData(pkg, name string, table *ovsdb.TableSchema) TableTempl
 	data["Fields"] = Fields
 	data["Enums"] = Enums
 	data["WithEnumTypes"] = true
+	data["WithExtendedGen"] = false
 	return data
 }
 

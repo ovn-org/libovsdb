@@ -24,6 +24,7 @@ var (
 	outDirP  = flag.String("o", ".", "Directory where the generated files shall be stored")
 	pkgNameP = flag.String("p", "ovsmodel", "Package name")
 	dryRun   = flag.Bool("d", false, "Dry run")
+	extended = flag.Bool("extended", false, "Generates additional code like deep-copy methods, etc.")
 )
 
 func main() {
@@ -76,6 +77,7 @@ func main() {
 	for name, table := range dbSchema.Tables {
 		tmpl := modelgen.NewTableTemplate()
 		args := modelgen.GetTableTemplateData(pkgName, name, &table)
+		args.WithExtendedGen(*extended)
 		if err := gen.Generate(filepath.Join(outDir, modelgen.FileName(name)), tmpl, args); err != nil {
 			log.Fatal(err)
 		}

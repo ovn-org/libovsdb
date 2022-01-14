@@ -34,7 +34,7 @@ coverage: test integration-test
 	@cat unit.cov integration.cov > profile.cov
 
 .PHONY: bench
-bench: install-deps
+bench: install-deps prebuild
 	@echo "+ $@"
 	@go test -run=XXX -count=3 -bench=. ./... | tee bench.out
 	@benchstat bench.out
