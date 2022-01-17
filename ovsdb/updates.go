@@ -1,3 +1,5 @@
+//go:generate easyjson -all updates.go
+
 package ovsdb
 
 // TableUpdates is an object that maps from a table name to a

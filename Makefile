@@ -8,8 +8,12 @@ modelgen:
 	@mkdir -p bin
 	@go build -v -o ./bin ./cmd/modelgen
 
+.PHONY: easyjson
+easyjson:
+	@go install github.com/mailru/easyjson/...@latest
+
 .PHONY: prebuild
-prebuild: modelgen ovsdb/serverdb/_server.ovsschema example/vswitchd/ovs.ovsschema
+prebuild: easyjson modelgen ovsdb/serverdb/_server.ovsschema example/vswitchd/ovs.ovsschema
 	@echo "+ $@"
 	@go generate -v ./...
 
