@@ -17,6 +17,7 @@ import (
 	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
+	"github.com/ovn-org/libovsdb/util"
 )
 
 const (
@@ -716,6 +717,42 @@ func (t *TableCache) Purge(dbModel model.DatabaseModel) {
 	for name := range t.dbModel.Schema.Tables {
 		t.cache[name] = newRowCache(name, t.dbModel, tableTypes[name])
 	}
+}
+
+// PurgeTable drops all data in the given table's cache and reinitializes it using the
+// provided database model
+func (t *TableCache) PurgeTable(dbModel model.DatabaseModel, name string) error {
+	return t.PurgeTableRows(dbModel, name, nil)
+}
+
+// PurgeTableRows drops all rows in the given table's cache that match the given conditions
+func (t *TableCache) PurgeTableRows(dbModel model.DatabaseModel, name string, conditions []ovsdb.Condition) error {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	t.dbModel = dbModel
+	tableTypes := t.dbModel.Types()
+	dataType, ok := tableTypes[name]
+	if !ok {
+		return fmt.Errorf("table %s not found", name)
+	}
+	if len(conditions) == 0 {
+		t.cache[name] = newRowCache(name, t.dbModel, dataType)
+		return nil
+	}
+
+	r := t.cache[name]
+	rows, err := r.RowsByCondition(conditions)
+	if err != nil {
+		return err
+	}
+	delErrors := []error{}
+	for uuid := range rows {
+		if err := r.Delete(uuid); err != nil {
+			delErrors = append(delErrors, fmt.Errorf("failed to delete %s: %w", uuid, err))
+		}
+	}
+
+	return util.CombineErrors(delErrors, "failed to delete rows")
 }
 
 // AddEventHandler registers the supplied EventHandler to receive cache events
