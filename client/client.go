@@ -224,6 +224,13 @@ func (o *ovsdbClient) moveEndpointLast(i int) {
 	o.endpoints = append(othereps, lastEp)
 }
 
+func (o *ovsdbClient) resetRPCClient() {
+	if o.rpcClient != nil {
+		o.rpcClient.Close()
+		o.rpcClient = nil
+	}
+}
+
 func (o *ovsdbClient) connect(ctx context.Context, reconnect bool) error {
 	o.rpcMutex.Lock()
 	defer o.rpcMutex.Unlock()
@@ -239,6 +246,7 @@ func (o *ovsdbClient) connect(ctx context.Context, reconnect bool) error {
 			return err
 		}
 		if sid, err := o.tryEndpoint(ctx, u); err != nil {
+			o.resetRPCClient()
 			connectErrors = append(connectErrors,
 				fmt.Errorf("failed to connect to %s: %w", endpoint.address, err))
 			continue
@@ -272,8 +280,7 @@ func (o *ovsdbClient) connect(ctx context.Context, reconnect bool) error {
 			for id, request := range db.monitors {
 				err := o.monitor(ctx, MonitorCookie{DatabaseName: dbName, ID: id}, true, request)
 				if err != nil {
-					o.rpcClient.Close()
-					o.rpcClient = nil
+					o.resetRPCClient()
 					return err
 				}
 			}
@@ -311,7 +318,6 @@ func (o *ovsdbClient) tryEndpoint(ctx context.Context, u *url.URL) (string, erro
 	default:
 		err = fmt.Errorf("unknown network protocol %s", u.Scheme)
 	}
-
 	if err != nil {
 		return "", fmt.Errorf("failed to open connection: %w", err)
 	}
@@ -320,8 +326,6 @@ func (o *ovsdbClient) tryEndpoint(ctx context.Context, u *url.URL) (string, erro
 
 	serverDBNames, err := o.listDbs(ctx)
 	if err != nil {
-		o.rpcClient.Close()
-		o.rpcClient = nil
 		return "", err
 	}
 
@@ -337,17 +341,12 @@ func (o *ovsdbClient) tryEndpoint(ctx context.Context, u *url.URL) (string, erro
 			}
 		}
 		if !found {
-			err = fmt.Errorf("target database %s not found", dbName)
-			o.rpcClient.Close()
-			o.rpcClient = nil
-			return "", err
+			return "", fmt.Errorf("target database %s not found", dbName)
 		}
 
 		// load and validate the schema
 		schema, err := o.getSchema(ctx, dbName)
 		if err != nil {
-			o.rpcClient.Close()
-			o.rpcClient = nil
 			return "", err
 		}
 
@@ -360,11 +359,8 @@ func (o *ovsdbClient) tryEndpoint(ctx context.Context, u *url.URL) (string, erro
 			for _, err := range errors {
 				combined = append(combined, err.Error())
 			}
-			err = fmt.Errorf("database %s validation error (%d): %s", dbName, len(errors),
-				strings.Join(combined, ". "))
-			o.rpcClient.Close()
-			o.rpcClient = nil
-			return "", err
+			return "", fmt.Errorf("database %s validation error (%d): %s",
+				dbName, len(errors), strings.Join(combined, ". "))
 		}
 
 		db.cacheMutex.Lock()
@@ -372,8 +368,6 @@ func (o *ovsdbClient) tryEndpoint(ctx context.Context, u *url.URL) (string, erro
 			db.cache, err = cache.NewTableCache(db.model, nil, o.logger)
 			if err != nil {
 				db.cacheMutex.Unlock()
-				o.rpcClient.Close()
-				o.rpcClient = nil
 				return "", err
 			}
 			db.api = newAPI(db.cache, o.logger)
@@ -389,15 +383,10 @@ func (o *ovsdbClient) tryEndpoint(ctx context.Context, u *url.URL) (string, erro
 		var leader bool
 		leader, sid, err = o.isEndpointLeader(ctx)
 		if err != nil {
-			o.rpcClient.Close()
-			o.rpcClient = nil
 			return "", err
 		}
 		if !leader {
-			err = fmt.Errorf("endpoint is not leader")
-			o.rpcClient.Close()
-			o.rpcClient = nil
-			return "", err
+			return "", fmt.Errorf("endpoint is not leader")
 		}
 	}
 	return sid, nil
