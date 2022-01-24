@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr"
+	"github.com/google/uuid"
 	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
@@ -1228,6 +1229,66 @@ func TestAPIDelete(t *testing.T) {
 				assert.Nil(t, err)
 				assert.ElementsMatchf(t, tt.result, ops, "ovsdb.Operations should match")
 			}
+		})
+	}
+}
+
+func BenchmarkAPIListPredicate(b *testing.B) {
+	const numRows = 10000
+
+	lscacheList := make([]model.Model, 0, numRows)
+
+	for i := 0; i < numRows; i++ {
+		lscacheList = append(lscacheList,
+			&testLogicalSwitch{
+				UUID:        uuid.New().String(),
+				Name:        fmt.Sprintf("ls%d", i),
+				ExternalIds: map[string]string{"foo": "bar"},
+			})
+	}
+	lscache := map[string]model.Model{}
+	for i := range lscacheList {
+		lscache[lscacheList[i].(*testLogicalSwitch).UUID] = lscacheList[i]
+	}
+	testData := cache.Data{
+		"Logical_Switch": lscache,
+	}
+	tcache := apiTestCache(b, testData)
+
+	test := []struct {
+		name      string
+		predicate interface{}
+	}{
+		{
+			name: "none",
+			predicate: func(t *testLogicalSwitch) bool {
+				return false
+			},
+		},
+		{
+			name: "all",
+			predicate: func(t *testLogicalSwitch) bool {
+				return true
+			},
+		},
+		{
+			name: "arbitrary condition",
+			predicate: func(t *testLogicalSwitch) bool {
+				return strings.HasPrefix(t.Name, "ls1")
+			},
+		},
+	}
+
+	for _, tt := range test {
+		b.Run(fmt.Sprintf("ApiListPredicate: %s", tt.name), func(b *testing.B) {
+			var result []testLogicalSwitch
+			api := newAPI(tcache, &discardLogger)
+			cond := api.WhereCache(tt.predicate)
+			err := cond.List(context.Background(), &result)
+			if err != nil {
+				b.Fatal(err)
+			}
+			b.Logf("got %d rows", len(result))
 		})
 	}
 }
