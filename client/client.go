@@ -422,7 +422,7 @@ func (o *ovsdbClient) isEndpointLeader(ctx context.Context) (bool, string, error
 	op := ovsdb.Operation{
 		Op:      ovsdb.OperationSelect,
 		Table:   "Database",
-		Columns: []string{"name", "model", "leader"},
+		Columns: []string{"name", "model", "leader", "sid"},
 	}
 	results, err := o.transact(ctx, serverDB, op)
 	if err != nil {
