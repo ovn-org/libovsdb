@@ -2,6 +2,7 @@ package server
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/ovn-org/libovsdb/mapper"
@@ -10,6 +11,258 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestWaitOpEquals(t *testing.T) {
+	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
+		"Open_vSwitch": &ovsType{},
+		"Bridge":       &bridgeType{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	schema, err := getSchema()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ovsDB := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
+	dbModel, errs := model.NewDatabaseModel(schema, defDB)
+	require.Empty(t, errs)
+	o, err := NewOvsdbServer(ovsDB, dbModel)
+	require.Nil(t, err)
+
+	ovsUUID := uuid.NewString()
+	bridgeUUID := uuid.NewString()
+
+	m := mapper.NewMapper(schema)
+
+	ovs := ovsType{}
+	info, err := dbModel.NewModelInfo(&ovs)
+	require.NoError(t, err)
+	ovsRow, err := m.NewRow(info)
+	require.Nil(t, err)
+
+	bridge := bridgeType{
+		Name: "foo",
+		ExternalIds: map[string]string{
+			"foo":   "bar",
+			"baz":   "quux",
+			"waldo": "fred",
+		},
+	}
+	bridgeInfo, err := dbModel.NewModelInfo(&bridge)
+	require.NoError(t, err)
+	bridgeRow, err := m.NewRow(bridgeInfo)
+	require.Nil(t, err)
+
+	transaction := o.NewTransaction(dbModel, "Open_vSwitch", o.db)
+
+	res, updates := transaction.Insert("Open_vSwitch", ovsUUID, ovsRow)
+	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
+	require.Nil(t, err)
+
+	res, update2 := transaction.Insert("Bridge", bridgeUUID, bridgeRow)
+	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
+	require.Nil(t, err)
+
+	updates.Merge(update2)
+	err = o.db.Commit("Open_vSwitch", uuid.New(), updates)
+	require.NoError(t, err)
+
+	timeout := 0
+	// Attempt to wait for row with name foo to appear
+	gotResult := transaction.Wait(
+		"Open_vSwitch",
+		"Bridge",
+		&timeout,
+		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
+		[]string{"name"},
+		"==",
+		[]ovsdb.Row{{"name": "foo"}},
+	)
+	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{gotResult}, []ovsdb.Operation{{Op: "wait"}})
+	require.Nil(t, err)
+
+	// Attempt to wait for 2 rows, where one does not exist
+	gotResult = transaction.Wait(
+		"Open_vSwitch",
+		"Bridge",
+		&timeout,
+		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
+		[]string{"name"},
+		"==",
+		[]ovsdb.Row{{"name": "foo"}, {"name": "blah"}},
+	)
+	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{gotResult}, []ovsdb.Operation{{Op: "wait"}})
+	require.NotNil(t, err)
+
+	extIDs, err := ovsdb.NewOvsMap(map[string]string{
+		"foo":   "bar",
+		"baz":   "quux",
+		"waldo": "fred",
+	})
+	require.Nil(t, err)
+	// Attempt to wait for a row, with multiple columns specified
+	gotResult = transaction.Wait(
+		"Open_vSwitch",
+		"Bridge",
+		&timeout,
+		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
+		[]string{"name", "external_ids"},
+		"==",
+		[]ovsdb.Row{{"name": "foo", "external_ids": extIDs}},
+	)
+	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{gotResult}, []ovsdb.Operation{{Op: "wait"}})
+	require.Nil(t, err)
+
+	// Attempt to wait for a row, with multiple columns, but not specified in row filtering
+	gotResult = transaction.Wait(
+		"Open_vSwitch",
+		"Bridge",
+		&timeout,
+		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
+		[]string{"name", "external_ids"},
+		"==",
+		[]ovsdb.Row{{"name": "foo"}},
+	)
+	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{gotResult}, []ovsdb.Operation{{Op: "wait"}})
+	require.Nil(t, err)
+
+	// Attempt to get something with a non-zero timeout that will fail
+	timeout = 400
+	gotResult = transaction.Wait(
+		"Open_vSwitch",
+		"Bridge",
+		&timeout,
+		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
+		[]string{"name", "external_ids"},
+		"==",
+		[]ovsdb.Row{{"name": "doesNotExist"}},
+	)
+	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{gotResult}, []ovsdb.Operation{{Op: "wait"}})
+	require.NotNil(t, err)
+
+}
+
+func TestWaitOpNotEquals(t *testing.T) {
+	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
+		"Open_vSwitch": &ovsType{},
+		"Bridge":       &bridgeType{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	schema, err := getSchema()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ovsDB := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
+	dbModel, errs := model.NewDatabaseModel(schema, defDB)
+	require.Empty(t, errs)
+	o, err := NewOvsdbServer(ovsDB, dbModel)
+	require.Nil(t, err)
+
+	ovsUUID := uuid.NewString()
+	bridgeUUID := uuid.NewString()
+
+	m := mapper.NewMapper(schema)
+
+	ovs := ovsType{}
+	info, err := dbModel.NewModelInfo(&ovs)
+	require.NoError(t, err)
+	ovsRow, err := m.NewRow(info)
+	require.Nil(t, err)
+
+	bridge := bridgeType{
+		Name: "foo",
+		ExternalIds: map[string]string{
+			"foo":   "bar",
+			"baz":   "quux",
+			"waldo": "fred",
+		},
+	}
+	bridgeInfo, err := dbModel.NewModelInfo(&bridge)
+	require.NoError(t, err)
+	bridgeRow, err := m.NewRow(bridgeInfo)
+	require.Nil(t, err)
+
+	transaction := o.NewTransaction(dbModel, "Open_vSwitch", o.db)
+
+	res, updates := transaction.Insert("Open_vSwitch", ovsUUID, ovsRow)
+	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
+	require.Nil(t, err)
+
+	res, update2 := transaction.Insert("Bridge", bridgeUUID, bridgeRow)
+	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
+	require.Nil(t, err)
+
+	updates.Merge(update2)
+	err = o.db.Commit("Open_vSwitch", uuid.New(), updates)
+	require.NoError(t, err)
+
+	timeout := 0
+	// Attempt a wait where no entry with name blah should exist
+	gotResult := transaction.Wait(
+		"Open_vSwitch",
+		"Bridge",
+		&timeout,
+		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
+		[]string{"name"},
+		"!=",
+		[]ovsdb.Row{{"name": "blah"}},
+	)
+	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{gotResult}, []ovsdb.Operation{{Op: "wait"}})
+	require.Nil(t, err)
+
+	// Attempt another wait with multiple rows specified, one that would match, and one that doesn't
+	gotResult = transaction.Wait(
+		"Open_vSwitch",
+		"Bridge",
+		&timeout,
+		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
+		[]string{"name"},
+		"!=",
+		[]ovsdb.Row{{"name": "blah"}, {"name": "foo"}},
+	)
+	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{gotResult}, []ovsdb.Operation{{Op: "wait"}})
+	require.Nil(t, err)
+
+	// Attempt another wait where name would match, but ext ids would not match
+	NoMatchExtIDs, err := ovsdb.NewOvsMap(map[string]string{
+		"foo":   "bar",
+		"baz":   "quux",
+		"waldo": "is_different",
+	})
+	require.Nil(t, err)
+	// Attempt to wait for a row, with multiple columns specified and one is not a match
+	gotResult = transaction.Wait(
+		"Open_vSwitch",
+		"Bridge",
+		&timeout,
+		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
+		[]string{"name", "external_ids"},
+		"!=",
+		[]ovsdb.Row{{"name": "foo", "external_ids": NoMatchExtIDs}},
+	)
+	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{gotResult}, []ovsdb.Operation{{Op: "wait"}})
+	require.Nil(t, err)
+
+	// Check to see if a non match takes around the timeout
+	start := time.Now()
+	timeout = 200
+	gotResult = transaction.Wait(
+		"Open_vSwitch",
+		"Bridge",
+		&timeout,
+		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
+		[]string{"name"},
+		"!=",
+		[]ovsdb.Row{{"name": "foo"}},
+	)
+	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{gotResult}, []ovsdb.Operation{{Op: "wait"}})
+	ts := time.Since(start)
+	if ts < time.Duration(timeout)*time.Millisecond {
+		t.Fatalf("Should have taken at least %d milliseconds to return, but it took %d instead", timeout, ts)
+	}
+	require.NotNil(t, err)
+}
 
 func TestMutateOp(t *testing.T) {
 	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
