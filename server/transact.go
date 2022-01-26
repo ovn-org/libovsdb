@@ -514,7 +514,7 @@ func (t *Transaction) Delete(database, table string, where []ovsdb.Condition) (o
 		}
 }
 
-func (t *Transaction) Wait(database, table string, timeout int, conditions []ovsdb.Condition, columns []string, until string, rows []ovsdb.Row) ovsdb.OperationResult {
+func (t *Transaction) Wait(database, table string, timeout *int, conditions []ovsdb.Condition, columns []string, until string, rows []ovsdb.Row) ovsdb.OperationResult {
 	e := ovsdb.NotSupported{}
 	return ovsdb.OperationResult{Error: e.Error()}
 }

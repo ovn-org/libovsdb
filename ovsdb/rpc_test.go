@@ -15,6 +15,18 @@ func TestNewGetSchemaArgs(t *testing.T) {
 	}
 }
 
+func TestNewWaitTransactArgs(t *testing.T) {
+	database := "Open_vSwitch"
+	i := 0
+	operation := Operation{Op: "wait", Table: "Bridge", Timeout: &i}
+	args := NewTransactArgs(database, operation)
+	argString, _ := json.Marshal(args)
+	expected := `["Open_vSwitch",{"op":"wait","table":"Bridge","timeout":0}]`
+	if string(argString) != expected {
+		t.Error("Expected: ", expected, " Got: ", string(argString))
+	}
+}
+
 func TestNewTransactArgs(t *testing.T) {
 	database := "Open_vSwitch"
 	operation := Operation{Op: "insert", Table: "Bridge"}
