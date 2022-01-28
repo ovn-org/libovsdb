@@ -65,6 +65,14 @@ func TestExpandNamedUUID(t *testing.T) {
 	}
 }
 
+func emptyOvsMap() ovsdb.OvsMap {
+	return ovsdb.OvsMap{GoMap: make(map[interface{}]interface{})}
+}
+
+func emptyOvsSet() ovsdb.OvsSet {
+	return ovsdb.OvsSet{GoSet: make([]interface{}, 0)}
+}
+
 func TestOvsdbServerMonitor(t *testing.T) {
 	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
@@ -124,26 +132,50 @@ func TestOvsdbServerMonitor(t *testing.T) {
 		"Bridge": {
 			fooUUID: &ovsdb.RowUpdate{
 				New: &ovsdb.Row{
-					"_uuid": ovsdb.UUID{GoUUID: fooUUID},
-					"name":  "foo",
+					"_uuid":         ovsdb.UUID{GoUUID: fooUUID},
+					"name":          "foo",
+					"datapath_id":   emptyOvsSet(),
+					"datapath_type": "",
+					"external_ids":  emptyOvsMap(),
+					"other_config":  emptyOvsMap(),
+					"ports":         emptyOvsSet(),
+					"status":        emptyOvsMap(),
 				},
 			},
 			barUUID: &ovsdb.RowUpdate{
 				New: &ovsdb.Row{
-					"_uuid": ovsdb.UUID{GoUUID: barUUID},
-					"name":  "bar",
+					"_uuid":         ovsdb.UUID{GoUUID: barUUID},
+					"name":          "bar",
+					"datapath_id":   emptyOvsSet(),
+					"datapath_type": "",
+					"external_ids":  emptyOvsMap(),
+					"other_config":  emptyOvsMap(),
+					"ports":         emptyOvsSet(),
+					"status":        emptyOvsMap(),
 				},
 			},
 			bazUUID: &ovsdb.RowUpdate{
 				New: &ovsdb.Row{
-					"_uuid": ovsdb.UUID{GoUUID: bazUUID},
-					"name":  "baz",
+					"_uuid":         ovsdb.UUID{GoUUID: bazUUID},
+					"name":          "baz",
+					"datapath_id":   emptyOvsSet(),
+					"datapath_type": "",
+					"external_ids":  emptyOvsMap(),
+					"other_config":  emptyOvsMap(),
+					"ports":         emptyOvsSet(),
+					"status":        emptyOvsMap(),
 				},
 			},
 			quuxUUID: &ovsdb.RowUpdate{
 				New: &ovsdb.Row{
-					"_uuid": ovsdb.UUID{GoUUID: quuxUUID},
-					"name":  "quux",
+					"_uuid":         ovsdb.UUID{GoUUID: quuxUUID},
+					"name":          "quux",
+					"datapath_id":   emptyOvsSet(),
+					"datapath_type": "",
+					"external_ids":  emptyOvsMap(),
+					"other_config":  emptyOvsMap(),
+					"ports":         emptyOvsSet(),
+					"status":        emptyOvsMap(),
 				},
 			},
 		},

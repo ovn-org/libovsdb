@@ -21,6 +21,10 @@ type OvsSet struct {
 func NewOvsSet(obj interface{}) (OvsSet, error) {
 	var v reflect.Value
 	if reflect.TypeOf(obj).Kind() == reflect.Ptr {
+		if reflect.ValueOf(obj).IsZero() {
+			// Empty set
+			return OvsSet{make([]interface{}, 0)}, nil
+		}
 		v = reflect.ValueOf(obj).Elem()
 	} else {
 		v = reflect.ValueOf(obj)
