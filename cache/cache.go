@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/gob"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -910,6 +911,10 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 
 		current, err := info.FieldByColumn(k)
 		if err != nil {
+			if errors.Is(err, mapper.ErrOmitted) {
+				// skip fields that aren't supported by the runtime schema
+				continue
+			}
 			return err
 		}
 

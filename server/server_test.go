@@ -68,7 +68,7 @@ func TestExpandNamedUUID(t *testing.T) {
 func TestOvsdbServerMonitor(t *testing.T) {
 	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
-		"Bridge":       &bridgeType{}})
+		"Bridge":       &bridgeType{}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

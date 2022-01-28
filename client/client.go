@@ -21,6 +21,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/go-logr/stdr"
 	"github.com/ovn-org/libovsdb/cache"
+	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/ovn-org/libovsdb/ovsdb/serverdb"
@@ -1274,4 +1275,36 @@ func (o *ovsdbClient) WhereAll(m model.Model, conditions ...model.Condition) Con
 //WhereCache implements the API interface's WhereCache function
 func (o *ovsdbClient) WhereCache(predicate interface{}) ConditionalAPI {
 	return o.primaryDB().api.WhereCache(predicate)
+}
+
+// IsTableSupported checks whether a provided Model is supported by the
+// runtime schema
+func (o *ovsdbClient) IsTableSupported(m model.Model) bool {
+	o.primaryDB().modelMutex.RLock()
+	defer o.primaryDB().modelMutex.RUnlock()
+	tableName := o.primaryDB().model.FindTable(reflect.TypeOf(m))
+	if _, ok := o.primaryDB().model.Schema.Tables[tableName]; ok {
+		return true
+	}
+	return false
+}
+
+// IsColumnSupported checks whether a provided column (derived via field Pointer in a Model)
+// is supported by the runtime schema
+func (o *ovsdbClient) IsColumnSupported(m model.Model, fieldPtr interface{}) bool {
+	o.primaryDB().modelMutex.RLock()
+	defer o.primaryDB().modelMutex.RUnlock()
+	tableName := o.primaryDB().model.FindTable(reflect.TypeOf(m))
+	tSchema, ok := o.primaryDB().model.Schema.Tables[tableName]
+	if !ok {
+		return false
+	}
+	info, err := mapper.NewInfo(tableName, &tSchema, m)
+	if err != nil {
+		return false
+	}
+	if _, err := info.ColumnByPtr(fieldPtr); err != nil {
+		return false
+	}
+	return true
 }

@@ -267,7 +267,7 @@ func TestWaitOpNotEquals(t *testing.T) {
 func TestMutateOp(t *testing.T) {
 	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
-		"Bridge":       &bridgeType{}})
+		"Bridge":       &bridgeType{}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -466,7 +466,7 @@ func TestOvsdbServerInsert(t *testing.T) {
 	t.Skip("need a helper for comparing rows as map elements aren't in same order")
 	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
-		"Bridge":       &bridgeType{}})
+		"Bridge":       &bridgeType{}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -524,7 +524,7 @@ func TestOvsdbServerInsert(t *testing.T) {
 func TestOvsdbServerUpdate(t *testing.T) {
 	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
-		"Bridge":       &bridgeType{}})
+		"Bridge":       &bridgeType{}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -610,7 +610,7 @@ func TestOvsdbServerUpdate(t *testing.T) {
 func TestMultipleOps(t *testing.T) {
 	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
-		"Bridge":       &bridgeType{}})
+		"Bridge":       &bridgeType{}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

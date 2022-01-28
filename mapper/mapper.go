@@ -1,6 +1,7 @@
 package mapper
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -74,7 +75,7 @@ func (m Mapper) getData(ovsData ovsdb.Row, result *Info) error {
 				result.Metadata.TableName, name, err.Error())
 		}
 
-		if err := result.SetField(name, nativeElem); err != nil {
+		if err := result.SetField(name, nativeElem); err != nil && !errors.Is(err, ErrOmitted) {
 			return err
 		}
 	}
@@ -94,7 +95,9 @@ func (m Mapper) NewRow(data *Info, fields ...interface{}) (ovsdb.Row, error) {
 	for name, column := range columns {
 		nativeElem, err := data.FieldByColumn(name)
 		if err != nil {
-			// If provided struct does not have a field to hold this value, skip it
+			// If provided struct does not have a field to hold this value
+			// Or it does have a field but it's not supported by the runtime schema,
+			// skip it
 			continue
 		}
 

@@ -249,7 +249,7 @@ func main() {
 	}
 
 	var err error
-	clientDBModel, err = model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &ovsType{}, "Bridge": &bridgeType{}})
+	clientDBModel, err = model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &ovsType{}, "Bridge": &bridgeType{}}, nil)
 	if err != nil {
 		log.Fatal(err)
 	}

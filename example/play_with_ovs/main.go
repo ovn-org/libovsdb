@@ -98,7 +98,7 @@ func main() {
 	update = make(chan model.Model)
 
 	clientDBModel, err := model.NewClientDBModel("Open_vSwitch",
-		map[string]model.Model{bridgeTable: &vswitchd.Bridge{}, ovsTable: &vswitchd.OpenvSwitch{}})
+		map[string]model.Model{bridgeTable: &vswitchd.Bridge{}, ovsTable: &vswitchd.OpenvSwitch{}}, nil)
 	if err != nil {
 		log.Fatal("Unable to create DB model ", err)
 	}

@@ -179,7 +179,7 @@ var defDB, _ = model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 	"Bridge":       &bridgeType{},
 	"IPFIX":        &ipfixType{},
 	"Queue":        &queueType{},
-})
+}, nil)
 
 func (suite *OVSIntegrationSuite) TestConnectReconnect() {
 	assert.True(suite.T(), suite.client.Connected())

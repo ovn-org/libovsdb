@@ -51,7 +51,7 @@ func TestClientDBModel(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("TestNewModel_%s", tt.name), func(t *testing.T) {
-			db, err := NewClientDBModel(tt.name, tt.obj)
+			db, err := NewClientDBModel(tt.name, tt.obj, nil)
 			if tt.valid {
 				assert.Nil(t, err)
 				assert.Len(t, db.types, len(tt.obj))
@@ -64,7 +64,7 @@ func TestClientDBModel(t *testing.T) {
 }
 
 func TestNewModel(t *testing.T) {
-	db, err := NewClientDBModel("testTable", map[string]Model{"Test_A": &modelA{}, "Test_B": &modelB{}})
+	db, err := NewClientDBModel("testTable", map[string]Model{"Test_A": &modelA{}, "Test_B": &modelB{}}, nil)
 	assert.Nil(t, err)
 	_, err = db.newModel("Unknown")
 	assert.NotNilf(t, err, "Creating model from unknown table should fail")
@@ -96,7 +96,7 @@ func TestValidate(t *testing.T) {
 			aSet    []string          `ovsdb:"aSet"`
 			aMap    map[string]string `ovsdb:"aMap"`
 		}{},
-	})
+	}, nil)
 	assert.Nil(t, err)
 
 	tests := []struct {
@@ -334,6 +334,109 @@ func TestValidate(t *testing.T) {
 		})
 	}
 
+}
+func TestValidateOptional(t *testing.T) {
+	model, err := NewClientDBModel("TestDB", map[string]Model{
+		"TestTable": &struct {
+			aUUID   string            `ovsdb:"_uuid"`
+			aString string            `ovsdb:"aString"`
+			aInt    int               `ovsdb:"aInt"`
+			aFloat  float64           `ovsdb:"aFloat"`
+			aSet    []string          `ovsdb:"aSet"`
+			aMap    map[string]string `ovsdb:"aMap"`
+		}{},
+		"OptionalTable": &struct {
+			aUUID   string `ovsdb:"_uuid"`
+			aString string `ovsdb:"aString"`
+		}{},
+	}, map[string]bool{"OptionalTable": true})
+	assert.Nil(t, err)
+
+	tests := []struct {
+		name   string
+		schema []byte
+		err    bool
+	}{
+		{
+			name: "wrong name",
+			schema: []byte(`{
+			    "name": "Wrong"
+			}`),
+			err: true,
+		},
+		{
+			name: "full support",
+			schema: []byte(`{
+			    "name": "TestDB",
+  			    "tables": {
+  			      "TestTable": {
+  			        "columns": {
+  			          "aString": { "type": "string" },
+  			          "aInt": { "type": "integer" },
+  			          "aFloat": { "type": "real" } ,
+  			          "aSet": { "type": {
+  			              "key": "string",
+  			              "max": "unlimited",
+  			              "min": 0
+  			            } },
+  			          "aMap": {
+  			            "type": {
+  			              "key": "string",
+  			              "max": "unlimited",
+  			              "min": 0,
+  			              "value": "string"
+  			            }
+  			          }
+  			        },
+					"OptionalTable": { "columns": { "aString": { "type": "string" }}}
+  			      }
+				}
+			}`),
+			err: false,
+		},
+		{
+			name: "missing optional table",
+			schema: []byte(`{
+			    "name": "TestDB",
+  			    "tables": {
+  			      "TestTable": {
+  			        "columns": {
+  			          "aString": { "type": "string" },
+  			          "aInt": { "type": "integer" },
+  			          "aFloat": { "type": "real" } ,
+  			          "aSet": { "type": {
+  			              "key": "string",
+  			              "max": "unlimited",
+  			              "min": 0
+  			            } },
+  			          "aMap": {
+  			            "type": {
+  			              "key": "string",
+  			              "max": "unlimited",
+  			              "min": 0,
+  			              "value": "string"
+  			            }
+  			          }
+  			        }
+  			      }
+			    }
+			}`),
+			err: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("TestValidate %s", tt.name), func(t *testing.T) {
+			var schema ovsdb.DatabaseSchema
+			err := json.Unmarshal(tt.schema, &schema)
+			assert.Nil(t, err)
+			errors := model.validate(schema)
+			if tt.err {
+				assert.Greater(t, len(errors), 0)
+			} else {
+				assert.Len(t, errors, 0)
+			}
+		})
+	}
 }
 
 type modelC struct {
