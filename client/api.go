@@ -16,6 +16,7 @@ import (
 type API interface {
 	// List populates a slice of Models objects based on their type
 	// The function parameter must be a pointer to a slice of Models
+	// Models can be structs or pointers to structs
 	// If the slice is null, the entire cache will be copied into the slice
 	// If it has a capacity != 0, only 'capacity' elements will be filled in
 	List(ctx context.Context, result interface{}) error
@@ -104,7 +105,23 @@ func (a api) List(ctx context.Context, result interface{}) error {
 		return &ErrWrongType{resultPtr.Type(), "Expected pointer to slice of valid Models"}
 	}
 
-	table, err := a.getTableFromModel(reflect.New(resultVal.Type().Elem()).Interface())
+	// List accepts a slice of Models that can be either structs or pointer to
+	// structs
+	var appendValue func(reflect.Value)
+	var m model.Model
+	if resultVal.Type().Elem().Kind() == reflect.Ptr {
+		m = reflect.New(resultVal.Type().Elem().Elem()).Interface()
+		appendValue = func(v reflect.Value) {
+			resultVal.Set(reflect.Append(resultVal, v))
+		}
+	} else {
+		m = reflect.New(resultVal.Type().Elem()).Interface()
+		appendValue = func(v reflect.Value) {
+			resultVal.Set(reflect.Append(resultVal, reflect.Indirect(v)))
+		}
+	}
+
+	table, err := a.getTableFromModel(m)
 	if err != nil {
 		return err
 	}
@@ -141,7 +158,7 @@ func (a api) List(ctx context.Context, result interface{}) error {
 		// clone only the models that match the predicate
 		m := model.Clone(row)
 
-		resultVal.Set(reflect.Append(resultVal, reflect.Indirect(reflect.ValueOf(m))))
+		appendValue(reflect.ValueOf(m))
 		i++
 	}
 	return nil

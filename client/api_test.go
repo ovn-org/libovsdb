@@ -78,7 +78,7 @@ func TestAPIListSimple(t *testing.T) {
 			initialCap: 1,
 			resultCap:  1,
 			resultLen:  1,
-			content:    lscacheList[0:0],
+			content:    lscacheList,
 			err:        false,
 		},
 		{
@@ -86,15 +86,34 @@ func TestAPIListSimple(t *testing.T) {
 			initialCap: 2,
 			resultCap:  2,
 			resultLen:  2,
-			content:    lscacheList[0:2],
+			content:    lscacheList,
 			err:        false,
 		},
 	}
+	hasDups := func(a interface{}) bool {
+		l := map[string]struct{}{}
+		switch v := a.(type) {
+		case []testLogicalSwitch:
+			for _, i := range v {
+				if _, ok := l[i.Name]; ok {
+					return ok
+				}
+			}
+		case []*testLogicalSwitch:
+			for _, i := range v {
+				if _, ok := l[i.Name]; ok {
+					return ok
+				}
+			}
+		}
+		return false
+	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiList: %s", tt.name), func(t *testing.T) {
-			var result []testLogicalSwitch
+			// test List with a pointer to a slice of Models
+			var result []*testLogicalSwitch
 			if tt.initialCap != 0 {
-				result = make([]testLogicalSwitch, tt.initialCap)
+				result = make([]*testLogicalSwitch, 0, tt.initialCap)
 			}
 			api := newAPI(tcache, &discardLogger)
 			err := api.List(context.Background(), &result)
@@ -104,7 +123,28 @@ func TestAPIListSimple(t *testing.T) {
 				assert.Nil(t, err)
 				assert.Lenf(t, result, tt.resultLen, "Length should match expected")
 				assert.Equal(t, cap(result), tt.resultCap, "Capability should match expected")
-				assert.ElementsMatchf(t, tt.content, tt.content, "Content should match")
+				assert.Subsetf(t, tt.content, result, "Result should be a subset of expected")
+				assert.False(t, hasDups(result), "Result should have no duplicates")
+			}
+
+			// test List with a pointer to a slice of structs
+			var resultWithNoPtr []testLogicalSwitch
+			if tt.initialCap != 0 {
+				resultWithNoPtr = make([]testLogicalSwitch, 0, tt.initialCap)
+			}
+			contentNoPtr := make([]testLogicalSwitch, 0, len(tt.content))
+			for i := range tt.content {
+				contentNoPtr = append(contentNoPtr, *tt.content[i].(*testLogicalSwitch))
+			}
+			err = api.List(context.Background(), &resultWithNoPtr)
+			if tt.err {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+				assert.Lenf(t, result, tt.resultLen, "Length should match expected")
+				assert.Equal(t, cap(result), tt.resultCap, "Capability should match expected")
+				assert.Subsetf(t, contentNoPtr, resultWithNoPtr, "Result should be a subset of expected")
+				assert.False(t, hasDups(resultWithNoPtr), "Result should have no duplicates")
 			}
 
 		})
