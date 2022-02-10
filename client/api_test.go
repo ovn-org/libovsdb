@@ -1292,3 +1292,171 @@ func BenchmarkAPIListPredicate(b *testing.B) {
 		})
 	}
 }
+
+func TestAPIWait(t *testing.T) {
+	tcache := apiTestCache(t, cache.Data{})
+	timeout0 := 0
+
+	test := []struct {
+		name      string
+		condition func(API) ConditionalAPI
+		prepare   func() (model.Model, []interface{})
+		until     ovsdb.WaitCondition
+		timeout   *int
+		result    []ovsdb.Operation
+		err       bool
+	}{
+		{
+			name: "timeout 0, no columns",
+			condition: func(a API) ConditionalAPI {
+				return a.Where(&testLogicalSwitchPort{
+					Name: "lsp0",
+				})
+			},
+			until:   "==",
+			timeout: &timeout0,
+			prepare: func() (model.Model, []interface{}) {
+				testLSP := testLogicalSwitchPort{
+					Name: "lsp0",
+				}
+				return &testLSP, nil
+			},
+			result: []ovsdb.Operation{
+				{
+					Op:      ovsdb.OperationWait,
+					Table:   "Logical_Switch_Port",
+					Timeout: &timeout0,
+					Where:   []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "lsp0"}},
+					Until:   string(ovsdb.WaitConditionEqual),
+					Columns: nil,
+					Rows:    []ovsdb.Row{{"name": "lsp0"}},
+				},
+			},
+			err: false,
+		},
+		{
+			name: "no timeout",
+			condition: func(a API) ConditionalAPI {
+				return a.Where(&testLogicalSwitchPort{
+					Name: "lsp0",
+				})
+			},
+			until: "!=",
+			prepare: func() (model.Model, []interface{}) {
+				testLSP := testLogicalSwitchPort{
+					Name: "lsp0",
+					Type: "someType",
+				}
+				return &testLSP, []interface{}{&testLSP.Name, &testLSP.Type}
+			},
+			result: []ovsdb.Operation{
+				{
+					Op:      ovsdb.OperationWait,
+					Timeout: nil,
+					Table:   "Logical_Switch_Port",
+					Where:   []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "lsp0"}},
+					Until:   string(ovsdb.WaitConditionNotEqual),
+					Columns: []string{"name", "type"},
+					Rows:    []ovsdb.Row{{"name": "lsp0", "type": "someType"}},
+				},
+			},
+			err: false,
+		},
+		{
+			name: "multiple conditions",
+			condition: func(a API) ConditionalAPI {
+				isUp := true
+				lsp := testLogicalSwitchPort{}
+				conditions := []model.Condition{
+					{
+						Field:    &lsp.Up,
+						Function: ovsdb.ConditionNotEqual,
+						Value:    &isUp,
+					},
+					{
+						Field:    &lsp.Name,
+						Function: ovsdb.ConditionEqual,
+						Value:    "lspNameCondition",
+					},
+				}
+				return a.Where(&lsp, conditions...)
+			},
+			until: "!=",
+			prepare: func() (model.Model, []interface{}) {
+				testLSP := testLogicalSwitchPort{
+					Name: "lsp0",
+					Type: "someType",
+				}
+				return &testLSP, []interface{}{&testLSP.Name, &testLSP.Type}
+			},
+			result: []ovsdb.Operation{
+				{
+					Op:      ovsdb.OperationWait,
+					Timeout: nil,
+					Table:   "Logical_Switch_Port",
+					Where: []ovsdb.Condition{
+						{
+							Column:   "up",
+							Function: ovsdb.ConditionNotEqual,
+							Value:    ovsdb.OvsSet{GoSet: []interface{}{true}},
+						},
+					},
+					Until:   string(ovsdb.WaitConditionNotEqual),
+					Columns: []string{"name", "type"},
+					Rows:    []ovsdb.Row{{"name": "lsp0", "type": "someType"}},
+				},
+				{
+					Op:      ovsdb.OperationWait,
+					Timeout: nil,
+					Table:   "Logical_Switch_Port",
+					Where:   []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "lspNameCondition"}},
+					Until:   string(ovsdb.WaitConditionNotEqual),
+					Columns: []string{"name", "type"},
+					Rows:    []ovsdb.Row{{"name": "lsp0", "type": "someType"}},
+				},
+			},
+			err: false,
+		},
+		{
+			name: "non-indexed condition error",
+			condition: func(a API) ConditionalAPI {
+				isUp := false
+				return a.Where(&testLogicalSwitchPort{Up: &isUp})
+			},
+			until: "==",
+			prepare: func() (model.Model, []interface{}) {
+				testLSP := testLogicalSwitchPort{Name: "lsp0"}
+				return &testLSP, nil
+			},
+			err: true,
+		},
+		{
+			name: "no operation",
+			condition: func(a API) ConditionalAPI {
+				return a.WhereCache(func(t *testLogicalSwitchPort) bool { return false })
+			},
+			until: "==",
+			prepare: func() (model.Model, []interface{}) {
+				testLSP := testLogicalSwitchPort{Name: "lsp0"}
+				return &testLSP, nil
+			},
+			result: []ovsdb.Operation{},
+			err:    false,
+		},
+	}
+
+	for _, tt := range test {
+		t.Run(fmt.Sprintf("ApiWait: %s", tt.name), func(t *testing.T) {
+			api := newAPI(tcache, &discardLogger)
+			cond := tt.condition(api)
+			model, fields := tt.prepare()
+			ops, err := cond.Wait(tt.until, tt.timeout, model, fields...)
+			if tt.err {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+				assert.ElementsMatchf(t, tt.result, ops, "ovsdb.Operations should match")
+			}
+		})
+	}
+}
