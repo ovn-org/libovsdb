@@ -69,6 +69,10 @@ type ConditionalAPI interface {
 
 	// Delete returns the Operations needed to delete the models selected via the condition
 	Delete() ([]ovsdb.Operation, error)
+
+	// Wait returns the operations needed to perform the wait specified
+	// by the until condition, timeout, row and columns based on provided parameters.
+	Wait(ovsdb.WaitCondition, *int, model.Model, ...interface{}) ([]ovsdb.Operation, error)
 }
 
 // ErrWrongType is used to report the user provided parameter has the wrong type
@@ -401,6 +405,80 @@ func (a api) Delete() ([]ovsdb.Operation, error) {
 				Where: condition,
 			},
 		)
+	}
+
+	return operations, nil
+}
+
+func (a api) Wait(untilConFun ovsdb.WaitCondition, timeout *int, model model.Model, fields ...interface{}) ([]ovsdb.Operation, error) {
+	var operations []ovsdb.Operation
+
+	/*
+		    Ref: https://datatracker.ietf.org/doc/html/rfc7047.txt#section-5.2.6
+
+			lb := &nbdb.LoadBalancer{}
+			condition := model.Condition{
+				Field:    &lb.Name,
+				Function: ovsdb.ConditionEqual,
+				Value:    "lbName",
+			}
+			timeout0 := 0
+			client.Where(lb, condition).Wait(
+				ovsdb.WaitConditionNotEqual, // Until
+				&timeout0, // Timeout
+				&lb, // Row (and Table)
+				&lb.Name, // Cols (aka fields)
+			)
+	*/
+
+	conditions, err := a.cond.Generate()
+	if err != nil {
+		return nil, err
+	}
+
+	table, err := a.getTableFromModel(model)
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := a.cache.DatabaseModel().NewModelInfo(model)
+	if err != nil {
+		return nil, err
+	}
+
+	var columnNames []string
+	if len(fields) > 0 {
+		columnNames = make([]string, 0, len(fields))
+		for _, f := range fields {
+			colName, err := info.ColumnByPtr(f)
+			if err != nil {
+				return nil, err
+			}
+			columnNames = append(columnNames, colName)
+		}
+	}
+
+	row, err := a.cache.Mapper().NewRow(info, fields...)
+	if err != nil {
+		return nil, err
+	}
+	rows := []ovsdb.Row{row}
+
+	for _, condition := range conditions {
+		operation := ovsdb.Operation{
+			Op:      ovsdb.OperationWait,
+			Table:   table,
+			Where:   condition,
+			Until:   string(untilConFun),
+			Columns: columnNames,
+			Rows:    rows,
+		}
+
+		if timeout != nil {
+			operation.Timeout = timeout
+		}
+
+		operations = append(operations, operation)
 	}
 
 	return operations, nil
