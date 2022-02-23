@@ -747,6 +747,66 @@ func (suite *OVSIntegrationSuite) TestCreateIPFIX() {
 
 }
 
+func (suite *OVSIntegrationSuite) TestWait() {
+	var err error
+	brName := "br-wait-for-it"
+
+	// Use Wait to ensure bridge does not exist yet
+	bridgeRow := &bridgeType{
+		Name: brName,
+	}
+	conditions := []model.Condition{
+		{
+			Field:    &bridgeRow.Name,
+			Function: ovsdb.ConditionEqual,
+			Value:    brName,
+		},
+	}
+	timeout := 0
+	ops, err := suite.client.Where(bridgeRow, conditions...).Wait(
+		ovsdb.WaitConditionNotEqual, &timeout, bridgeRow, &bridgeRow.Name)
+	require.NoError(suite.T(), err)
+	reply, err := suite.client.Transact(context.Background(), ops...)
+	require.NoError(suite.T(), err)
+	opErrs, err := ovsdb.CheckOperationResults(reply, ops)
+	require.NoErrorf(suite.T(), err, "%+v", opErrs)
+
+	// Now, create the bridge
+	_, err = suite.createBridge(brName)
+	require.NoError(suite.T(), err)
+
+	// Use wait to verify bridge's existence
+	bridgeRow = &bridgeType{
+		Name:           brName,
+		BridgeFailMode: &BridgeFailModeSecure,
+	}
+	conditions = []model.Condition{
+		{
+			Field:    &bridgeRow.BridgeFailMode,
+			Function: ovsdb.ConditionEqual,
+			Value:    &BridgeFailModeSecure,
+		},
+	}
+	timeout = 2 * 1000 // 2 seconds (in milliseconds)
+	ops, err = suite.client.Where(bridgeRow, conditions...).Wait(
+		ovsdb.WaitConditionEqual, &timeout, bridgeRow, &bridgeRow.BridgeFailMode)
+	require.NoError(suite.T(), err)
+	reply, err = suite.client.Transact(context.Background(), ops...)
+	require.NoError(suite.T(), err)
+	opErrs, err = ovsdb.CheckOperationResults(reply, ops)
+	require.NoErrorf(suite.T(), err, "%+v", opErrs)
+
+	// Use wait to get a txn error due to until condition that is not happening
+	timeout = 222 // milliseconds
+	ops, err = suite.client.Where(bridgeRow, conditions...).Wait(
+		ovsdb.WaitConditionNotEqual, &timeout, bridgeRow, &bridgeRow.BridgeFailMode)
+	require.NoError(suite.T(), err)
+	reply, err = suite.client.Transact(context.Background(), ops...)
+	require.NoError(suite.T(), err)
+	_, err = ovsdb.CheckOperationResults(reply, ops)
+	assert.Error(suite.T(), err)
+}
+
 func (suite *OVSIntegrationSuite) createQueue(queueName string, dscp int) (string, error) {
 	q := queueType{
 		DSCP: &dscp,
