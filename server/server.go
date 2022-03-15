@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -229,6 +230,12 @@ func (o *OvsdbServer) Transact(client *rpc2.Client, args []json.RawMessage, repl
 	}
 	response, updates := o.transact(db, ops)
 	*reply = response
+	for i, operResult := range response {
+		if operResult.Error != "" {
+			o.logger.Error(errors.New("failed to process operation"), "Skipping transaction DB commit due to error", "operations", ops, "failed operation", ops[i], "operation error", operResult.Error)
+			return nil
+		}
+	}
 	transactionID := uuid.New()
 	o.processMonitors(transactionID, updates)
 	return o.db.Commit(db, transactionID, updates)
