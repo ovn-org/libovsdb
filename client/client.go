@@ -865,13 +865,20 @@ func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconne
 	typeMap := db.model.Types()
 	requests := make(map[string]ovsdb.MonitorRequest)
 	for _, o := range monitor.Tables {
+		var err error
 		_, ok := typeMap[o.Table]
 		if !ok {
 			return fmt.Errorf("type for table %s does not exist in model", o.Table)
 		}
-		model, err := db.model.NewModel(o.Table)
-		if err != nil {
-			return err
+		model := o.Model
+		if model == nil {
+			if len(o.Fields) > 0 {
+				return fmt.Errorf("fields for monitoring table %s provided without a model", o.Table)
+			}
+			model, err = db.model.NewModel(o.Table)
+			if err != nil {
+				return err
+			}
 		}
 		info, err := db.model.NewModelInfo(model)
 		if err != nil {

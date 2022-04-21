@@ -63,6 +63,9 @@ type TableMonitor struct {
 	Table string
 	// Condition is the condition under which the table should be monitored
 	Condition model.Condition
+	// ORM model of the table being monitored. This is required when specififc
+	// Fields (below) are used.
+	Model model.Model
 	// Fields are the fields in the model to monitor
 	// If none are supplied, all fields will be used
 	Fields []interface{}
@@ -76,6 +79,7 @@ func WithTable(m model.Model, fields ...interface{}) MonitorOption {
 		}
 		tableMonitor := TableMonitor{
 			Table:  tableName,
+			Model:  m,
 			Fields: fields,
 		}
 		monitor.Tables = append(monitor.Tables, tableMonitor)
@@ -92,6 +96,7 @@ func WithConditionalTable(m model.Model, condition model.Condition, fields ...in
 		tableMonitor := TableMonitor{
 			Table:     tableName,
 			Condition: condition,
+			Model:     m,
 			Fields:    fields,
 		}
 		monitor.Tables = append(monitor.Tables, tableMonitor)
