@@ -61,9 +61,8 @@ Conditions must refer to fields of the provided Model (via pointer to fields). E
 		Value: []string{"portUUID"},
 	    })
 
-If no client.Condition is provided, the client will use the first non-null field that corresponds
-to a database index to generate an appropriate condition. Therefore the following
-two statements are equivalent:
+If no client.Condition is provided, the client will use any of fields that correspond to indexes to
+generate an appropriate condition. Therefore the following two statements are equivalent:
 
 	ls = &MyLogicalSwitch {UUID:"myUUID"}
 
@@ -111,7 +110,7 @@ same condition using Where() or WhereAll() which will be more efficient.
 
 Get
 
-Get() operation is a simple operation capable of retrieving one Model based on some of its indexes. E.g:
+Get() operation is a simple operation capable of retrieving one Model based on some of its schema indexes. E.g:
 
 	ls := &LogicalSwitch{UUID:"myUUID"}
 	err := ovs.Get(ls)

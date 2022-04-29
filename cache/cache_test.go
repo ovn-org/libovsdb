@@ -164,7 +164,96 @@ func TestRowCacheCreate(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.Nil(t, err)
-				assert.Equal(t, tt.uuid, rc.indexes["foo"][tt.model.Foo])
+				assert.Len(t, rc.indexes["foo"][tt.model.Foo], 1)
+				assert.Equal(t, tt.uuid, rc.indexes["foo"][tt.model.Foo].getAny())
+			}
+		})
+	}
+}
+
+func TestRowCacheCreateClientIndex(t *testing.T) {
+	var schema ovsdb.DatabaseSchema
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	db.SetIndexes(map[string][]model.ClientIndex{
+		"Open_vSwitch": {
+			{
+				Columns: []model.ColumnKey{
+					{
+						Column: "foo",
+					},
+				},
+			},
+		},
+	})
+	require.Nil(t, err)
+	err = json.Unmarshal([]byte(`{
+		"name": "Open_vSwitch",
+		"tables": {
+		  "Open_vSwitch": {
+		    "columns": {
+		      "foo": {
+			    "type": "string"
+			  },
+			  "bar": {
+			    "type": "string"
+			  }
+		    }
+		  }
+		}
+	}`), &schema)
+	require.Nil(t, err)
+	testData := Data{
+		"Open_vSwitch": map[string]model.Model{"bar": &testModel{Foo: "bar"}},
+	}
+
+	dbModel, errs := model.NewDatabaseModel(schema, db)
+	require.Empty(t, errs)
+
+	tests := []struct {
+		name     string
+		uuid     string
+		model    *testModel
+		wantErr  bool
+		expected valueToUUIDs
+	}{
+		{
+			name:    "inserts a new row",
+			uuid:    "foo",
+			model:   &testModel{Foo: "foo"},
+			wantErr: false,
+			expected: valueToUUIDs{
+				"foo": newUUIDSet("foo"),
+				"bar": newUUIDSet("bar"),
+			},
+		},
+		{
+			name:    "error duplicate uuid",
+			uuid:    "bar",
+			model:   &testModel{Foo: "foo"},
+			wantErr: true,
+		},
+		{
+			name:    "inserts duplicate index",
+			uuid:    "baz",
+			model:   &testModel{Foo: "bar"},
+			wantErr: false,
+			expected: valueToUUIDs{
+				"bar": newUUIDSet("bar", "baz"),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc, err := NewTableCache(dbModel, testData, nil)
+			require.Nil(t, err)
+			rc := tc.Table("Open_vSwitch")
+			require.NotNil(t, rc)
+			err = rc.Create(tt.uuid, tt.model, true)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.Nil(t, err)
+				require.Equal(t, tt.expected, rc.indexes["foo"])
 			}
 		})
 	}
@@ -256,9 +345,184 @@ func TestRowCacheCreateMultiIndex(t *testing.T) {
 				assert.Nil(t, err)
 				mapperInfo, err := dbModel.NewModelInfo(tt.model)
 				require.Nil(t, err)
-				h, err := valueFromIndex(mapperInfo, newIndex("foo", "bar"))
+				h, err := valueFromIndex(mapperInfo, newColumnKeysFromColumns("foo", "bar"))
 				require.Nil(t, err)
-				assert.Equal(t, tt.uuid, rc.indexes["foo,bar"][h])
+				assert.Len(t, rc.indexes["foo,bar"][h], 1)
+				assert.Equal(t, tt.uuid, rc.indexes["foo,bar"][h].getAny())
+			}
+		})
+	}
+}
+
+func TestRowCacheCreateMultiClientIndex(t *testing.T) {
+	type testModel struct {
+		UUID string            `ovsdb:"_uuid"`
+		Foo  string            `ovsdb:"foo"`
+		Bar  map[string]string `ovsdb:"bar"`
+	}
+	var schema ovsdb.DatabaseSchema
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	require.Nil(t, err)
+
+	db.SetIndexes(map[string][]model.ClientIndex{
+		"Open_vSwitch": {
+			{
+				Columns: []model.ColumnKey{
+					{
+						Column: "foo",
+					},
+					{
+						Column: "bar",
+						Key:    "bar",
+					},
+				},
+			},
+		},
+	})
+	index := newIndexFromColumnKeys(db.Indexes("Open_vSwitch")[0].Columns...)
+
+	err = json.Unmarshal([]byte(`{
+		"name": "Open_vSwitch",
+		"tables": {
+		  "Open_vSwitch": {
+		    "columns": {
+		      "foo": {
+			    "type": "string"
+			  },
+			  "bar": {
+				"type": {
+					"key": "string",
+					"value": "string",
+					"min": 0, 
+					"max": "unlimited"
+				}
+			  }
+		    }
+		  }
+		}
+	}`), &schema)
+	require.Nil(t, err)
+
+	testData := Data{
+		"Open_vSwitch": map[string]model.Model{"bar": &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}}},
+	}
+	dbModel, errs := model.NewDatabaseModel(schema, db)
+	require.Empty(t, errs)
+
+	type expected struct {
+		index model.Model
+		uuids uuidset
+	}
+
+	tests := []struct {
+		name     string
+		uuid     string
+		model    *testModel
+		wantErr  bool
+		expected []expected
+	}{
+		{
+			name:    "inserts a new row",
+			uuid:    "foo",
+			model:   &testModel{Foo: "foo", Bar: map[string]string{"bar": "foo"}},
+			wantErr: false,
+			expected: []expected{
+				{
+					index: &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}},
+					uuids: newUUIDSet("bar"),
+				},
+				{
+					index: &testModel{Foo: "foo", Bar: map[string]string{"bar": "foo"}},
+					uuids: newUUIDSet("foo"),
+				},
+			},
+		},
+		{
+			name:    "error duplicate uuid",
+			uuid:    "bar",
+			model:   &testModel{Foo: "foo", Bar: map[string]string{"bar": "bar"}},
+			wantErr: true,
+		},
+		{
+			name:    "inserts duplicate index",
+			uuid:    "baz",
+			model:   &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}},
+			wantErr: false,
+			expected: []expected{
+				{
+					index: &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}},
+					uuids: newUUIDSet("bar", "baz"),
+				},
+			},
+		},
+		{
+			name:    "new row with one duplicate value",
+			uuid:    "baz",
+			model:   &testModel{Foo: "foo", Bar: map[string]string{"bar": "bar"}},
+			wantErr: false,
+			expected: []expected{
+				{
+					index: &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}},
+					uuids: newUUIDSet("bar"),
+				},
+				{
+					index: &testModel{Foo: "foo", Bar: map[string]string{"bar": "bar"}},
+					uuids: newUUIDSet("baz"),
+				},
+			},
+		},
+		{
+			name:    "new row with other duplicate value",
+			uuid:    "baz",
+			model:   &testModel{Foo: "bar", Bar: map[string]string{"bar": "foo"}},
+			wantErr: false,
+			expected: []expected{
+				{
+					index: &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}},
+					uuids: newUUIDSet("bar"),
+				},
+				{
+					index: &testModel{Foo: "bar", Bar: map[string]string{"bar": "foo"}},
+					uuids: newUUIDSet("baz"),
+				},
+			},
+		},
+		{
+			name:    "new row with nil map index",
+			uuid:    "baz",
+			model:   &testModel{Foo: "bar"},
+			wantErr: false,
+			expected: []expected{
+				{
+					index: &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}},
+					uuids: newUUIDSet("bar"),
+				},
+				{
+					index: &testModel{Foo: "bar"},
+					uuids: newUUIDSet("baz"),
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc, err := NewTableCache(dbModel, testData, nil)
+			require.Nil(t, err)
+			rc := tc.Table("Open_vSwitch")
+			require.NotNil(t, rc)
+			err = rc.Create(tt.uuid, tt.model, true)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.Nil(t, err)
+				require.Len(t, rc.indexes[index], len(tt.expected))
+				for _, expected := range tt.expected {
+					mapperInfo, err := dbModel.NewModelInfo(expected.index)
+					require.Nil(t, err)
+					h, err := valueFromIndex(mapperInfo, db.Indexes("Open_vSwitch")[0].Columns)
+					require.Nil(t, err)
+					require.Equal(t, expected.uuids, rc.indexes[index][h], expected.index)
+				}
 			}
 		})
 	}
@@ -342,7 +606,119 @@ func TestRowCacheUpdate(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.Nil(t, err)
-				assert.Equal(t, tt.uuid, rc.indexes["foo"][tt.model.Foo])
+				assert.Len(t, rc.indexes["foo"][tt.model.Foo], 1)
+				assert.Equal(t, tt.uuid, rc.indexes["foo"][tt.model.Foo].getAny())
+			}
+		})
+	}
+}
+
+func TestRowCacheUpdateClientIndex(t *testing.T) {
+	var schema ovsdb.DatabaseSchema
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	require.Nil(t, err)
+	db.SetIndexes(map[string][]model.ClientIndex{
+		"Open_vSwitch": {
+			{
+				Columns: []model.ColumnKey{
+					{
+						Column: "foo",
+					},
+				},
+			},
+		},
+	})
+	err = json.Unmarshal([]byte(`{
+		"name": "Open_vSwitch",
+		"tables": {
+		  "Open_vSwitch": {
+		    "columns": {
+		      "foo": {
+			    "type": "string"
+			  },
+			  "bar": {
+			    "type": "string"
+			  }
+		    }
+		  }
+		}
+	}`), &schema)
+	require.Nil(t, err)
+	testData := Data{
+		"Open_vSwitch": map[string]model.Model{
+			"foo":    &testModel{Foo: "foo", Bar: "foo"},
+			"bar":    &testModel{Foo: "bar", Bar: "bar"},
+			"foobar": &testModel{Foo: "bar", Bar: "foobar"},
+		},
+	}
+	dbModel, errs := model.NewDatabaseModel(schema, db)
+	require.Empty(t, errs)
+
+	tests := []struct {
+		name     string
+		uuid     string
+		model    *testModel
+		wantErr  bool
+		expected valueToUUIDs
+	}{
+		{
+			name:    "error if row does not exist",
+			uuid:    "baz",
+			model:   &testModel{Foo: "baz"},
+			wantErr: true,
+		},
+		{
+			name:    "update non-index",
+			uuid:    "foo",
+			model:   &testModel{Foo: "foo", Bar: "bar"},
+			wantErr: false,
+			expected: valueToUUIDs{
+				"foo": newUUIDSet("foo"),
+				"bar": newUUIDSet("bar", "foobar"),
+			},
+		},
+		{
+			name:    "update unique index to new index",
+			uuid:    "foo",
+			model:   &testModel{Foo: "baz"},
+			wantErr: false,
+			expected: valueToUUIDs{
+				"baz": newUUIDSet("foo"),
+				"bar": newUUIDSet("bar", "foobar"),
+			},
+		},
+		{
+			name:    "update unique index to existing index",
+			uuid:    "foo",
+			model:   &testModel{Foo: "bar"},
+			wantErr: false,
+			expected: valueToUUIDs{
+				"bar": newUUIDSet("foo", "bar", "foobar"),
+			},
+		},
+		{
+			name:    "update multi index to different index",
+			uuid:    "foobar",
+			model:   &testModel{Foo: "foo"},
+			wantErr: false,
+			expected: valueToUUIDs{
+				"foo": newUUIDSet("foo", "foobar"),
+				"bar": newUUIDSet("bar"),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc, err := NewTableCache(dbModel, testData, nil)
+			require.Nil(t, err)
+			rc := tc.Table("Open_vSwitch")
+			require.NotNil(t, rc)
+			err = rc.Update(tt.uuid, tt.model, true)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.Nil(t, err)
+				require.Equal(t, tt.expected, rc.indexes["foo"])
 			}
 		})
 	}
@@ -423,9 +799,207 @@ func TestRowCacheUpdateMultiIndex(t *testing.T) {
 				assert.Nil(t, err)
 				mapperInfo, err := dbModel.NewModelInfo(tt.model)
 				require.Nil(t, err)
-				h, err := valueFromIndex(mapperInfo, newIndex("foo", "bar"))
+				h, err := valueFromIndex(mapperInfo, newColumnKeysFromColumns("foo", "bar"))
 				require.Nil(t, err)
-				assert.Equal(t, tt.uuid, rc.indexes["foo,bar"][h])
+				assert.Len(t, rc.indexes["foo,bar"][h], 1)
+				assert.Equal(t, tt.uuid, rc.indexes["foo,bar"][h].getAny())
+			}
+		})
+	}
+}
+
+func TestRowCacheUpdateMultiClientIndex(t *testing.T) {
+	type testModel struct {
+		UUID string            `ovsdb:"_uuid"`
+		Foo  string            `ovsdb:"foo"`
+		Bar  map[string]string `ovsdb:"bar"`
+		Baz  string            `ovsdb:"baz"`
+	}
+	var schema ovsdb.DatabaseSchema
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	require.Nil(t, err)
+
+	db.SetIndexes(map[string][]model.ClientIndex{
+		"Open_vSwitch": {
+			{
+				Columns: []model.ColumnKey{
+					{
+						Column: "foo",
+					},
+					{
+						Column: "bar",
+						Key:    "bar",
+					},
+				},
+			},
+		},
+	})
+	index := newIndexFromColumnKeys(db.Indexes("Open_vSwitch")[0].Columns...)
+
+	err = json.Unmarshal([]byte(`{
+		"name": "Open_vSwitch",
+		"tables": {
+		  "Open_vSwitch": {
+		    "columns": {
+		      "foo": {
+			    "type": "string"
+			  },
+			  "bar": {
+				"type": {
+					"key": "string",
+					"value": "string",
+					"min": 0, 
+					"max": "unlimited"
+				}
+			  },
+			  "baz": {
+			    "type": "string"
+			  }
+		    }
+		  }
+		}
+	}`), &schema)
+	require.Nil(t, err)
+
+	testData := Data{
+		"Open_vSwitch": map[string]model.Model{
+			"foo":    &testModel{Foo: "foo", Bar: map[string]string{"bar": "foo"}},
+			"bar":    &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}},
+			"foobar": &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}},
+		},
+	}
+	dbModel, errs := model.NewDatabaseModel(schema, db)
+	require.Empty(t, errs)
+
+	type expected struct {
+		index model.Model
+		uuids uuidset
+	}
+
+	tests := []struct {
+		name     string
+		uuid     string
+		model    *testModel
+		wantErr  bool
+		expected []expected
+	}{
+		{
+			name:    "error if row does not exist",
+			uuid:    "baz",
+			model:   &testModel{Foo: "baz", Bar: map[string]string{"bar": "baz"}},
+			wantErr: true,
+		},
+		{
+			name:  "update non-index",
+			uuid:  "foo",
+			model: &testModel{Foo: "foo", Bar: map[string]string{"bar": "foo"}, Baz: "bar"},
+			expected: []expected{
+				{
+					index: &testModel{Foo: "foo", Bar: map[string]string{"bar": "foo"}},
+					uuids: newUUIDSet("foo"),
+				},
+				{
+					index: &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}},
+					uuids: newUUIDSet("bar", "foobar"),
+				},
+			},
+		},
+		{
+			name:    "update one index column",
+			uuid:    "foo",
+			model:   &testModel{Foo: "foo", Bar: map[string]string{"bar": "baz"}},
+			wantErr: false,
+			expected: []expected{
+				{
+					index: &testModel{Foo: "foo", Bar: map[string]string{"bar": "baz"}},
+					uuids: newUUIDSet("foo"),
+				},
+				{
+					index: &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}},
+					uuids: newUUIDSet("bar", "foobar"),
+				},
+			},
+		},
+		{
+			name:    "update other index column",
+			uuid:    "foo",
+			model:   &testModel{Foo: "baz", Bar: map[string]string{"bar": "foo"}},
+			wantErr: false,
+			expected: []expected{
+				{
+					index: &testModel{Foo: "baz", Bar: map[string]string{"bar": "foo"}},
+					uuids: newUUIDSet("foo"),
+				},
+				{
+					index: &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}},
+					uuids: newUUIDSet("bar", "foobar"),
+				},
+			},
+		},
+		{
+			name:    "update both index columns",
+			uuid:    "foo",
+			model:   &testModel{Foo: "baz", Bar: map[string]string{"bar": "baz"}},
+			wantErr: false,
+			expected: []expected{
+				{
+					index: &testModel{Foo: "baz", Bar: map[string]string{"bar": "baz"}},
+					uuids: newUUIDSet("foo"),
+				},
+				{
+					index: &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}},
+					uuids: newUUIDSet("bar", "foobar"),
+				},
+			},
+		},
+		{
+			name:    "update unique index to existing index",
+			uuid:    "foo",
+			model:   &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}},
+			wantErr: false,
+			expected: []expected{
+				{
+					index: &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}},
+					uuids: newUUIDSet("foo", "bar", "foobar"),
+				},
+			},
+		},
+		{
+			name:    "update multi index to different index",
+			uuid:    "foobar",
+			model:   &testModel{Foo: "foo", Bar: map[string]string{"bar": "foo"}},
+			wantErr: false,
+			expected: []expected{
+				{
+					index: &testModel{Foo: "foo", Bar: map[string]string{"bar": "foo"}},
+					uuids: newUUIDSet("foo", "foobar"),
+				},
+				{
+					index: &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}},
+					uuids: newUUIDSet("bar"),
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc, err := NewTableCache(dbModel, testData, nil)
+			require.Nil(t, err)
+			rc := tc.Table("Open_vSwitch")
+			require.NotNil(t, rc)
+			err = rc.Update(tt.uuid, tt.model, true)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.Nil(t, err)
+				require.Len(t, rc.indexes[index], len(tt.expected))
+				for _, expectedUUID := range tt.expected {
+					mapperInfo, err := dbModel.NewModelInfo(expectedUUID.index)
+					require.Nil(t, err)
+					h, err := valueFromIndex(mapperInfo, db.Indexes("Open_vSwitch")[0].Columns)
+					require.Nil(t, err)
+					require.Equal(t, expectedUUID.uuids, rc.indexes[index][h], expectedUUID.index)
+				}
 			}
 		})
 	}
@@ -491,7 +1065,137 @@ func TestRowCacheDelete(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				require.Nil(t, err)
-				assert.Equal(t, "", rc.indexes["foo"][tt.model.Foo])
+				assert.Nil(t, rc.indexes["foo"][tt.model.Foo])
+			}
+		})
+	}
+}
+
+func TestRowCacheDeleteClientIndex(t *testing.T) {
+	type testModel struct {
+		UUID string            `ovsdb:"_uuid"`
+		Foo  string            `ovsdb:"foo"`
+		Bar  map[string]string `ovsdb:"bar"`
+	}
+	var schema ovsdb.DatabaseSchema
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	require.Nil(t, err)
+
+	db.SetIndexes(map[string][]model.ClientIndex{
+		"Open_vSwitch": {
+			{
+				Columns: []model.ColumnKey{
+					{
+						Column: "foo",
+					},
+					{
+						Column: "bar",
+						Key:    "bar",
+					},
+				},
+			},
+		},
+	})
+	index := newIndexFromColumnKeys(db.Indexes("Open_vSwitch")[0].Columns...)
+
+	err = json.Unmarshal([]byte(`{
+		"name": "Open_vSwitch",
+		"tables": {
+		  "Open_vSwitch": {
+		    "columns": {
+		      "foo": {
+			    "type": "string"
+			  },
+			  "bar": {
+				"type": {
+					"key": "string",
+					"value": "string",
+					"min": 0, 
+					"max": "unlimited"
+				}
+			  }
+		    }
+		  }
+		}
+	}`), &schema)
+	require.Nil(t, err)
+
+	testData := Data{
+		"Open_vSwitch": map[string]model.Model{
+			"foo":    &testModel{Foo: "foo", Bar: map[string]string{"bar": "foo"}},
+			"bar":    &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}},
+			"foobar": &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}},
+		},
+	}
+	dbModel, errs := model.NewDatabaseModel(schema, db)
+	require.Empty(t, errs)
+
+	type expected struct {
+		index model.Model
+		uuids uuidset
+	}
+
+	tests := []struct {
+		name     string
+		uuid     string
+		model    *testModel
+		wantErr  bool
+		expected []expected
+	}{
+		{
+			name:    "error if row does not exist",
+			uuid:    "baz",
+			model:   &testModel{Foo: "baz", Bar: map[string]string{"bar": "baz"}},
+			wantErr: true,
+		},
+		{
+			name:    "delete a row with unique index",
+			uuid:    "foo",
+			model:   &testModel{Foo: "foo", Bar: map[string]string{"bar": "foo"}},
+			wantErr: false,
+			expected: []expected{
+				{
+					index: &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}},
+					uuids: newUUIDSet("bar", "foobar"),
+				},
+			},
+		},
+		{
+			name:    "delete a row with duplicated index",
+			uuid:    "foobar",
+			model:   &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}},
+			wantErr: false,
+			expected: []expected{
+				{
+					index: &testModel{Foo: "foo", Bar: map[string]string{"bar": "foo"}},
+					uuids: newUUIDSet("foo"),
+				},
+				{
+					index: &testModel{Foo: "bar", Bar: map[string]string{"bar": "bar"}},
+					uuids: newUUIDSet("bar"),
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc, err := NewTableCache(dbModel, testData, nil)
+			require.Nil(t, err)
+			rc := tc.Table("Open_vSwitch")
+			require.NotNil(t, rc)
+			err = rc.Delete(tt.uuid)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.Nil(t, err)
+				require.Len(t, rc.indexes[index], len(tt.expected))
+				for _, expected := range tt.expected {
+					mapperInfo, err := dbModel.NewModelInfo(expected.index)
+					require.Nil(t, err)
+					h, err := valueFromIndex(mapperInfo, db.Indexes("Open_vSwitch")[0].Columns)
+					require.Nil(t, err)
+					require.Equal(t, expected.uuids, rc.indexes[index][h], expected.index)
+				}
 			}
 		})
 	}
@@ -1109,6 +1813,27 @@ func TestIndex(t *testing.T) {
 	}
 	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &indexTestModel{}})
 	assert.Nil(t, err)
+	db.SetIndexes(map[string][]model.ClientIndex{
+		"Open_vSwitch": {
+			{
+				Columns: []model.ColumnKey{
+					{
+						Column: "bar",
+					},
+				},
+			},
+			{
+				Columns: []model.ColumnKey{
+					{
+						Column: "foo",
+					},
+					{
+						Column: "baz",
+					},
+				},
+			},
+		},
+	})
 	var schema ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(`
 		 {"name": "Open_vSwitch",
@@ -1135,34 +1860,44 @@ func TestIndex(t *testing.T) {
 	assert.Empty(t, errs)
 	tc, err := NewTableCache(dbModel, nil, nil)
 	assert.Nil(t, err)
+	table := tc.Table("Open_vSwitch")
+
 	obj := &indexTestModel{
 		UUID: "test1",
 		Foo:  "foo",
 		Bar:  "bar",
 		Baz:  42,
 	}
-	table := tc.Table("Open_vSwitch")
-
 	err = table.Create(obj.UUID, obj, true)
 	assert.Nil(t, err)
+
+	obj2 := &indexTestModel{
+		UUID: "test2",
+		Foo:  "foo2",
+		Bar:  "bar",
+		Baz:  78,
+	}
+	err = table.Create(obj2.UUID, obj2, true)
+	assert.Nil(t, err)
+
 	t.Run("Index by single column", func(t *testing.T) {
 		idx, err := table.Index("foo")
 		assert.Nil(t, err)
 		info, err := dbModel.NewModelInfo(obj)
 		assert.Nil(t, err)
-		v, err := valueFromIndex(info, newIndex("foo"))
+		v, err := valueFromIndex(info, newColumnKeysFromColumns("foo"))
 		assert.Nil(t, err)
-		assert.Equal(t, idx[v], obj.UUID)
+		assert.ElementsMatch(t, idx[v], []string{obj.UUID})
 	})
 	t.Run("Index by single column miss", func(t *testing.T) {
 		idx, err := table.Index("foo")
 		assert.Nil(t, err)
-		obj2 := obj
-		obj2.Foo = "wrong"
+		obj3 := *obj
+		obj3.Foo = "wrong"
 		assert.Nil(t, err)
-		info, err := dbModel.NewModelInfo(obj2)
+		info, err := dbModel.NewModelInfo(&obj3)
 		assert.Nil(t, err)
-		v, err := valueFromIndex(info, newIndex("foo"))
+		v, err := valueFromIndex(info, newColumnKeysFromColumns("foo"))
 		assert.Nil(t, err)
 		_, ok := idx[v]
 		assert.False(t, ok)
@@ -1180,25 +1915,39 @@ func TestIndex(t *testing.T) {
 		assert.Nil(t, err)
 		info, err := dbModel.NewModelInfo(obj)
 		assert.Nil(t, err)
-		v, err := valueFromIndex(info, newIndex("bar", "baz"))
+		v, err := valueFromIndex(info, newColumnKeysFromColumns("bar", "baz"))
 		assert.Nil(t, err)
-		assert.Equal(t, idx[v], obj.UUID)
+		assert.ElementsMatch(t, idx[v], []string{obj.UUID})
 	})
 	t.Run("Index by multi-column miss", func(t *testing.T) {
 		idx, err := table.Index("bar", "baz")
 		assert.Nil(t, err)
-		obj2 := obj
-		obj2.Baz++
-		info, err := dbModel.NewModelInfo(obj)
+		obj3 := *obj
+		obj3.Baz++
+		info, err := dbModel.NewModelInfo(&obj3)
 		assert.Nil(t, err)
-		v, err := valueFromIndex(info, newIndex("bar", "baz"))
+		v, err := valueFromIndex(info, newColumnKeysFromColumns("bar", "baz"))
 		assert.Nil(t, err)
 		_, ok := idx[v]
 		assert.False(t, ok)
 	})
-	t.Run("Index type", func(t *testing.T) {
-		idx := newIndex("foo", "bar")
-		assert.Equal(t, idx.columns(), []string{"foo", "bar"})
+	t.Run("Client index by single column", func(t *testing.T) {
+		idx, err := table.Index("bar")
+		assert.Nil(t, err)
+		info, err := dbModel.NewModelInfo(obj)
+		assert.Nil(t, err)
+		v, err := valueFromIndex(info, newColumnKeysFromColumns("bar"))
+		assert.Nil(t, err)
+		assert.ElementsMatch(t, idx[v], []string{obj.UUID, obj2.UUID})
+	})
+	t.Run("Client index by multiple column", func(t *testing.T) {
+		idx, err := table.Index("foo", "baz")
+		assert.Nil(t, err)
+		info, err := dbModel.NewModelInfo(obj)
+		assert.Nil(t, err)
+		v, err := valueFromIndex(info, newColumnKeysFromColumns("foo", "baz"))
+		assert.Nil(t, err)
+		assert.ElementsMatch(t, idx[v], []string{obj.UUID})
 	})
 }
 
@@ -1565,6 +2314,135 @@ func TestTableCacheApplyModifications(t *testing.T) {
 	}
 }
 
+func TestTableCacheRowsByModel(t *testing.T) {
+	type testModel struct {
+		UUID string            `ovsdb:"_uuid"`
+		Foo  string            `ovsdb:"foo"`
+		Bar  string            `ovsdb:"bar"`
+		Baz  map[string]string `ovsdb:"baz"`
+	}
+	var schema ovsdb.DatabaseSchema
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	require.NoError(t, err)
+	db.SetIndexes(map[string][]model.ClientIndex{
+		"Open_vSwitch": {
+			{
+				Columns: []model.ColumnKey{
+					{
+						Column: "bar",
+					},
+				},
+			},
+			{
+				Columns: []model.ColumnKey{
+					{
+						Column: "bar",
+					},
+					{
+						Column: "baz",
+						Key:    "baz",
+					},
+				},
+			},
+		},
+	})
+	err = json.Unmarshal([]byte(`{
+		"name": "Open_vSwitch",
+		"tables": {
+		  "Open_vSwitch": {
+			"indexes": [["foo"]],
+			"columns": {	
+			  "foo": {
+				"type": "string"
+			  },
+			  "bar": {
+				"type": "string"
+			  },
+			  "baz": {
+				"type": {
+					"key": "string",
+					"value": "string",
+					"min": 0, 
+					"max": "unlimited"
+				}
+			  }
+			}
+		  }
+		}
+	}`), &schema)
+	require.NoError(t, err)
+
+	testData := Data{
+		"Open_vSwitch": map[string]model.Model{
+			"foo":    &testModel{Foo: "foo", Bar: "foo", Baz: map[string]string{"baz": "foo", "other": "other"}},
+			"bar":    &testModel{Foo: "bar", Bar: "bar", Baz: map[string]string{"baz": "bar", "other": "other"}},
+			"foobar": &testModel{Foo: "foobar", Bar: "bar", Baz: map[string]string{"baz": "foobar", "other": "other"}},
+			"baz":    &testModel{Foo: "baz", Bar: "baz", Baz: map[string]string{"baz": "baz", "other": "other"}},
+			"quux":   &testModel{Foo: "quux", Bar: "quux", Baz: map[string]string{"baz": "quux", "other": "other"}},
+			"quuz":   &testModel{Foo: "quuz", Bar: "quux", Baz: map[string]string{"baz": "quux", "other": "other"}},
+		},
+	}
+	dbModel, errs := model.NewDatabaseModel(schema, db)
+	require.Empty(t, errs)
+
+	tests := []struct {
+		name  string
+		model model.Model
+		rows  map[string]model.Model
+	}{
+		{
+			"by non index, no result",
+			&testModel{Foo: "no", Bar: "no", Baz: map[string]string{"baz": "no"}},
+			nil,
+		},
+		{
+			"by single column client index, single result",
+			&testModel{Bar: "foo"},
+			map[string]model.Model{
+				"foo": testData["Open_vSwitch"]["foo"],
+			},
+		},
+		{
+			"by single column client index, multiple results",
+			&testModel{Bar: "bar"},
+			map[string]model.Model{
+				"bar":    testData["Open_vSwitch"]["bar"],
+				"foobar": testData["Open_vSwitch"]["foobar"],
+			},
+		},
+		{
+			"by multi column client index, single result",
+			&testModel{Bar: "baz", Baz: map[string]string{"baz": "baz"}},
+			map[string]model.Model{
+				"baz": testData["Open_vSwitch"]["baz"],
+			},
+		},
+		{
+			"by client index, multiple results",
+			&testModel{Bar: "quux", Baz: map[string]string{"baz": "quux"}},
+			map[string]model.Model{
+				"quux": testData["Open_vSwitch"]["quux"],
+				"quuz": testData["Open_vSwitch"]["quuz"],
+			},
+		},
+		{
+			"by schema index prioritized over client index",
+			&testModel{Foo: "foo", Bar: "bar", Baz: map[string]string{"baz": "bar"}},
+			map[string]model.Model{
+				"foo": testData["Open_vSwitch"]["foo"],
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc, err := NewTableCache(dbModel, testData, nil)
+			require.NoError(t, err)
+			rows := tc.Table("Open_vSwitch").RowsByModel(tt.model)
+			require.Equal(t, tt.rows, rows)
+		})
+	}
+}
+
 type rowsByConditionTestModel struct {
 	UUID   string            `ovsdb:"_uuid"`
 	Foo    string            `ovsdb:"foo"`
@@ -1580,26 +2458,45 @@ func setupRowsByConditionCache(t require.TestingT) *TableCache {
 	var schema ovsdb.DatabaseSchema
 	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &rowsByConditionTestModel{}})
 	require.NoError(t, err)
+	db.SetIndexes(map[string][]model.ClientIndex{
+		"Open_vSwitch": {
+			{
+				Columns: []model.ColumnKey{
+					{
+						Column: "foobar",
+						Key:    "foobar",
+					},
+				},
+			},
+			{
+				Columns: []model.ColumnKey{
+					{
+						Column: "empty",
+					},
+				},
+			},
+		},
+	})
 	err = json.Unmarshal([]byte(`{
 		"name": "Open_vSwitch",
 		"tables": {
 		  "Open_vSwitch": {
 			"indexes": [["foo"], ["bar"], ["quux", "quuz"]],
-		    "columns": {
-		      "foo": {
-			    "type": "string"
+			"columns": {	
+			  "foo": {
+				"type": "string"
 			  },
 			  "bar": {
 				"type": "string"
 			  },
 			  "baz": {
-				"type": "string"
+			    "type": "string"
 			  },
 			  "quux": {
-				"type": "string"
+			    "type": "string"
 			  },
 			  "quuz": {
-				"type": "string"
+			    "type": "string"
 			  },
 			  "foobar": {
 				"type": {
@@ -1610,14 +2507,13 @@ func setupRowsByConditionCache(t require.TestingT) *TableCache {
 				}
 			  },
 			  "empty": {
-				"type": "string"
+			    "type": "string"
 			  }
-		    }
+			}
 		  }
 		}
 	}`), &schema)
 	require.NoError(t, err)
-
 	dbModel, errs := model.NewDatabaseModel(schema, db)
 	require.Empty(t, errs)
 	tc, err := NewTableCache(dbModel, nil, nil)
@@ -1632,12 +2528,13 @@ func BenchmarkRowsByCondition(b *testing.B) {
 	models := []*rowsByConditionTestModel{}
 	for i := 0; i < numRows; i++ {
 		model := &rowsByConditionTestModel{
-			UUID: fmt.Sprintf("UUID-%d", i),
-			Foo:  fmt.Sprintf("Foo-%d", i),
-			Bar:  fmt.Sprintf("Bar-%d", i),
-			Baz:  fmt.Sprintf("Baz-%d", i),
-			Quux: fmt.Sprintf("Quux-%d", i),
-			Quuz: fmt.Sprintf("Quuz-%d", i),
+			UUID:   fmt.Sprintf("UUID-%d", i),
+			Foo:    fmt.Sprintf("Foo-%d", i),
+			Bar:    fmt.Sprintf("Bar-%d", i),
+			Baz:    fmt.Sprintf("Baz-%d", i),
+			Quux:   fmt.Sprintf("Quux-%d", i),
+			Quuz:   fmt.Sprintf("Quuz-%d", i),
+			FooBar: map[string]string{"foobar": fmt.Sprintf("FooBar-%d", i)},
 		}
 		err := rc.Create(model.UUID, model, true)
 		require.NoError(b, err)
@@ -1663,6 +2560,14 @@ func BenchmarkRowsByCondition(b *testing.B) {
 			prepare: func(i int) []ovsdb.Condition {
 				return []ovsdb.Condition{
 					{Column: "foo", Function: ovsdb.ConditionEqual, Value: models[i].Foo},
+				}
+			},
+		},
+		{
+			name: "by single column client index",
+			prepare: func(i int) []ovsdb.Condition {
+				return []ovsdb.Condition{
+					{Column: "foobar", Function: ovsdb.ConditionIncludes, Value: ovsdb.OvsMap{GoMap: map[interface{}]interface{}{"foobar": models[i].FooBar["foobar"]}}},
 				}
 			},
 		},

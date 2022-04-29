@@ -77,11 +77,7 @@ func (c *equalityConditional) Matches() (map[string]model.Model, error) {
 	if tableCache == nil {
 		return nil, ErrNotFound
 	}
-	u, m := tableCache.RowByModel(c.model)
-	if m == nil {
-		return nil, nil
-	}
-	return map[string]model.Model{u: m} , nil
+	return tableCache.RowsByModel(c.model), nil
 }
 
 // Generate conditions based on the equality of the first available index. If

@@ -29,7 +29,7 @@ type API interface {
 	// Create a ConditionalAPI from a Model's index data or a list of Conditions
 	// where operations apply to elements that match any of the conditions
 	// If no condition is given, it will match the values provided in model.Model according
-	// to the database index.
+	// to the indexes.
 	Where(model.Model, ...model.Condition) ConditionalAPI
 
 	// Create a ConditionalAPI from a Model's index data or a list of Conditions
@@ -170,12 +170,12 @@ func (a api) List(ctx context.Context, result interface{}) error {
 
 // Where returns a conditionalAPI based on a Condition list
 func (a api) Where(model model.Model, cond ...model.Condition) ConditionalAPI {
-	return newConditionalAPI(a.cache, a.conditionFromModel(false, model, cond...), a.logger)
+	return newConditionalAPI(a.cache, a.conditionFromModel(false, false, model, cond...), a.logger)
 }
 
 // Where returns a conditionalAPI based on a Condition list
 func (a api) WhereAll(model model.Model, cond ...model.Condition) ConditionalAPI {
-	return newConditionalAPI(a.cache, a.conditionFromModel(true, model, cond...), a.logger)
+	return newConditionalAPI(a.cache, a.conditionFromModel(true, false, model, cond...), a.logger)
 }
 
 // Where returns a conditionalAPI based a Predicate
@@ -199,7 +199,7 @@ func (a api) conditionFromFunc(predicate interface{}) Conditional {
 }
 
 // FromModel returns a Condition from a model and a list of fields
-func (a api) conditionFromModel(any bool, model model.Model, cond ...model.Condition) Conditional {
+func (a api) conditionFromModel(any bool, cache bool, model model.Model, cond ...model.Condition) Conditional {
 	var conditional Conditional
 	var err error
 
@@ -213,7 +213,6 @@ func (a api) conditionFromModel(any bool, model model.Model, cond ...model.Condi
 		if err != nil {
 			conditional = newErrorConditional(err)
 		}
-
 	} else {
 		conditional, err = newExplicitConditional(tableName, a.cache, any, model, cond...)
 		if err != nil {
