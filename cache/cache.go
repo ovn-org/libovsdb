@@ -112,20 +112,22 @@ func (r *RowCache) Row(uuid string) model.Model {
 	return r.rowByUUID(uuid)
 }
 
-// RowByModel searches the cache using a the indexes for a provided model
-func (r *RowCache) RowByModel(m model.Model) model.Model {
+// RowByModel searches the cache using indexes for a provided model. Returns the
+// found Model along with its UUID.
+func (r *RowCache) RowByModel(m model.Model) (string, model.Model) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 	if reflect.TypeOf(m) != r.dataType {
-		return nil
+		return "", nil
 	}
 	info, _ := r.dbModel.NewModelInfo(m)
-	uuid, err := info.FieldByColumn("_uuid")
+	field, err := info.FieldByColumn("_uuid")
 	if err != nil {
-		return nil
+		return "", nil
 	}
-	if uuid.(string) != "" {
-		return r.rowByUUID(uuid.(string))
+	uuid := field.(string)
+	if uuid != "" {
+		return uuid, r.rowByUUID(uuid)
 	}
 	for index, vals := range r.indexes {
 		val, err := valueFromIndex(info, index)
@@ -133,10 +135,10 @@ func (r *RowCache) RowByModel(m model.Model) model.Model {
 			continue
 		}
 		if uuid, ok := vals[val]; ok {
-			return r.rowByUUID(uuid)
+			return uuid, r.rowByUUID(uuid)
 		}
 	}
-	return nil
+	return "", nil
 }
 
 // Create writes the provided content to the cache

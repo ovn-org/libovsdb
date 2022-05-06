@@ -61,8 +61,8 @@ Conditions must refer to fields of the provided Model (via pointer to fields). E
 		Value: []string{"portUUID"},
 	    })
 
-If no client.Condition is provided, the client will create a default Condition based on the Model's data.
-The first non-null field that corresponds to a database index will be used. Therefore the following
+If no client.Condition is provided, the client will use the first non-null field that corresponds
+to a database index to generate an appropriate condition. Therefore the following
 two statements are equivalent:
 
 	ls = &MyLogicalSwitch {UUID:"myUUID"}

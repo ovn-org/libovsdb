@@ -147,29 +147,24 @@ func (a api) List(ctx context.Context, result interface{}) error {
 	}
 	i := resultVal.Len()
 
-	var conditions [][]ovsdb.Condition
+	var rows map[string]model.Model
 	if a.cond != nil {
-		conditions, err = a.cond.Generate()
+		rows, err = a.cond.Matches()
 		if err != nil {
 			return err
 		}
 	} else {
-		conditions = append(conditions, []ovsdb.Condition{})
+		rows = tableCache.Rows()
 	}
 
-	for _, condition := range conditions {
-		matchingRows, err := tableCache.RowsByCondition(condition)
-		if err != nil {
-			return err
+	for _, row := range rows {
+		if i >= resultVal.Cap() {
+			break
 		}
-		for _, row := range matchingRows {
-			if i >= resultVal.Cap() {
-				return nil
-			}
-			appendValue(reflect.ValueOf(row))
-			i++
-		}
+		appendValue(reflect.ValueOf(row))
+		i++
 	}
+
 	return nil
 }
 
@@ -214,13 +209,13 @@ func (a api) conditionFromModel(any bool, model model.Model, cond ...model.Condi
 	}
 
 	if len(cond) == 0 {
-		conditional, err = newEqualityConditional(a.cache.DatabaseModel(), tableName, any, model)
+		conditional, err = newEqualityConditional(tableName, a.cache, model)
 		if err != nil {
 			conditional = newErrorConditional(err)
 		}
 
 	} else {
-		conditional, err = newExplicitConditional(a.cache.DatabaseModel(), tableName, any, model, cond...)
+		conditional, err = newExplicitConditional(tableName, a.cache, any, model, cond...)
 		if err != nil {
 			conditional = newErrorConditional(err)
 		}
@@ -245,7 +240,7 @@ func (a api) Get(ctx context.Context, m model.Model) error {
 		return ErrNotFound
 	}
 
-	found := tableCache.RowByModel(m)
+	_, found := tableCache.RowByModel(m)
 	if found == nil {
 		return ErrNotFound
 	}

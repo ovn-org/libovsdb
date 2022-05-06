@@ -311,13 +311,11 @@ func TestAPIListFields(t *testing.T) {
 		fields  []interface{}
 		prepare func(*testLogicalSwitchPort)
 		content []model.Model
-		err     bool
 	}{
 		{
-			name:    "empty object and no explicit conditions must fail",
+			name:    "No match",
 			prepare: func(t *testLogicalSwitchPort) {},
-			content: lspcacheList,
-			err:     true,
+			content: []model.Model{},
 		},
 		{
 			name: "List unique by UUID",
@@ -325,7 +323,6 @@ func TestAPIListFields(t *testing.T) {
 				t.UUID = aUUID0
 			},
 			content: []model.Model{lspcache[aUUID0]},
-			err:     false,
 		},
 		{
 			name: "List unique by Index",
@@ -333,25 +330,19 @@ func TestAPIListFields(t *testing.T) {
 				t.Name = "lsp2"
 			},
 			content: []model.Model{lspcache[aUUID2]},
-			err:     false,
 		},
 	}
 
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiListFields: %s", tt.name), func(t *testing.T) {
-			var result []testLogicalSwitchPort
+			var result []*testLogicalSwitchPort
 			// Clean object
 			testObj := testLogicalSwitchPort{}
 			tt.prepare(&testObj)
 			api := newAPI(tcache, &discardLogger)
 			err := api.Where(&testObj).List(context.Background(), &result)
-			if tt.err {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-				assert.ElementsMatchf(t, tt.content, tt.content, "Content should match")
-			}
-
+			assert.Nil(t, err)
+			assert.ElementsMatchf(t, tt.content, result, "Content should match")
 		})
 	}
 
