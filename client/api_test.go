@@ -253,7 +253,7 @@ func TestAPIListPredicate(t *testing.T) {
 
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiListPredicate: %s", tt.name), func(t *testing.T) {
-			var result []testLogicalSwitch
+			var result []*testLogicalSwitch
 			api := newAPI(tcache, &discardLogger)
 			cond := api.WhereCache(tt.predicate)
 			err := cond.List(context.Background(), &result)
@@ -263,9 +263,91 @@ func TestAPIListPredicate(t *testing.T) {
 				if !assert.Nil(t, err) {
 					t.Log(err)
 				}
-				assert.ElementsMatchf(t, tt.content, tt.content, "Content should match")
+				assert.ElementsMatchf(t, tt.content, result, "Content should match")
 			}
 
+		})
+	}
+}
+
+func TestAPIListWhereConditions(t *testing.T) {
+	lscacheList := []model.Model{
+		&testLogicalSwitchPort{
+			UUID: aUUID0,
+			Name: "lsp0",
+			Type: "",
+		},
+		&testLogicalSwitchPort{
+			UUID: aUUID1,
+			Name: "lsp1",
+			Type: "router",
+		},
+		&testLogicalSwitchPort{
+			UUID: aUUID2,
+			Name: "lsp2",
+			Type: "router",
+		},
+		&testLogicalSwitchPort{
+			UUID: aUUID3,
+			Name: "lsp3",
+			Type: "localnet",
+		},
+	}
+	lscache := map[string]model.Model{}
+	for i := range lscacheList {
+		lscache[lscacheList[i].(*testLogicalSwitchPort).UUID] = lscacheList[i]
+	}
+	testData := cache.Data{
+		"Logical_Switch_Port": lscache,
+	}
+	tcache := apiTestCache(t, testData)
+
+	test := []struct {
+		desc       string
+		matchNames []string
+		matchTypes []string
+		matchAll   bool
+		result     []model.Model
+	}{
+		{
+			desc:       "any conditions",
+			matchNames: []string{"lsp0"},
+			matchTypes: []string{"router"},
+			matchAll:   false,
+			result:     lscacheList[0:3],
+		},
+		{
+			desc:       "all conditions",
+			matchNames: []string{"lsp1"},
+			matchTypes: []string{"router"},
+			matchAll:   true,
+			result:     lscacheList[1:2],
+		},
+	}
+
+	for _, tt := range test {
+		t.Run(fmt.Sprintf("TestAPIListWhereConditions: %s", tt.desc), func(t *testing.T) {
+			var result []*testLogicalSwitchPort
+			api := newAPI(tcache, &discardLogger)
+			testObj := &testLogicalSwitchPort{}
+			conds := []model.Condition{}
+			for _, name := range tt.matchNames {
+				cond := model.Condition{Field: &testObj.Name, Function: ovsdb.ConditionEqual, Value: name}
+				conds = append(conds, cond)
+			}
+			for _, atype := range tt.matchTypes {
+				cond := model.Condition{Field: &testObj.Type, Function: ovsdb.ConditionEqual, Value: atype}
+				conds = append(conds, cond)
+			}
+			var capi ConditionalAPI
+			if tt.matchAll {
+				capi = api.WhereAll(testObj, conds...)
+			} else {
+				capi = api.Where(testObj, conds...)
+			}
+			err := capi.List(context.Background(), &result)
+			assert.NoError(t, err)
+			assert.ElementsMatchf(t, tt.result, result, "Content should match")
 		})
 	}
 }

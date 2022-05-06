@@ -438,75 +438,94 @@ func (r *RowCache) RowsShallow() map[string]model.Model {
 	return result
 }
 
+// RowsByCondition searches models in the cache that matches all conditions
 func (r *RowCache) RowsByCondition(conditions []ovsdb.Condition) (map[string]model.Model, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
 	results := make(map[string]model.Model)
 	schema := r.dbModel.Schema.Table(r.name)
 	if len(conditions) == 0 {
-		for uuid, row := range r.Rows() {
-			results[uuid] = row
+		for uuid := range r.cache {
+			results[uuid] = r.rowByUUID(uuid)
 		}
 		return results, nil
 	}
 
+	var matchingAll uuidset
 	for _, condition := range conditions {
-		if condition.Column == "_uuid" {
-			ovsdbUUID, ok := condition.Value.(ovsdb.UUID)
+		matchingCondition := uuidset{}
+
+		tSchema := schema.Column(condition.Column)
+		nativeValue, err := ovsdb.OvsToNative(tSchema, condition.Value)
+		if err != nil {
+			return nil, err
+		}
+
+		// TODO: further optimize RowsByCondition via multi-column indexes
+		if condition.Column == "_uuid" && (condition.Function == ovsdb.ConditionEqual || condition.Function == ovsdb.ConditionIncludes) {
+			uuid, ok := nativeValue.(string)
 			if !ok {
-				panic(fmt.Sprintf("%+v is not an ovsdb uuid", ovsdbUUID))
+				panic(fmt.Sprintf("%+v is not a uuid", nativeValue))
 			}
-			uuid := ovsdbUUID.GoUUID
-			for rowUUID, row := range r.Rows() {
-				ok, err := condition.Function.Evaluate(rowUUID, uuid)
-				if err != nil {
-					return nil, err
-				}
-				if ok {
-					results[rowUUID] = row
-				}
+			if _, found := r.cache[uuid]; found {
+				matchingCondition.add(uuid)
 			}
-		} else if index, err := r.indexForColumns(condition.Column); err == nil {
-			for k, uuids := range index {
-				tSchema := schema.Columns[condition.Column]
-				nativeValue, err := ovsdb.OvsToNative(tSchema, condition.Value)
-				if err != nil {
-					return nil, err
-				}
-				ok, err := condition.Function.Evaluate(k, nativeValue)
-				if err != nil {
-					return nil, err
-				}
-				if ok {
-					for uuid := range uuids {
-						row := r.Row(uuid)
-						results[uuid] = row
-					}
-				}
-			}
+		} else if index, err := r.indexForColumns(condition.Column); err == nil && condition.Function == ovsdb.ConditionEqual {
+			matchingCondition = addUUIDSet(matchingCondition, index[nativeValue])
 		} else {
-			for uuid, row := range r.Rows() {
+			matchCondition := func(uuid string) error {
+				row := r.cache[uuid]
 				info, err := r.dbModel.NewModelInfo(row)
 				if err != nil {
-					return nil, err
+					return err
 				}
 				value, err := info.FieldByColumn(condition.Column)
 				if err != nil {
-					return nil, err
-				}
-				tSchema := schema.Columns[condition.Column]
-				nativeValue, err := ovsdb.OvsToNative(tSchema, condition.Value)
-				if err != nil {
-					return nil, err
+					return err
 				}
 				ok, err := condition.Function.Evaluate(value, nativeValue)
 				if err != nil {
-					return nil, err
+					return err
 				}
 				if ok {
-					results[uuid] = row
+					matchingCondition.add(uuid)
+				}
+				return nil
+			}
+			if matchingAll != nil {
+				// we just need to consider rows that matched previous
+				// conditions
+				for uuid := range matchingAll {
+					err = matchCondition(uuid)
+					if err != nil {
+						return nil, err
+					}
+				}
+			} else {
+				for uuid := range r.cache {
+					err = matchCondition(uuid)
+					if err != nil {
+						return nil, err
+					}
 				}
 			}
 		}
+		if matchingAll == nil {
+			matchingAll = matchingCondition
+		} else {
+			matchingAll = intersectUUIDSets(matchingAll, matchingCondition)
+		}
+		if matchingAll.empty() {
+			// no models match the conditions checked up to now, no need to
+			// check remaining conditions
+			break
+		}
 	}
+
+	for uuid := range matchingAll {
+		results[uuid] = r.rowByUUID(uuid)
+	}
+
 	return results, nil
 }
 

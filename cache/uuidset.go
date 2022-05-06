@@ -65,3 +65,25 @@ func substractUUIDSet(s1, s2 uuidset) uuidset {
 	}
 	return s1
 }
+
+func intersectUUIDSets(s1, s2 uuidset) uuidset {
+	if len(s1) == 0 || len(s2) == 0 {
+		return nil
+	}
+	var big uuidset
+	var small uuidset
+	if len(s1) > len(s2) {
+		big = s1
+		small = s2
+	} else {
+		big = s2
+		small = s1
+	}
+	f := uuidset{}
+	for uuid := range small {
+		if big.has(uuid) {
+			f.add(uuid)
+		}
+	}
+	return f
+}

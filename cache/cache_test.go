@@ -2490,7 +2490,7 @@ func setupRowsByConditionCache(t require.TestingT) *TableCache {
 				"type": "string"
 			  },
 			  "baz": {
-			    "type": "string"
+				"type": "string"
 			  },
 			  "quux": {
 			    "type": "string"
@@ -2514,11 +2514,205 @@ func setupRowsByConditionCache(t require.TestingT) *TableCache {
 		}
 	}`), &schema)
 	require.NoError(t, err)
+
 	dbModel, errs := model.NewDatabaseModel(schema, db)
 	require.Empty(t, errs)
 	tc, err := NewTableCache(dbModel, nil, nil)
 	require.NoError(t, err)
 	return tc
+}
+
+func TestTableCacheRowsByCondition(t *testing.T) {
+	testData := map[string]*rowsByConditionTestModel{
+		"foo":  {UUID: "foo", Foo: "foo", Bar: "foo", Baz: "foo", Quux: "foo", Quuz: "quuz", FooBar: map[string]string{"foobar": "foo"}},
+		"bar":  {UUID: "bar", Foo: "bar", Bar: "bar", Baz: "bar", Quux: "bar", Quuz: "quuz", FooBar: map[string]string{"foobar": "bar"}},
+		"baz":  {UUID: "baz", Foo: "baz", Bar: "baz", Baz: "baz", Quux: "baz", Quuz: "quuz", FooBar: map[string]string{"foobar": "baz"}},
+		"quux": {UUID: "quux", Foo: "quux", Bar: "quux", Baz: "quux", Quux: "quux", Quuz: "quuz", FooBar: map[string]string{"foobar": "baz"}},
+		"quuz": {UUID: "quuz", Foo: "quuz", Bar: "quuz", Baz: "quuz", Quux: "quuz", Quuz: "quuz", FooBar: map[string]string{"foobar": "baz"}},
+	}
+
+	tests := []struct {
+		name       string
+		conditions []ovsdb.Condition
+		rowsByCondition map[string]model.Model
+	}{
+		{
+			"by equal uuid",
+			[]ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: "foo"}}},
+			map[string]model.Model{"foo": testData["foo"]},
+		},
+		{
+			"by includes uuid",
+			[]ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionIncludes, Value: ovsdb.UUID{GoUUID: "foo"}}},
+			map[string]model.Model{"foo": testData["foo"]},
+		},
+		{
+			"by non equal uuid, multiple results",
+			[]ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionNotEqual, Value: ovsdb.UUID{GoUUID: "foo"}}},
+			map[string]model.Model{
+				"bar":  testData["bar"],
+				"baz":  testData["baz"],
+				"quux": testData["quux"],
+				"quuz": testData["quuz"],
+			},
+		},
+		{
+			"by excludes uuid, multiple results",
+			[]ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionExcludes, Value: ovsdb.UUID{GoUUID: "foo"}}},
+			map[string]model.Model{
+				"bar":  testData["bar"],
+				"baz":  testData["baz"],
+				"quux": testData["quux"],
+				"quuz": testData["quuz"],
+			},
+		},
+		{
+			"by schema index",
+			[]ovsdb.Condition{{Column: "foo", Function: ovsdb.ConditionEqual, Value: "foo"}},
+			map[string]model.Model{"foo": testData["foo"]},
+		},
+		{
+			"by schema index, no results",
+			[]ovsdb.Condition{{Column: "foo", Function: ovsdb.ConditionEqual, Value: "foobar"}},
+			map[string]model.Model{},
+		},
+		{
+			"by multi column schema index",
+			[]ovsdb.Condition{
+				{Column: "quux", Function: ovsdb.ConditionEqual, Value: "foo"},
+				{Column: "quuz", Function: ovsdb.ConditionEqual, Value: "quuz"},
+			},
+			map[string]model.Model{"foo": testData["foo"]},
+		},
+		{
+			"by multi column schema index, no results",
+			[]ovsdb.Condition{
+				{Column: "quux", Function: ovsdb.ConditionEqual, Value: "foobar"},
+				{Column: "quuz", Function: ovsdb.ConditionEqual, Value: "quuz"},
+			},
+			map[string]model.Model{},
+		},
+		{
+			"by client index",
+			[]ovsdb.Condition{{Column: "foobar", Function: ovsdb.ConditionIncludes, Value: ovsdb.OvsMap{GoMap: map[interface{}]interface{}{"foobar": "bar"}}}},
+			map[string]model.Model{"bar": testData["bar"]},
+		},
+		{
+			"by client index, no results",
+			[]ovsdb.Condition{{Column: "foobar", Function: ovsdb.ConditionIncludes, Value: ovsdb.OvsMap{GoMap: map[interface{}]interface{}{"foobar": "foobar"}}}},
+			map[string]model.Model{},
+		},
+		{
+			"by client index, multiple results",
+			[]ovsdb.Condition{{Column: "foobar", Function: ovsdb.ConditionIncludes, Value: ovsdb.OvsMap{GoMap: map[interface{}]interface{}{"foobar": "baz"}}}},
+			map[string]model.Model{
+				"baz":  testData["baz"],
+				"quux": testData["quux"],
+				"quuz": testData["quuz"],
+			},
+		},
+		{
+			"by zero client index, multiple results",
+			[]ovsdb.Condition{{Column: "empty", Function: ovsdb.ConditionEqual, Value: ""}},
+			map[string]model.Model{
+				"foo":  testData["foo"],
+				"bar":  testData["bar"],
+				"baz":  testData["baz"],
+				"quux": testData["quux"],
+				"quuz": testData["quuz"],
+			},
+		},
+		{
+			"by non index",
+			[]ovsdb.Condition{{Column: "baz", Function: ovsdb.ConditionEqual, Value: "baz"}},
+			map[string]model.Model{"baz": testData["baz"]},
+		},
+		{
+			"by two uuids, no results",
+			[]ovsdb.Condition{
+				{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: "foo"}},
+				{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: "bar"}},
+			},
+			map[string]model.Model{},
+		},
+		{
+			"by uuid and schema index",
+			[]ovsdb.Condition{
+				{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: "foo"}},
+				{Column: "foo", Function: ovsdb.ConditionEqual, Value: "foo"},
+			},
+			map[string]model.Model{"foo": testData["foo"]},
+		},
+		{
+			"by uuid and schema index, no results",
+			[]ovsdb.Condition{
+				{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: "foo"}},
+				{Column: "foo", Function: ovsdb.ConditionEqual, Value: "bar"},
+			},
+			map[string]model.Model{},
+		},
+		{
+			"by schema index and non-index",
+			[]ovsdb.Condition{
+				{Column: "foo", Function: ovsdb.ConditionEqual, Value: "foo"},
+				{Column: "baz", Function: ovsdb.ConditionEqual, Value: "foo"},
+			},
+			map[string]model.Model{"foo": testData["foo"]},
+		},
+		{
+			"by schema index and non-index, no results",
+			[]ovsdb.Condition{
+				{Column: "foo", Function: ovsdb.ConditionEqual, Value: "foo"},
+				{Column: "baz", Function: ovsdb.ConditionEqual, Value: "baz"},
+			},
+			map[string]model.Model{},
+		},
+		{
+			"by uuid, schema index, and non-index",
+			[]ovsdb.Condition{
+				{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: "foo"}},
+				{Column: "foo", Function: ovsdb.ConditionEqual, Value: "foo"},
+				{Column: "bar", Function: ovsdb.ConditionEqual, Value: "foo"},
+				{Column: "baz", Function: ovsdb.ConditionEqual, Value: "foo"},
+			},
+			map[string]model.Model{"foo": testData["foo"]},
+		},
+		{
+			"by client index, and non-index, multiple results",
+			[]ovsdb.Condition{
+				{Column: "foobar", Function: ovsdb.ConditionIncludes, Value: ovsdb.OvsMap{GoMap: map[interface{}]interface{}{"foobar": "baz"}}},
+				{Column: "quuz", Function: ovsdb.ConditionEqual, Value: "quuz"},
+			},
+			map[string]model.Model{
+				"baz":  testData["baz"],
+				"quux": testData["quux"],
+				"quuz": testData["quuz"],
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc := setupRowsByConditionCache(t)
+			rc := tc.Table("Open_vSwitch")
+			for _, m := range testData {
+				err := rc.Create(m.UUID, m, true)
+				require.NoError(t, err)
+			}
+
+			nativeValues := make([]interface{}, 0, len(tt.conditions))
+			for _, condition := range tt.conditions {
+				cSchema := rc.dbModel.Schema.Tables["Open_vSwitch"].Column(condition.Column)
+				nativeValue, err := ovsdb.OvsToNative(cSchema, condition.Value)
+				require.NoError(t, err)
+				nativeValues = append(nativeValues, nativeValue)
+			}
+
+			rows, err := tc.Table("Open_vSwitch").RowsByCondition(tt.conditions)
+			require.NoError(t, err)
+			require.Equal(t, tt.rowsByCondition, rows)
+		})
+	}
 }
 
 func BenchmarkRowsByCondition(b *testing.B) {
