@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"strings"
 	"testing"
 
@@ -1273,14 +1274,14 @@ func TestAPIDelete(t *testing.T) {
 	}
 }
 
-func BenchmarkAPIListPredicate(b *testing.B) {
+func BenchmarkAPIList(b *testing.B) {
 	const numRows = 10000
 
-	lscacheList := make([]model.Model, 0, numRows)
+	lscacheList := make([]*testLogicalSwitchPort, 0, numRows)
 
 	for i := 0; i < numRows; i++ {
 		lscacheList = append(lscacheList,
-			&testLogicalSwitch{
+			&testLogicalSwitchPort{
 				UUID:        uuid.New().String(),
 				Name:        fmt.Sprintf("ls%d", i),
 				ExternalIds: map[string]string{"foo": "bar"},
@@ -1288,47 +1289,64 @@ func BenchmarkAPIListPredicate(b *testing.B) {
 	}
 	lscache := map[string]model.Model{}
 	for i := range lscacheList {
-		lscache[lscacheList[i].(*testLogicalSwitch).UUID] = lscacheList[i]
+		lscache[lscacheList[i].UUID] = lscacheList[i]
 	}
 	testData := cache.Data{
-		"Logical_Switch": lscache,
+		"Logical_Switch_Port": lscache,
 	}
 	tcache := apiTestCache(b, testData)
+
+	rand.Seed(int64(b.N))
+	var index int
 
 	test := []struct {
 		name      string
 		predicate interface{}
 	}{
 		{
-			name: "none",
-			predicate: func(t *testLogicalSwitch) bool {
+			name: "predicate returns none",
+			predicate: func(t *testLogicalSwitchPort) bool {
 				return false
 			},
 		},
 		{
-			name: "all",
-			predicate: func(t *testLogicalSwitch) bool {
+			name: "predicate returns all",
+			predicate: func(t *testLogicalSwitchPort) bool {
 				return true
 			},
 		},
 		{
-			name: "arbitrary condition",
-			predicate: func(t *testLogicalSwitch) bool {
+			name: "predicate on an arbitrary condition",
+			predicate: func(t *testLogicalSwitchPort) bool {
 				return strings.HasPrefix(t.Name, "ls1")
 			},
+		},
+		{
+			name: "predicate matches name",
+			predicate: func(t *testLogicalSwitchPort) bool {
+				return t.Name == lscacheList[index].Name
+			},
+		},
+		{
+			name: "by index, no predicate",
 		},
 	}
 
 	for _, tt := range test {
-		b.Run(fmt.Sprintf("ApiListPredicate: %s", tt.name), func(b *testing.B) {
-			var result []testLogicalSwitch
-			api := newAPI(tcache, &discardLogger)
-			cond := api.WhereCache(tt.predicate)
-			err := cond.List(context.Background(), &result)
-			if err != nil {
-				b.Fatal(err)
+		b.Run(tt.name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				index = rand.Intn(numRows)
+				var result []*testLogicalSwitchPort
+				api := newAPI(tcache, &discardLogger)
+				var cond ConditionalAPI
+				if tt.predicate != nil {
+					cond = api.WhereCache(tt.predicate)
+				} else {
+					cond = api.Where(lscacheList[index])
+				}
+				err := cond.List(context.Background(), &result)
+				assert.NoError(b, err)
 			}
-			b.Logf("got %d rows", len(result))
 		})
 	}
 }
