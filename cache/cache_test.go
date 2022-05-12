@@ -3,6 +3,7 @@ package cache
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"reflect"
 	"testing"
 
@@ -1559,6 +1560,176 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			require.Equal(t, tt.expected, original)
 			if !reflect.DeepEqual(tt.expected, tt.base) {
 				require.NotEqual(t, tt.base, original)
+			}
+		})
+	}
+}
+
+type rowsByConditionTestModel struct {
+	UUID   string            `ovsdb:"_uuid"`
+	Foo    string            `ovsdb:"foo"`
+	Bar    string            `ovsdb:"bar"`
+	Baz    string            `ovsdb:"baz"`
+	Quux   string            `ovsdb:"quux"`
+	Quuz   string            `ovsdb:"quuz"`
+	FooBar map[string]string `ovsdb:"foobar"`
+	Empty  string            `ovsdb:"empty"`
+}
+
+func setupRowsByConditionCache(t require.TestingT) *TableCache {
+	var schema ovsdb.DatabaseSchema
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &rowsByConditionTestModel{}})
+	require.NoError(t, err)
+	err = json.Unmarshal([]byte(`{
+		"name": "Open_vSwitch",
+		"tables": {
+		  "Open_vSwitch": {
+			"indexes": [["foo"], ["bar"], ["quux", "quuz"]],
+		    "columns": {
+		      "foo": {
+			    "type": "string"
+			  },
+			  "bar": {
+				"type": "string"
+			  },
+			  "baz": {
+				"type": "string"
+			  },
+			  "quux": {
+				"type": "string"
+			  },
+			  "quuz": {
+				"type": "string"
+			  },
+			  "foobar": {
+				"type": {
+					"key": "string",
+					"value": "string",
+					"min": 0, 
+					"max": "unlimited"
+				}
+			  },
+			  "empty": {
+				"type": "string"
+			  }
+		    }
+		  }
+		}
+	}`), &schema)
+	require.NoError(t, err)
+
+	dbModel, errs := model.NewDatabaseModel(schema, db)
+	require.Empty(t, errs)
+	tc, err := NewTableCache(dbModel, nil, nil)
+	require.NoError(t, err)
+	return tc
+}
+
+func BenchmarkRowsByCondition(b *testing.B) {
+	tc := setupRowsByConditionCache(b)
+	rc := tc.Table("Open_vSwitch")
+
+	models := []*rowsByConditionTestModel{}
+	for i := 0; i < numRows; i++ {
+		model := &rowsByConditionTestModel{
+			UUID: fmt.Sprintf("UUID-%d", i),
+			Foo:  fmt.Sprintf("Foo-%d", i),
+			Bar:  fmt.Sprintf("Bar-%d", i),
+			Baz:  fmt.Sprintf("Baz-%d", i),
+			Quux: fmt.Sprintf("Quux-%d", i),
+			Quuz: fmt.Sprintf("Quuz-%d", i),
+		}
+		err := rc.Create(model.UUID, model, true)
+		require.NoError(b, err)
+		models = append(models, model)
+	}
+
+	rand.Seed(int64(b.N))
+
+	benchmarks := []struct {
+		name    string
+		prepare func(int) []ovsdb.Condition
+	}{
+		{
+			name: "by uuid",
+			prepare: func(i int) []ovsdb.Condition {
+				return []ovsdb.Condition{
+					{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: models[i].UUID}},
+				}
+			},
+		},
+		{
+			name: "by single column squema index",
+			prepare: func(i int) []ovsdb.Condition {
+				return []ovsdb.Condition{
+					{Column: "foo", Function: ovsdb.ConditionEqual, Value: models[i].Foo},
+				}
+			},
+		},
+		{
+			name: "by multi column squema index",
+			prepare: func(i int) []ovsdb.Condition {
+				return []ovsdb.Condition{
+					{Column: "quux", Function: ovsdb.ConditionEqual, Value: models[i].Quux},
+					{Column: "quuz", Function: ovsdb.ConditionEqual, Value: models[i].Quuz},
+				}
+			},
+		},
+		{
+			name: "by two squema indexes",
+			prepare: func(i int) []ovsdb.Condition {
+				return []ovsdb.Condition{
+					{Column: "foo", Function: ovsdb.ConditionEqual, Value: models[i].Foo},
+					{Column: "bar", Function: ovsdb.ConditionEqual, Value: models[i].Bar},
+				}
+			},
+		},
+		{
+			name: "by squema index and non-index",
+			prepare: func(i int) []ovsdb.Condition {
+				return []ovsdb.Condition{
+					{Column: "foo", Function: ovsdb.ConditionEqual, Value: models[i].Foo},
+					{Column: "quuz", Function: ovsdb.ConditionEqual, Value: models[i].Quuz},
+				}
+			},
+		},
+		{
+			name: "by single non index",
+			prepare: func(i int) []ovsdb.Condition {
+				return []ovsdb.Condition{
+					{Column: "quuz", Function: ovsdb.ConditionEqual, Value: models[i].Quuz},
+				}
+			},
+		},
+		{
+			name: "by multiple non indexes",
+			prepare: func(i int) []ovsdb.Condition {
+				return []ovsdb.Condition{
+					{Column: "baz", Function: ovsdb.ConditionEqual, Value: models[i].Baz},
+					{Column: "quuz", Function: ovsdb.ConditionEqual, Value: models[i].Quuz},
+				}
+			},
+		},
+		{
+			name: "by many conditions",
+			prepare: func(i int) []ovsdb.Condition {
+				return []ovsdb.Condition{
+					{Column: "foo", Function: ovsdb.ConditionEqual, Value: models[i].Foo},
+					{Column: "bar", Function: ovsdb.ConditionEqual, Value: models[i].Bar},
+					{Column: "baz", Function: ovsdb.ConditionEqual, Value: models[i].Baz},
+					{Column: "quux", Function: ovsdb.ConditionEqual, Value: models[i].Quux},
+					{Column: "quuz", Function: ovsdb.ConditionEqual, Value: models[i].Quuz},
+					{Column: "foobar", Function: ovsdb.ConditionIncludes, Value: ovsdb.OvsMap{GoMap: map[interface{}]interface{}{"foobar": models[i].FooBar["foobar"]}}},
+				}
+			},
+		},
+	}
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				results, err := rc.RowsByCondition(bm.prepare(rand.Intn(numRows)))
+				require.NoError(b, err)
+				require.Len(b, results, 1)
 			}
 		})
 	}
