@@ -1428,6 +1428,7 @@ func TestTableCacheApplyModifications(t *testing.T) {
 		Map   map[string]string `ovsdb:"map"`
 		Map2  map[string]string `ovsdb:"map2"`
 		Ptr   *string           `ovsdb:"ptr"`
+		Ptr2  *string           `ovsdb:"ptr2"`
 	}
 	aEmptySet, _ := ovsdb.NewOvsSet([]string{})
 	aFooSet, _ := ovsdb.NewOvsSet([]string{"foo"})
@@ -1507,21 +1508,21 @@ func TestTableCacheApplyModifications(t *testing.T) {
 		},
 		{
 			"set optional value",
-			ovsdb.Row{"ptr": aWallaceSet},
-			&testDBModel{Ptr: nil},
-			&testDBModel{Ptr: &wallace},
+			ovsdb.Row{"ptr": aWallaceSet, "ptr2": aWallaceSet},
+			&testDBModel{Ptr: nil, Ptr2: nil},
+			&testDBModel{Ptr: &wallace, Ptr2: &wallace},
 		},
 		{
 			"replace optional value",
-			ovsdb.Row{"ptr": aWallaceGromitSet},
-			&testDBModel{Ptr: &wallace},
-			&testDBModel{Ptr: &gromit},
+			ovsdb.Row{"ptr": aWallaceGromitSet, "ptr2": aWallaceGromitSet},
+			&testDBModel{Ptr: &wallace, Ptr2: &wallace},
+			&testDBModel{Ptr: &gromit, Ptr2: &gromit},
 		},
 		{
 			"delete optional value",
-			ovsdb.Row{"ptr": aEmptySet},
-			&testDBModel{Ptr: &wallace},
-			&testDBModel{Ptr: nil},
+			ovsdb.Row{"ptr": aEmptySet, "ptr2": aEmptySet},
+			&testDBModel{Ptr: &wallace, Ptr2: &wallace},
+			&testDBModel{Ptr: nil, Ptr2: nil},
 		},
 	}
 	for _, tt := range tests {
@@ -1540,7 +1541,8 @@ func TestTableCacheApplyModifications(t *testing.T) {
 					  "set": { "type": { "key": { "type": "string" }, "min": 0,	"max": "unlimited" } },
 					  "map": { "type": { "key": "string", "max": "unlimited", "min": 0, "value": "string" } },
 					  "map2": { "type": { "key": "string", "max": "unlimited", "min": 0, "value": "string" } },
-					  "ptr": { "type": { "key": { "type": "string" }, "min": 0,	"max": 1 } }
+					  "ptr":  { "type": { "key": { "type": "string" }, "min": 0,	"max": 1 } },
+					  "ptr2": { "type": { "key": { "type": "string" }, "min": 0,	"max": 1 } }
 					}
 				  }
 				}
