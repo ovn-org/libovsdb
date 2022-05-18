@@ -74,10 +74,6 @@ generate an appropriate condition. Therefore the following two statements are eq
 		Value: "myUUID"},
 	    })
 
-When indexes are used, the generated conditions will be based on the UUIDs of the matching models found
-in the cache. If no matches are found in the cache, the generated conditions will be based on the
-fields themselves.
-
 Where() accepts multiple Condition instances (through variadic arguments).
 If provided, the client will generate multiple operations each matching one condition.
 For example, the following operation will delete all the Logical Switches named "foo" OR "bar":
@@ -95,8 +91,11 @@ For example, the following operation will delete all the Logical Switches named 
 
 To create a Condition that matches all of the conditions simultaneously (i.e: AND semantics), use WhereAll().
 
-Where() and WhereAll() inject conditions into operations that will be evaluated by the server.
-However, to perform searches on the local cache, a more flexible mechanism is available: WhereCache()
+Where() or WhereAll() evaluate the provided index values or explicit conditions against the cache and generate
+conditions based on the UUIDs of matching models. If no matches are found in the cache, the generated conditions
+will be based on the index or condition fields themselves.
+
+A more flexible mechanism to search the cache is available: WhereCache()
 
 WhereCache() accepts a function that takes any Model as argument and returns a boolean.
 It is used to search the cache so commonly used with List() function. For example:

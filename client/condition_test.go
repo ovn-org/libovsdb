@@ -211,37 +211,8 @@ func TestPredicateConditional(t *testing.T) {
 	}
 }
 
-func TestExplicitConditional(t *testing.T) {
-	lspcacheList := []model.Model{
-		&testLogicalSwitchPort{
-			UUID:        aUUID0,
-			Name:        "lsp0",
-			ExternalIds: map[string]string{"foo": "bar"},
-			Enabled:     &trueVal,
-		},
-		&testLogicalSwitchPort{
-			UUID:        aUUID1,
-			Name:        "lsp1",
-			ExternalIds: map[string]string{"foo": "baz"},
-			Enabled:     &falseVal,
-		},
-		&testLogicalSwitchPort{
-			UUID:        aUUID2,
-			Name:        "lsp2",
-			ExternalIds: map[string]string{"unique": "id"},
-			Enabled:     &falseVal,
-		},
-		&testLogicalSwitchPort{
-			UUID:        aUUID3,
-			Name:        "lsp3",
-			ExternalIds: map[string]string{"foo": "baz"},
-			Enabled:     &trueVal,
-		},
-	}
+func TestExplicitConditionalWithNoCache(t *testing.T) {
 	lspcache := map[string]model.Model{}
-	for i := range lspcacheList {
-		lspcache[lspcacheList[i].(*testLogicalSwitchPort).UUID] = lspcacheList[i]
-	}
 	testData := cache.Data{
 		"Logical_Switch_Port": lspcache,
 	}
@@ -382,7 +353,264 @@ func TestExplicitConditional(t *testing.T) {
 		},
 	}
 	for _, tt := range test {
-		t.Run(fmt.Sprintf("Explicit Conditional: %s", tt.name), func(t *testing.T) {
+		t.Run(fmt.Sprintf("Explicit Conditional with no cache: %s", tt.name), func(t *testing.T) {
+			cond, err := newExplicitConditional("Logical_Switch_Port", tcache, tt.all, testObj, tt.args...)
+			assert.Nil(t, err)
+			generated, err := cond.Generate()
+			if tt.err {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+				assert.ElementsMatch(t, tt.result, generated)
+			}
+		})
+	}
+}
+
+func TestExplicitConditionalWithCache(t *testing.T) {
+	lspcacheList := []model.Model{
+		&testLogicalSwitchPort{
+			UUID:        aUUID0,
+			Name:        "lsp0",
+			ExternalIds: map[string]string{"foo": "bar"},
+			Enabled:     &trueVal,
+		},
+		&testLogicalSwitchPort{
+			UUID:        aUUID1,
+			Name:        "lsp1",
+			ExternalIds: map[string]string{"foo": "baz"},
+			Enabled:     &falseVal,
+		},
+		&testLogicalSwitchPort{
+			UUID:        aUUID2,
+			Name:        "lsp2",
+			ExternalIds: map[string]string{"unique": "id"},
+			Enabled:     &falseVal,
+		},
+		&testLogicalSwitchPort{
+			UUID:        aUUID3,
+			Name:        "lsp3",
+			ExternalIds: map[string]string{"foo": "baz"},
+			Enabled:     &trueVal,
+		},
+	}
+	lspcache := map[string]model.Model{}
+	for i := range lspcacheList {
+		lspcache[lspcacheList[i].(*testLogicalSwitchPort).UUID] = lspcacheList[i]
+	}
+	testData := cache.Data{
+		"Logical_Switch_Port": lspcache,
+	}
+	tcache := apiTestCache(t, testData)
+
+	testObj := &testLogicalSwitchPort{}
+
+	test := []struct {
+		name   string
+		args   []model.Condition
+		result [][]ovsdb.Condition
+		all    bool
+		err    bool
+	}{
+		{
+			name: "inequality comparison",
+			args: []model.Condition{
+				{
+					Field:    &testObj.Name,
+					Function: ovsdb.ConditionNotEqual,
+					Value:    "lsp0",
+				},
+			},
+			result: [][]ovsdb.Condition{
+				{
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID1},
+					},
+				},
+				{
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID2},
+					},
+				},
+				{
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID3},
+					},
+				},
+			},
+		},
+		{
+			name: "inequality comparison all",
+			args: []model.Condition{
+				{
+					Field:    &testObj.Name,
+					Function: ovsdb.ConditionNotEqual,
+					Value:    "lsp0",
+				},
+			},
+			result: [][]ovsdb.Condition{
+				{
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID1},
+					},
+				},
+				{
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID2},
+					},
+				},
+				{
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID3},
+					},
+				},
+			},
+			all: true,
+		},
+		{
+			name: "map comparison",
+			args: []model.Condition{
+				{
+					Field:    &testObj.ExternalIds,
+					Function: ovsdb.ConditionIncludes,
+					Value:    map[string]string{"foo": "baz"},
+				},
+			},
+			result: [][]ovsdb.Condition{
+				{
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID1},
+					},
+				},
+				{
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID3},
+					},
+				},
+			},
+		},
+		{
+			name: "set comparison",
+			args: []model.Condition{
+				{
+					Field:    &testObj.Enabled,
+					Function: ovsdb.ConditionEqual,
+					Value:    &trueVal,
+				},
+			},
+			result: [][]ovsdb.Condition{
+				{
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID0},
+					},
+				},
+				{
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID3},
+					},
+				},
+			},
+		},
+		{
+			name: "multiple conditions",
+			args: []model.Condition{
+				{
+					Field:    &testObj.Enabled,
+					Function: ovsdb.ConditionEqual,
+					Value:    &trueVal,
+				},
+				{
+					Field:    &testObj.Name,
+					Function: ovsdb.ConditionNotEqual,
+					Value:    "foo",
+				},
+			},
+			result: [][]ovsdb.Condition{
+				{
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID0},
+					},
+				},
+				{
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID1},
+					},
+				},
+				{
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID2},
+					},
+				},
+				{
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID3},
+					},
+				},
+			},
+		},
+		{
+			name: "multiple conditions all",
+			args: []model.Condition{
+				{
+					Field:    &testObj.Enabled,
+					Function: ovsdb.ConditionEqual,
+					Value:    &trueVal,
+				},
+				{
+					Field:    &testObj.Name,
+					Function: ovsdb.ConditionNotEqual,
+					Value:    "foo",
+				},
+			},
+			result: [][]ovsdb.Condition{
+				{
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID0},
+					},
+				},
+				{
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID3},
+					},
+				},
+			},
+			all: true,
+		},
+	}
+	for _, tt := range test {
+		t.Run(fmt.Sprintf("Explicit Conditional with cache: %s", tt.name), func(t *testing.T) {
 			cond, err := newExplicitConditional("Logical_Switch_Port", tcache, tt.all, testObj, tt.args...)
 			assert.Nil(t, err)
 			generated, err := cond.Generate()

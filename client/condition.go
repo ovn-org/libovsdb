@@ -134,7 +134,12 @@ func (c *explicitConditional) Matches() (map[string]model.Model, error) {
 
 // Generate returns conditions based on the provided Condition list
 func (c *explicitConditional) Generate() ([][]ovsdb.Condition, error) {
-	return c.anyConditions, nil
+	models, _ := c.Matches()
+	if len(models) == 0 {
+		// no cache hits, return conditions we were given
+		return c.anyConditions, nil
+	}
+	return generateConditionsFromModels(c.cache.DatabaseModel(), models)
 }
 
 // newExplicitConditional creates a new explicitConditional

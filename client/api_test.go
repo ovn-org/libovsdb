@@ -787,7 +787,7 @@ func TestAPIMutate(t *testing.T) {
 		{
 			name: "select by UUID addElement to set",
 			condition: func(a API) ConditionalAPI {
-				return a.Where(&testLogicalSwitch{
+				return a.Where(&testLogicalSwitchPort{
 					UUID: aUUID0,
 				})
 			},
@@ -1134,16 +1134,16 @@ func TestAPIUpdate(t *testing.T) {
 			err: false,
 		},
 		{
-			name: "select by field inequality change multiple field",
+			name: "select by field inequality change multiple field with cache",
 			condition: func(a API) ConditionalAPI {
 				t := testLogicalSwitchPort{
-					Type:    "sometype",
+					Type:    "someType",
 					Enabled: &trueVal,
 				}
 				return a.Where(&t, model.Condition{
 					Field:    &t.Type,
 					Function: ovsdb.ConditionNotEqual,
-					Value:    "sometype",
+					Value:    "someType",
 				})
 			},
 			prepare: func(t *testLogicalSwitchPort) {
@@ -1154,7 +1154,33 @@ func TestAPIUpdate(t *testing.T) {
 					Op:    ovsdb.OperationUpdate,
 					Table: "Logical_Switch_Port",
 					Row:   tagRow,
-					Where: []ovsdb.Condition{{Column: "type", Function: ovsdb.ConditionNotEqual, Value: "sometype"}},
+					Where: []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID2}}},
+				},
+			},
+			err: false,
+		},
+		{
+			name: "select by field inequality change multiple field with no cache",
+			condition: func(a API) ConditionalAPI {
+				t := testLogicalSwitchPort{
+					Type:    "sometype",
+					Enabled: &trueVal,
+				}
+				return a.Where(&t, model.Condition{
+					Field:    &t.Tag,
+					Function: ovsdb.ConditionNotEqual,
+					Value:    &one,
+				})
+			},
+			prepare: func(t *testLogicalSwitchPort) {
+				t.Tag = &six
+			},
+			result: []ovsdb.Operation{
+				{
+					Op:    ovsdb.OperationUpdate,
+					Table: "Logical_Switch_Port",
+					Row:   tagRow,
+					Where: []ovsdb.Condition{{Column: "tag", Function: ovsdb.ConditionNotEqual, Value: testOvsSet(t, &one)}},
 				},
 			},
 			err: false,
