@@ -85,7 +85,12 @@ func (c *equalityConditional) Matches() (map[string]model.Model, error) {
 // based on the UUID of the found model. Otherwise, the conditions will be based
 // on the index.
 func (c *equalityConditional) Generate() ([][]ovsdb.Condition, error) {
-	return generateConditionsFromModels(c.cache.DatabaseModel(), map[string]model.Model{"": c.model})
+	models, _ := c.Matches()
+	if len(models) == 0 {
+		// no cache hits, generate condition from model we were given
+		return generateConditionsFromModels(c.cache.DatabaseModel(), map[string]model.Model{"": c.model})
+	}
+	return generateConditionsFromModels(c.cache.DatabaseModel(), models)
 }
 
 // NewEqualityCondition creates a new equalityConditional

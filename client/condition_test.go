@@ -66,16 +66,27 @@ func TestEqualityConditional(t *testing.T) {
 			matches: map[string]model.Model{aUUID0: lspcacheList[0]},
 		},
 		{
-			name:  "by index",
+			name:  "by index with cache",
 			model: &testLogicalSwitchPort{Name: "lsp1"},
+			condition: [][]ovsdb.Condition{
+				{
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: aUUID1},
+					}}},
+			matches: map[string]model.Model{aUUID1: lspcacheList[1]},
+		},
+		{
+			name:  "by index with no cache",
+			model: &testLogicalSwitchPort{Name: "foo"},
 			condition: [][]ovsdb.Condition{
 				{
 					{
 						Column:   "name",
 						Function: ovsdb.ConditionEqual,
-						Value:    "lsp1",
+						Value:    "foo",
 					}}},
-			matches: map[string]model.Model{aUUID1: lspcacheList[1]},
 		},
 		{
 			name:  "by non index",

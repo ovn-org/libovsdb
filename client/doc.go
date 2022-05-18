@@ -74,6 +74,10 @@ generate an appropriate condition. Therefore the following two statements are eq
 		Value: "myUUID"},
 	    })
 
+When indexes are used, the generated conditions will be based on the UUIDs of the matching models found
+in the cache. If no matches are found in the cache, the generated conditions will be based on the
+fields themselves.
+
 Where() accepts multiple Condition instances (through variadic arguments).
 If provided, the client will generate multiple operations each matching one condition.
 For example, the following operation will delete all the Logical Switches named "foo" OR "bar":

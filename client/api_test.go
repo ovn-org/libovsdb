@@ -809,7 +809,7 @@ func TestAPIMutate(t *testing.T) {
 			err: false,
 		},
 		{
-			name: "select by name delete element from map",
+			name: "select by name delete element from map with cache",
 			condition: func(a API) ConditionalAPI {
 				return a.Where(&testLogicalSwitchPort{
 					Name: "lsp2",
@@ -827,7 +827,31 @@ func TestAPIMutate(t *testing.T) {
 					Op:        ovsdb.OperationMutate,
 					Table:     "Logical_Switch_Port",
 					Mutations: []ovsdb.Mutation{{Column: "external_ids", Mutator: ovsdb.MutateOperationDelete, Value: testOvsSet(t, []string{"foo"})}},
-					Where:     []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "lsp2"}},
+					Where:     []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID2}}},
+				},
+			},
+			err: false,
+		},
+		{
+			name: "select by name delete element from map with no cache",
+			condition: func(a API) ConditionalAPI {
+				return a.Where(&testLogicalSwitchPort{
+					Name: "foo",
+				})
+			},
+			mutations: []model.Mutation{
+				{
+					Field:   &testObj.ExternalIds,
+					Mutator: ovsdb.MutateOperationDelete,
+					Value:   []string{"foo"},
+				},
+			},
+			result: []ovsdb.Operation{
+				{
+					Op:        ovsdb.OperationMutate,
+					Table:     "Logical_Switch_Port",
+					Mutations: []ovsdb.Mutation{{Column: "external_ids", Mutator: ovsdb.MutateOperationDelete, Value: testOvsSet(t, []string{"foo"})}},
+					Where:     []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "foo"}},
 				},
 			},
 			err: false,
@@ -975,7 +999,28 @@ func TestAPIUpdate(t *testing.T) {
 			err: false,
 		},
 		{
-			name: "select by index change multiple field",
+			name: "select by index change multiple field with no cache",
+			condition: func(a API) ConditionalAPI {
+				return a.Where(&testLogicalSwitchPort{
+					Name: "foo",
+				})
+			},
+			prepare: func(t *testLogicalSwitchPort) {
+				t.Type = "somethingElse"
+				t.Tag = &six
+			},
+			result: []ovsdb.Operation{
+				{
+					Op:    ovsdb.OperationUpdate,
+					Table: "Logical_Switch_Port",
+					Row:   testRow,
+					Where: []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "foo"}},
+				},
+			},
+			err: false,
+		},
+		{
+			name: "select by index change multiple field with cache",
 			condition: func(a API) ConditionalAPI {
 				return a.Where(&testLogicalSwitchPort{
 					Name: "lsp1",
@@ -990,7 +1035,7 @@ func TestAPIUpdate(t *testing.T) {
 					Op:    ovsdb.OperationUpdate,
 					Table: "Logical_Switch_Port",
 					Row:   testRow,
-					Where: []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "lsp1"}},
+					Where: []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID1}}},
 				},
 			},
 			err: false,
@@ -1214,7 +1259,7 @@ func TestAPIDelete(t *testing.T) {
 			err: false,
 		},
 		{
-			name: "select by index",
+			name: "select by index with cache",
 			condition: func(a API) ConditionalAPI {
 				return a.Where(&testLogicalSwitchPort{
 					Name: "lsp1",
@@ -1224,7 +1269,23 @@ func TestAPIDelete(t *testing.T) {
 				{
 					Op:    ovsdb.OperationDelete,
 					Table: "Logical_Switch_Port",
-					Where: []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "lsp1"}},
+					Where: []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID1}}},
+				},
+			},
+			err: false,
+		},
+		{
+			name: "select by index with no cache",
+			condition: func(a API) ConditionalAPI {
+				return a.Where(&testLogicalSwitchPort{
+					Name: "foo",
+				})
+			},
+			result: []ovsdb.Operation{
+				{
+					Op:    ovsdb.OperationDelete,
+					Table: "Logical_Switch_Port",
+					Where: []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "foo"}},
 				},
 			},
 			err: false,
