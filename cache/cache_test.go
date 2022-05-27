@@ -15,10 +15,11 @@ import (
 )
 
 type testModel struct {
-	UUID string `ovsdb:"_uuid"`
-	Foo  string `ovsdb:"foo"`
-	Bar  string `ovsdb:"bar"`
-	Baz  int `ovsdb:"baz"`
+	UUID  string   `ovsdb:"_uuid"`
+	Foo   string   `ovsdb:"foo"`
+	Bar   string   `ovsdb:"bar"`
+	Baz   int      `ovsdb:"baz"`
+	Array []string `ovsdb:"array"`
 }
 
 const testSchemaFmt string = `{
@@ -37,6 +38,15 @@ const testSchemaFmt2 string = `
         },
         "baz": {
           "type": "integer"
+        },
+        "array": {
+          "type": {
+            "key": {
+              "type": "string"
+            },
+            "min": 0,
+            "max": "unlimited"
+          }
         }
       }
     }
@@ -570,7 +580,7 @@ func TestRowCacheUpdate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rc := tc.Table("Open_vSwitch")
 			require.NotNil(t, rc)
-			err := rc.Update(tt.uuid, tt.model, tt.checkIndex)
+			_, err := rc.Update(tt.uuid, tt.model, tt.checkIndex)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -668,7 +678,7 @@ func TestRowCacheUpdateClientIndex(t *testing.T) {
 			require.Nil(t, err)
 			rc := tc.Table("Open_vSwitch")
 			require.NotNil(t, rc)
-			err = rc.Update(tt.uuid, tt.model, true)
+			_, err = rc.Update(tt.uuid, tt.model, true)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -732,7 +742,7 @@ func TestRowCacheUpdateMultiIndex(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rc := tc.Table("Open_vSwitch")
 			require.NotNil(t, rc)
-			err := rc.Update(tt.uuid, tt.model, true)
+			_, err := rc.Update(tt.uuid, tt.model, true)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -927,7 +937,7 @@ func TestRowCacheUpdateMultiClientIndex(t *testing.T) {
 			require.Nil(t, err)
 			rc := tc.Table("Open_vSwitch")
 			require.NotNil(t, rc)
-			err = rc.Update(tt.uuid, tt.model, true)
+			_, err = rc.Update(tt.uuid, tt.model, true)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -1317,6 +1327,15 @@ func TestTableCacheTables(t *testing.T) {
 			},
 			"baz": {
 			  "type": "integer"
+			},
+			"array": {
+			  "type": {
+			    "key": {
+			      "type": "string"
+			    },
+			    "min": 0,
+			    "max": "unlimited"
+			  }
 			}
 		      }
 		    },
@@ -1330,6 +1349,15 @@ func TestTableCacheTables(t *testing.T) {
 			},
 			"baz": {
 			  "type": "integer"
+			},
+			"array": {
+			  "type": {
+			    "key": {
+			      "type": "string"
+			    },
+			    "min": 0,
+			    "max": "unlimited"
+			  }
 			}
 		      }
 		    },
@@ -1343,6 +1371,15 @@ func TestTableCacheTables(t *testing.T) {
 			},
 			"baz": {
 			  "type": "integer"
+			},
+			"array": {
+			  "type": {
+			    "key": {
+			      "type": "string"
+			    },
+			    "min": 0,
+			    "max": "unlimited"
+			  }
 			}
 		      }
 		    }
@@ -1820,7 +1857,7 @@ func TestTableCacheRowByModelSingleIndex(t *testing.T) {
 	})
 }
 
-func benchmarkDoCreate(b *testing.B, numRows int) *RowCache {
+func benchmarkDoCreate(b *testing.B, numRows int) (*TableCache, *RowCache) {
 	_, tc := setupRowByModelSingleIndex(b)
 
 	rc := tc.Table("Open_vSwitch")
@@ -1831,26 +1868,46 @@ func benchmarkDoCreate(b *testing.B, numRows int) *RowCache {
 		require.NoError(b, err)
 	}
 
-	return rc
+	return tc, rc
 }
 
 const numRows int = 10000
 
 func BenchmarkSingleIndexCreate(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		_ = benchmarkDoCreate(b, numRows)
+		_, _ = benchmarkDoCreate(b, numRows)
 	}
 }
 
 func BenchmarkSingleIndexUpdate(b *testing.B) {
-	rc := benchmarkDoCreate(b, numRows)
+	_, rc := benchmarkDoCreate(b, numRows)
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		for i := 0; i < numRows; i++ {
 			uuid := fmt.Sprintf("%d", i)
 			model := &testModel{Foo: fmt.Sprintf("%d-%d", n, i)}
-			err := rc.Update(uuid, model, true)
+			_, err := rc.Update(uuid, model, true)
+			require.NoError(b, err)
+		}
+	}
+}
+
+func BenchmarkSingleIndexUpdateArray(b *testing.B) {
+	const numRows int = 1500
+	_, rc := benchmarkDoCreate(b, numRows)
+
+	array := make([]string, 0, 500)
+	for i := 0; i < cap(array); i++ {
+		array = append(array, fmt.Sprintf("value%d", i))
+	}
+
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		for i := 0; i < numRows; i++ {
+			uuid := fmt.Sprintf("%d", i)
+			model := &testModel{Foo: fmt.Sprintf("%d-%d", n, i), Array: array}
+			_, err := rc.Update(uuid, model, true)
 			require.NoError(b, err)
 		}
 	}
@@ -1858,7 +1915,7 @@ func BenchmarkSingleIndexUpdate(b *testing.B) {
 
 func BenchmarkSingleIndexDelete(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		rc := benchmarkDoCreate(b, numRows)
+		_, rc := benchmarkDoCreate(b, numRows)
 		for i := 0; i < numRows; i++ {
 			uuid := fmt.Sprintf("%d", i)
 			err := rc.Delete(uuid)
@@ -1868,7 +1925,7 @@ func BenchmarkSingleIndexDelete(b *testing.B) {
 }
 
 func BenchmarkIndexExists(b *testing.B) {
-	rc := benchmarkDoCreate(b, numRows)
+	_, rc := benchmarkDoCreate(b, numRows)
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
@@ -1879,6 +1936,46 @@ func BenchmarkIndexExists(b *testing.B) {
 			require.NoError(b, err)
 		}
 	}
+}
+
+func BenchmarkPopulate2UpdateArray(b *testing.B) {
+	const numRows int = 500
+
+	_, tc := setupRowByModelSingleIndex(b)
+	rc := tc.Table("Open_vSwitch")
+
+	array := make([]string, 0, 50)
+	for i := 0; i < cap(array); i++ {
+		array = append(array, fmt.Sprintf("value%d", i))
+	}
+
+	for i := 0; i < numRows; i++ {
+		uuid := fmt.Sprintf("%d", i)
+		model := &testModel{Foo: uuid, Array: array}
+		err := rc.Create(uuid, model, true)
+		require.NoError(b, err)
+	}
+
+	updateSet := make([]interface{}, 0, cap(array)/2)
+	for i := cap(array); i < cap(array)+cap(updateSet); i++ {
+		updateSet = append(updateSet, fmt.Sprintf("value%d", i))
+	}
+
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		for i := 0; i < numRows; i++ {
+			updatedRow := ovsdb.Row(map[string]interface{}{"array": ovsdb.OvsSet{GoSet: updateSet}})
+			err := tc.Populate2(ovsdb.TableUpdates2{
+				"Open_vSwitch": {
+					"foo": &ovsdb.RowUpdate2{
+						Modify: &updatedRow,
+					},
+				},
+			})
+			require.NoError(b, err)
+		}
+	}
+
 }
 
 func TestTableCacheRowByModelTwoIndexes(t *testing.T) {
@@ -1963,6 +2060,7 @@ func TestTableCacheApplyModifications(t *testing.T) {
 	aEmptySet, _ := ovsdb.NewOvsSet([]string{})
 	aFooSet, _ := ovsdb.NewOvsSet([]string{"foo"})
 	aFooBarSet, _ := ovsdb.NewOvsSet([]string{"foo", "bar"})
+	aFooBarBazQuxSet, _ := ovsdb.NewOvsSet([]string{"foo", "bar", "baz", "qux"})
 	aFooMap, _ := ovsdb.NewOvsMap(map[string]string{"foo": "bar"})
 	aBarMap, _ := ovsdb.NewOvsMap(map[string]string{"bar": "baz"})
 	aBarBazMap, _ := ovsdb.NewOvsMap(map[string]string{
@@ -1974,58 +2072,74 @@ func TestTableCacheApplyModifications(t *testing.T) {
 	gromit := "gromit"
 	aWallaceGromitSet, _ := ovsdb.NewOvsSet([]string{wallace, gromit})
 	tests := []struct {
-		name     string
-		update   ovsdb.Row
-		base     *testDBModel
-		expected *testDBModel
+		name           string
+		update         ovsdb.Row
+		base           *testDBModel
+		expected       *testDBModel
+		changeExpected bool
 	}{
 		{
 			"replace value",
 			ovsdb.Row{"value": "bar"},
 			&testDBModel{Value: "foo"},
 			&testDBModel{Value: "bar"},
+			true,
 		},
 		{
 			"noop",
 			ovsdb.Row{"value": "bar"},
 			&testDBModel{Value: "bar"},
 			&testDBModel{Value: "bar"},
+			false,
 		},
 		{
 			"add to set",
 			ovsdb.Row{"set": aFooSet},
 			&testDBModel{Set: []string{}},
 			&testDBModel{Set: []string{"foo"}},
+			true,
 		},
 		{
 			"remove from set",
 			ovsdb.Row{"set": aFooSet},
 			&testDBModel{Set: []string{"foo"}},
 			&testDBModel{Set: []string{}},
+			true,
 		},
 		{
 			"add and remove from set",
 			ovsdb.Row{"set": aFooBarSet},
 			&testDBModel{Set: []string{"foo"}},
 			&testDBModel{Set: []string{"bar"}},
+			true,
+		},
+		{
+			"add and remove multiples from set",
+			ovsdb.Row{"set": aFooBarBazQuxSet},
+			&testDBModel{Set: []string{"foo", "bar"}},
+			&testDBModel{Set: []string{"baz", "qux"}},
+			true,
 		},
 		{
 			"replace map value",
 			ovsdb.Row{"map": aFooMap},
 			&testDBModel{Map: map[string]string{"foo": "baz"}},
 			&testDBModel{Map: map[string]string{"foo": "bar"}},
+			true,
 		},
 		{
 			"add map key",
 			ovsdb.Row{"map": aBarMap},
 			&testDBModel{Map: map[string]string{"foo": "bar"}},
 			&testDBModel{Map: map[string]string{"foo": "bar", "bar": "baz"}},
+			true,
 		},
 		{
 			"delete map key",
 			ovsdb.Row{"map": aFooMap},
 			&testDBModel{Map: map[string]string{"foo": "bar"}},
 			&testDBModel{Map: nil},
+			true,
 		},
 		{
 			"multiple map operations",
@@ -2035,24 +2149,28 @@ func TestTableCacheApplyModifications(t *testing.T) {
 				Map:  map[string]string{"foo": "bar", "bar": "baz", "baz": "quux"},
 				Map2: map[string]string{"foo": "bar"},
 			},
+			true,
 		},
 		{
 			"set optional value",
 			ovsdb.Row{"ptr": aWallaceSet, "ptr2": aWallaceSet},
 			&testDBModel{Ptr: nil, Ptr2: nil},
 			&testDBModel{Ptr: &wallace, Ptr2: &wallace},
+			true,
 		},
 		{
 			"replace optional value",
 			ovsdb.Row{"ptr": aWallaceGromitSet, "ptr2": aWallaceGromitSet},
 			&testDBModel{Ptr: &wallace, Ptr2: &wallace},
 			&testDBModel{Ptr: &gromit, Ptr2: &gromit},
+			true,
 		},
 		{
 			"delete optional value",
 			ovsdb.Row{"ptr": aEmptySet, "ptr2": aEmptySet},
 			&testDBModel{Ptr: &wallace, Ptr2: &wallace},
 			&testDBModel{Ptr: nil, Ptr2: nil},
+			true,
 		},
 	}
 	for _, tt := range tests {
@@ -2084,9 +2202,10 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			tc, err := NewTableCache(dbModel, nil, nil)
 			assert.Nil(t, err)
 			original := model.Clone(tt.base).(*testDBModel)
-			err = tc.ApplyModifications("Open_vSwitch", original, tt.update)
+			changed, err := tc.ApplyModifications("Open_vSwitch", original, tt.update)
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, original)
+			require.Equal(t, tt.changeExpected, changed)
 			if !reflect.DeepEqual(tt.expected, tt.base) {
 				require.NotEqual(t, tt.base, original)
 			}
