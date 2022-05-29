@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"strings"
 	"testing"
 
@@ -252,7 +253,7 @@ func TestAPIListPredicate(t *testing.T) {
 
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiListPredicate: %s", tt.name), func(t *testing.T) {
-			var result []testLogicalSwitch
+			var result []*testLogicalSwitch
 			api := newAPI(tcache, &discardLogger)
 			cond := api.WhereCache(tt.predicate)
 			err := cond.List(context.Background(), &result)
@@ -262,9 +263,91 @@ func TestAPIListPredicate(t *testing.T) {
 				if !assert.Nil(t, err) {
 					t.Log(err)
 				}
-				assert.ElementsMatchf(t, tt.content, tt.content, "Content should match")
+				assert.ElementsMatchf(t, tt.content, result, "Content should match")
 			}
 
+		})
+	}
+}
+
+func TestAPIListWhereConditions(t *testing.T) {
+	lscacheList := []model.Model{
+		&testLogicalSwitchPort{
+			UUID: aUUID0,
+			Name: "lsp0",
+			Type: "",
+		},
+		&testLogicalSwitchPort{
+			UUID: aUUID1,
+			Name: "lsp1",
+			Type: "router",
+		},
+		&testLogicalSwitchPort{
+			UUID: aUUID2,
+			Name: "lsp2",
+			Type: "router",
+		},
+		&testLogicalSwitchPort{
+			UUID: aUUID3,
+			Name: "lsp3",
+			Type: "localnet",
+		},
+	}
+	lscache := map[string]model.Model{}
+	for i := range lscacheList {
+		lscache[lscacheList[i].(*testLogicalSwitchPort).UUID] = lscacheList[i]
+	}
+	testData := cache.Data{
+		"Logical_Switch_Port": lscache,
+	}
+	tcache := apiTestCache(t, testData)
+
+	test := []struct {
+		desc       string
+		matchNames []string
+		matchTypes []string
+		matchAll   bool
+		result     []model.Model
+	}{
+		{
+			desc:       "any conditions",
+			matchNames: []string{"lsp0"},
+			matchTypes: []string{"router"},
+			matchAll:   false,
+			result:     lscacheList[0:3],
+		},
+		{
+			desc:       "all conditions",
+			matchNames: []string{"lsp1"},
+			matchTypes: []string{"router"},
+			matchAll:   true,
+			result:     lscacheList[1:2],
+		},
+	}
+
+	for _, tt := range test {
+		t.Run(fmt.Sprintf("TestAPIListWhereConditions: %s", tt.desc), func(t *testing.T) {
+			var result []*testLogicalSwitchPort
+			api := newAPI(tcache, &discardLogger)
+			testObj := &testLogicalSwitchPort{}
+			conds := []model.Condition{}
+			for _, name := range tt.matchNames {
+				cond := model.Condition{Field: &testObj.Name, Function: ovsdb.ConditionEqual, Value: name}
+				conds = append(conds, cond)
+			}
+			for _, atype := range tt.matchTypes {
+				cond := model.Condition{Field: &testObj.Type, Function: ovsdb.ConditionEqual, Value: atype}
+				conds = append(conds, cond)
+			}
+			var capi ConditionalAPI
+			if tt.matchAll {
+				capi = api.WhereAll(testObj, conds...)
+			} else {
+				capi = api.Where(testObj, conds...)
+			}
+			err := capi.List(context.Background(), &result)
+			assert.NoError(t, err)
+			assert.ElementsMatchf(t, tt.result, result, "Content should match")
 		})
 	}
 }
@@ -305,19 +388,16 @@ func TestAPIListFields(t *testing.T) {
 	}
 	tcache := apiTestCache(t, testData)
 
-	testObj := testLogicalSwitchPort{}
-
 	test := []struct {
 		name    string
 		fields  []interface{}
 		prepare func(*testLogicalSwitchPort)
 		content []model.Model
-		err     bool
 	}{
 		{
-			name:    "empty object must match everything",
-			content: lspcacheList,
-			err:     false,
+			name:    "No match",
+			prepare: func(t *testLogicalSwitchPort) {},
+			content: []model.Model{},
 		},
 		{
 			name: "List unique by UUID",
@@ -325,7 +405,6 @@ func TestAPIListFields(t *testing.T) {
 				t.UUID = aUUID0
 			},
 			content: []model.Model{lspcache[aUUID0]},
-			err:     false,
 		},
 		{
 			name: "List unique by Index",
@@ -333,24 +412,19 @@ func TestAPIListFields(t *testing.T) {
 				t.Name = "lsp2"
 			},
 			content: []model.Model{lspcache[aUUID2]},
-			err:     false,
 		},
 	}
 
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiListFields: %s", tt.name), func(t *testing.T) {
-			var result []testLogicalSwitchPort
+			var result []*testLogicalSwitchPort
 			// Clean object
-			testObj = testLogicalSwitchPort{}
+			testObj := testLogicalSwitchPort{}
+			tt.prepare(&testObj)
 			api := newAPI(tcache, &discardLogger)
 			err := api.Where(&testObj).List(context.Background(), &result)
-			if tt.err {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-				assert.ElementsMatchf(t, tt.content, tt.content, "Content should match")
-			}
-
+			assert.Nil(t, err)
+			assert.ElementsMatchf(t, tt.content, result, "Content should match")
 		})
 	}
 
@@ -458,7 +532,7 @@ func TestConditionFromModel(t *testing.T) {
 		t.Run(fmt.Sprintf("conditionFromModel: %s", tt.name), func(t *testing.T) {
 			cache := apiTestCache(t, nil)
 			apiIface := newAPI(cache, &discardLogger)
-			condition := apiIface.(api).conditionFromModel(false, tt.model, tt.conds...)
+			condition := apiIface.(api).conditionFromModel(false, false, tt.model, tt.conds...)
 			if tt.err {
 				assert.IsType(t, &errorConditional{}, condition)
 			} else {
@@ -713,7 +787,7 @@ func TestAPIMutate(t *testing.T) {
 		{
 			name: "select by UUID addElement to set",
 			condition: func(a API) ConditionalAPI {
-				return a.Where(&testLogicalSwitch{
+				return a.Where(&testLogicalSwitchPort{
 					UUID: aUUID0,
 				})
 			},
@@ -735,7 +809,7 @@ func TestAPIMutate(t *testing.T) {
 			err: false,
 		},
 		{
-			name: "select by name delete element from map",
+			name: "select by name delete element from map with cache",
 			condition: func(a API) ConditionalAPI {
 				return a.Where(&testLogicalSwitchPort{
 					Name: "lsp2",
@@ -753,7 +827,31 @@ func TestAPIMutate(t *testing.T) {
 					Op:        ovsdb.OperationMutate,
 					Table:     "Logical_Switch_Port",
 					Mutations: []ovsdb.Mutation{{Column: "external_ids", Mutator: ovsdb.MutateOperationDelete, Value: testOvsSet(t, []string{"foo"})}},
-					Where:     []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "lsp2"}},
+					Where:     []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID2}}},
+				},
+			},
+			err: false,
+		},
+		{
+			name: "select by name delete element from map with no cache",
+			condition: func(a API) ConditionalAPI {
+				return a.Where(&testLogicalSwitchPort{
+					Name: "foo",
+				})
+			},
+			mutations: []model.Mutation{
+				{
+					Field:   &testObj.ExternalIds,
+					Mutator: ovsdb.MutateOperationDelete,
+					Value:   []string{"foo"},
+				},
+			},
+			result: []ovsdb.Operation{
+				{
+					Op:        ovsdb.OperationMutate,
+					Table:     "Logical_Switch_Port",
+					Mutations: []ovsdb.Mutation{{Column: "external_ids", Mutator: ovsdb.MutateOperationDelete, Value: testOvsSet(t, []string{"foo"})}},
+					Where:     []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "foo"}},
 				},
 			},
 			err: false,
@@ -901,7 +999,28 @@ func TestAPIUpdate(t *testing.T) {
 			err: false,
 		},
 		{
-			name: "select by index change multiple field",
+			name: "select by index change multiple field with no cache",
+			condition: func(a API) ConditionalAPI {
+				return a.Where(&testLogicalSwitchPort{
+					Name: "foo",
+				})
+			},
+			prepare: func(t *testLogicalSwitchPort) {
+				t.Type = "somethingElse"
+				t.Tag = &six
+			},
+			result: []ovsdb.Operation{
+				{
+					Op:    ovsdb.OperationUpdate,
+					Table: "Logical_Switch_Port",
+					Row:   testRow,
+					Where: []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "foo"}},
+				},
+			},
+			err: false,
+		},
+		{
+			name: "select by index change multiple field with cache",
 			condition: func(a API) ConditionalAPI {
 				return a.Where(&testLogicalSwitchPort{
 					Name: "lsp1",
@@ -916,7 +1035,7 @@ func TestAPIUpdate(t *testing.T) {
 					Op:    ovsdb.OperationUpdate,
 					Table: "Logical_Switch_Port",
 					Row:   testRow,
-					Where: []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "lsp1"}},
+					Where: []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID1}}},
 				},
 			},
 			err: false,
@@ -1015,16 +1134,16 @@ func TestAPIUpdate(t *testing.T) {
 			err: false,
 		},
 		{
-			name: "select by field inequality change multiple field",
+			name: "select by field inequality change multiple field with cache",
 			condition: func(a API) ConditionalAPI {
 				t := testLogicalSwitchPort{
-					Type:    "sometype",
+					Type:    "someType",
 					Enabled: &trueVal,
 				}
 				return a.Where(&t, model.Condition{
 					Field:    &t.Type,
 					Function: ovsdb.ConditionNotEqual,
-					Value:    "sometype",
+					Value:    "someType",
 				})
 			},
 			prepare: func(t *testLogicalSwitchPort) {
@@ -1035,7 +1154,33 @@ func TestAPIUpdate(t *testing.T) {
 					Op:    ovsdb.OperationUpdate,
 					Table: "Logical_Switch_Port",
 					Row:   tagRow,
-					Where: []ovsdb.Condition{{Column: "type", Function: ovsdb.ConditionNotEqual, Value: "sometype"}},
+					Where: []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID2}}},
+				},
+			},
+			err: false,
+		},
+		{
+			name: "select by field inequality change multiple field with no cache",
+			condition: func(a API) ConditionalAPI {
+				t := testLogicalSwitchPort{
+					Type:    "sometype",
+					Enabled: &trueVal,
+				}
+				return a.Where(&t, model.Condition{
+					Field:    &t.Tag,
+					Function: ovsdb.ConditionNotEqual,
+					Value:    &one,
+				})
+			},
+			prepare: func(t *testLogicalSwitchPort) {
+				t.Tag = &six
+			},
+			result: []ovsdb.Operation{
+				{
+					Op:    ovsdb.OperationUpdate,
+					Table: "Logical_Switch_Port",
+					Row:   tagRow,
+					Where: []ovsdb.Condition{{Column: "tag", Function: ovsdb.ConditionNotEqual, Value: testOvsSet(t, &one)}},
 				},
 			},
 			err: false,
@@ -1140,7 +1285,7 @@ func TestAPIDelete(t *testing.T) {
 			err: false,
 		},
 		{
-			name: "select by index",
+			name: "select by index with cache",
 			condition: func(a API) ConditionalAPI {
 				return a.Where(&testLogicalSwitchPort{
 					Name: "lsp1",
@@ -1150,7 +1295,23 @@ func TestAPIDelete(t *testing.T) {
 				{
 					Op:    ovsdb.OperationDelete,
 					Table: "Logical_Switch_Port",
-					Where: []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "lsp1"}},
+					Where: []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID1}}},
+				},
+			},
+			err: false,
+		},
+		{
+			name: "select by index with no cache",
+			condition: func(a API) ConditionalAPI {
+				return a.Where(&testLogicalSwitchPort{
+					Name: "foo",
+				})
+			},
+			result: []ovsdb.Operation{
+				{
+					Op:    ovsdb.OperationDelete,
+					Table: "Logical_Switch_Port",
+					Where: []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "foo"}},
 				},
 			},
 			err: false,
@@ -1273,14 +1434,14 @@ func TestAPIDelete(t *testing.T) {
 	}
 }
 
-func BenchmarkAPIListPredicate(b *testing.B) {
+func BenchmarkAPIList(b *testing.B) {
 	const numRows = 10000
 
-	lscacheList := make([]model.Model, 0, numRows)
+	lscacheList := make([]*testLogicalSwitchPort, 0, numRows)
 
 	for i := 0; i < numRows; i++ {
 		lscacheList = append(lscacheList,
-			&testLogicalSwitch{
+			&testLogicalSwitchPort{
 				UUID:        uuid.New().String(),
 				Name:        fmt.Sprintf("ls%d", i),
 				ExternalIds: map[string]string{"foo": "bar"},
@@ -1288,47 +1449,64 @@ func BenchmarkAPIListPredicate(b *testing.B) {
 	}
 	lscache := map[string]model.Model{}
 	for i := range lscacheList {
-		lscache[lscacheList[i].(*testLogicalSwitch).UUID] = lscacheList[i]
+		lscache[lscacheList[i].UUID] = lscacheList[i]
 	}
 	testData := cache.Data{
-		"Logical_Switch": lscache,
+		"Logical_Switch_Port": lscache,
 	}
 	tcache := apiTestCache(b, testData)
+
+	rand.Seed(int64(b.N))
+	var index int
 
 	test := []struct {
 		name      string
 		predicate interface{}
 	}{
 		{
-			name: "none",
-			predicate: func(t *testLogicalSwitch) bool {
+			name: "predicate returns none",
+			predicate: func(t *testLogicalSwitchPort) bool {
 				return false
 			},
 		},
 		{
-			name: "all",
-			predicate: func(t *testLogicalSwitch) bool {
+			name: "predicate returns all",
+			predicate: func(t *testLogicalSwitchPort) bool {
 				return true
 			},
 		},
 		{
-			name: "arbitrary condition",
-			predicate: func(t *testLogicalSwitch) bool {
+			name: "predicate on an arbitrary condition",
+			predicate: func(t *testLogicalSwitchPort) bool {
 				return strings.HasPrefix(t.Name, "ls1")
 			},
+		},
+		{
+			name: "predicate matches name",
+			predicate: func(t *testLogicalSwitchPort) bool {
+				return t.Name == lscacheList[index].Name
+			},
+		},
+		{
+			name: "by index, no predicate",
 		},
 	}
 
 	for _, tt := range test {
-		b.Run(fmt.Sprintf("ApiListPredicate: %s", tt.name), func(b *testing.B) {
-			var result []testLogicalSwitch
-			api := newAPI(tcache, &discardLogger)
-			cond := api.WhereCache(tt.predicate)
-			err := cond.List(context.Background(), &result)
-			if err != nil {
-				b.Fatal(err)
+		b.Run(tt.name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				index = rand.Intn(numRows)
+				var result []*testLogicalSwitchPort
+				api := newAPI(tcache, &discardLogger)
+				var cond ConditionalAPI
+				if tt.predicate != nil {
+					cond = api.WhereCache(tt.predicate)
+				} else {
+					cond = api.Where(lscacheList[index])
+				}
+				err := cond.List(context.Background(), &result)
+				assert.NoError(b, err)
 			}
-			b.Logf("got %d rows", len(result))
 		})
 	}
 }

@@ -62,8 +62,8 @@ to a Model's field, a `ovsdb.ConditionFunction` and a value. The type of the val
 The resulting `ConditionalAPI` will create one operation per condition, so all the rows that match *any* of the specified conditions will be affected.
 
 If no conditions are provided, `Where()` will create a `ConditionalAPI` based on the index information that the provided Model contains.
-It will check the field corresponding to the `_uuid` column as well as all the other schema-defined indexes. The first field with
-non-default value will be used for the condition.
+It will check the field corresponding to the `_uuid` column as well as all the other schema-defined or client-defined indexes in that order of priority.
+The first available index will be used to generate a condition.
 
 **WhereAll()**: `WhereAll()` behaves like `Where()` but with *AND* semantics. The resulting `ConditionalAPI` will put all the
 conditions into a single operation. Therefore the operation will affect the rows that satisfy *all* the conditions.
@@ -80,6 +80,41 @@ create an equality condition (using `ovsdb.ConditionEqual`) on the `_uuid` field
     }).List(&lsList)
 
 The table is inferred from the type that the function accepts as only argument.
+
+### Client indexes
+
+The client will track schema indexes and use them when appropriate in `Get`, `Where`, and `WhereAll` as explained above.
+
+Additional indexes can be specified for a client instance to track. Just as schema indexes, client indexes are specified in sets per table.
+where each set consists of the columns that compose the index. Unlike schema indexes, a key within a column can be addressed if the column
+type is a map.
+
+Client indexes are leveraged through `Where`, and `WhereAll`. Since client indexes value uniqueness is not enforced as it happens with schema indexes,
+conditions based on them can match multiple rows.
+
+Indexed based operations generally provide better performance than operations based on explicit conditions.
+
+As an example, where you would have:
+
+    // slow predicate run on all the LB table rows...
+    ovn.WhereCache(func (lb *LoadBalancer) bool {
+        return lb.ExternalIds["myIdKey"] == "myIdValue"
+    }).List(ctx, &results)
+
+can now be improved with:
+
+    dbModel, err := nbdb.FullDatabaseModel()
+    db.SetIndexes(map[string][]model.ClientIndex{
+        "Load_Balancer": {{Columns: []model.ColumnKey{Column: "external_ids", Key: "myIdKey"}}}
+    })
+
+    // connect ....
+
+    lb := &LoadBalancer{
+        ExternalIds: map[string]string{"myIdKey": "myIdValue"},
+    }
+    // quick indexed result
+    ovn.Where(lb).List(ctx, &results)
 
 ## Documentation
 
