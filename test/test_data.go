@@ -1,3 +1,12 @@
+package test
+
+import (
+	"encoding/json"
+
+	"github.com/ovn-org/libovsdb/ovsdb"
+)
+
+const schema = `
 {
     "name": "Open_vSwitch",
     "version": "0.0.1",
@@ -78,4 +87,29 @@
             ]
         }
     }
+}
+`
+
+// BridgeType is the simplified ORM model of the Bridge table
+type BridgeType struct {
+	UUID         string            `ovsdb:"_uuid"`
+	Name         string            `ovsdb:"name"`
+	DatapathType string            `ovsdb:"datapath_type"`
+	DatapathID   *string           `ovsdb:"datapath_id"`
+	OtherConfig  map[string]string `ovsdb:"other_config"`
+	ExternalIds  map[string]string `ovsdb:"external_ids"`
+	Ports        []string          `ovsdb:"ports"`
+	Status       map[string]string `ovsdb:"status"`
+}
+
+// OvsType is the simplified ORM model of the Bridge table
+type OvsType struct {
+	UUID    string   `ovsdb:"_uuid"`
+	Bridges []string `ovsdb:"bridges"`
+}
+
+func GetSchema() (ovsdb.DatabaseSchema, error) {
+	var dbSchema ovsdb.DatabaseSchema
+	err := json.Unmarshal([]byte(schema), &dbSchema)
+	return dbSchema, err
 }
