@@ -104,8 +104,8 @@ As an example, where you would have:
 can now be improved with:
 
     dbModel, err := nbdb.FullDatabaseModel()
-    db.SetIndexes(map[string][]model.ClientIndex{
-        "Load_Balancer": {{Columns: []model.ColumnKey{Column: "external_ids", Key: "myIdKey"}}}
+    dbModel.SetIndexes(map[string][]model.ClientIndex{
+        "Load_Balancer": {{Columns: []model.ColumnKey{{Column: "external_ids", Key: "myIdKey"}}}},
     })
 
     // connect ....
