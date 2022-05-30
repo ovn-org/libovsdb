@@ -237,9 +237,9 @@ func (o *OvsdbServer) Transact(client *rpc2.Client, args []json.RawMessage, repl
 	}
 	response, updates := o.transact(db, ops)
 	*reply = response
-	for i, operResult := range response {
+	for _, operResult := range response {
 		if operResult.Error != "" {
-			o.logger.Error(errors.New("failed to process operation"), "Skipping transaction DB commit due to error", "operations", ops, "failed operation", ops[i], "operation error", operResult.Error)
+			o.logger.Error(errors.New("failed to process operation"), "Skipping transaction DB commit due to error", "operations", ops, "results", response, "operation error", operResult.Error)
 			return nil
 		}
 	}

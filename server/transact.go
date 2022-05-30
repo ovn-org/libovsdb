@@ -92,6 +92,21 @@ func (o *OvsdbServer) transact(name string, operations []ovsdb.Operation) ([]ovs
 			return nil, updates
 		}
 	}
+
+	if err := transaction.checkIndexes(); err != nil {
+		if indexExists, ok := err.(*cache.ErrIndexExists); ok {
+			e := ovsdb.ConstraintViolation{}
+			results = append(results, ovsdb.OperationResult{
+				Error:   e.Error(),
+				Details: newIndexExistsDetails(*indexExists),
+			})
+		} else {
+			results = append(results, ovsdb.OperationResult{
+				Error: err.Error(),
+			})
+		}
+	}
+
 	return results, updates
 }
 
@@ -125,15 +140,40 @@ func (t *Transaction) rowsFromTransactionCacheAndDatabase(table string, where []
 	return rows, nil
 }
 
-func (t *Transaction) checkIndexes(table string, model model.Model) error {
-	// check for index conflicts. First check on transaction cache, followed by
-	// the database's
-	targetTable := t.Cache.Table(table)
-	err := targetTable.IndexExists(model)
-	if err == nil {
-		err = t.Database.CheckIndexes(t.DbName, table, model)
+// checkIndexes checks that there are no index conflicts: 
+// - no duplicate indexes among any two rows operated with in the transaction
+// - no duplicate indexes of any transaction row with any database row
+func (t *Transaction) checkIndexes() error {
+	// check for index conflicts.
+	tables := t.Cache.Tables()
+	for _, table := range tables {
+		tc := t.Cache.Table(table)
+		for _, row := range tc.RowsShallow() {
+			err := tc.IndexExists(row)
+			if err != nil {
+				return err
+			}
+			err = t.Database.CheckIndexes(t.DbName, table, row)
+			errIndexExists, isErrIndexExists := err.(*cache.ErrIndexExists)
+			if !isErrIndexExists {
+				return err
+			}
+			for _, existing := range errIndexExists.Existing {
+				if  _, isDeleted := t.DeletedRows[existing]; isDeleted {
+					// this model is deleted in the transaction, ignore it
+					continue
+				}
+				if tc.HasRow(existing) {
+					// this model is updated in the transaction and was not
+					// detected as a duplicate, so an index must have been
+					// updated, ignore it
+					continue
+				}
+				return err
+			}
+		}
 	}
-	return err
+	return nil
 }
 
 func (t *Transaction) Insert(table string, rowUUID string, row ovsdb.Row) (ovsdb.OperationResult, ovsdb.TableUpdates2) {
@@ -174,20 +214,6 @@ func (t *Transaction) Insert(table string, rowUUID string, row ovsdb.Row) (ovsdb
 
 	resultRow, err := m.NewRow(mapperInfo)
 	if err != nil {
-		return ovsdb.OperationResult{
-			Error: err.Error(),
-		}, nil
-	}
-
-	// check for index conflicts
-	if err := t.checkIndexes(table, model); err != nil {
-		if indexExists, ok := err.(*cache.ErrIndexExists); ok {
-			e := ovsdb.ConstraintViolation{}
-			return ovsdb.OperationResult{
-				Error:   e.Error(),
-				Details: newIndexExistsDetails(*indexExists),
-			}, nil
-		}
 		return ovsdb.OperationResult{
 			Error: err.Error(),
 		}, nil
@@ -327,20 +353,6 @@ func (t *Transaction) Update(database, table string, where []ovsdb.Condition, ro
 			panic(err)
 		}
 
-		// check for index conflicts
-		if err := t.checkIndexes(table, new); err != nil {
-			if indexExists, ok := err.(*cache.ErrIndexExists); ok {
-				e := ovsdb.ConstraintViolation{}
-				return ovsdb.OperationResult{
-					Error:   e.Error(),
-					Details: newIndexExistsDetails(*indexExists),
-				}, nil
-			}
-			return ovsdb.OperationResult{
-				Error: err.Error(),
-			}, nil
-		}
-
 		tableUpdate.AddRowUpdate(uuid, &ovsdb.RowUpdate2{
 			Modify: &rowDelta,
 			Old:    &oldRow,
@@ -450,20 +462,6 @@ func (t *Transaction) Mutate(database, table string, where []ovsdb.Condition, mu
 			if delta != nil {
 				rowDelta[changed] = delta
 			}
-		}
-
-		// check indexes
-		if err := t.checkIndexes(table, new); err != nil {
-			if indexExists, ok := err.(*cache.ErrIndexExists); ok {
-				e := ovsdb.ConstraintViolation{}
-				return ovsdb.OperationResult{
-					Error:   e.Error(),
-					Details: newIndexExistsDetails(*indexExists),
-				}, nil
-			}
-			return ovsdb.OperationResult{
-				Error: err.Error(),
-			}, nil
 		}
 
 		newRow, err := m.NewRow(newInfo)

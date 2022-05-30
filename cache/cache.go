@@ -56,14 +56,14 @@ type ErrIndexExists struct {
 	Value    interface{}
 	Index    string
 	New      string
-	Existing string
+	Existing []string
 }
 
 func (e *ErrIndexExists) Error() string {
 	return fmt.Sprintf("cannot insert %s in the %s table. item %s has identical indexes. index: %s, value: %v", e.New, e.Table, e.Existing, e.Index, e.Value)
 }
 
-func NewIndexExistsError(table string, value interface{}, index string, new, existing string) *ErrIndexExists {
+func NewIndexExistsError(table string, value interface{}, index string, new string, existing []string) *ErrIndexExists {
 	return &ErrIndexExists{
 		table, value, index, new, existing,
 	}
@@ -166,6 +166,13 @@ func (r *RowCache) Row(uuid string) model.Model {
 	return r.rowByUUID(uuid)
 }
 
+func (r *RowCache) HasRow(uuid string) bool {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+	_, found := r.cache[uuid]
+	return found
+}
+
 func (r *RowCache) rowsByModel(m model.Model, useClientIndexes bool) map[string]model.Model {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
@@ -257,7 +264,7 @@ func (r *RowCache) Create(uuid string, m model.Model, checkIndexes bool) error {
 
 		vals := r.indexes[index]
 		if existing, ok := vals[val]; ok && !existing.empty() && checkIndexes && indexSpec.isSchemaIndex() {
-			return NewIndexExistsError(r.name, val, string(index), uuid, existing.getAny())
+			return NewIndexExistsError(r.name, val, string(index), uuid, existing.list())
 		}
 
 		uuidset := newUUIDSet(uuid)
@@ -322,7 +329,7 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) (model.
 				newVal,
 				string(index),
 				uuid,
-				existing.getAny(),
+				existing.list(),
 			))
 		}
 
@@ -352,6 +359,8 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) (model.
 	return oldRow, nil
 }
 
+// IndexExists checks if any of the provided model primary indexes (schema index
+// or client primary index) is already in the cache.
 func (r *RowCache) IndexExists(row model.Model) error {
 	info, err := r.dbModel.NewModelInfo(row)
 	if err != nil {
@@ -380,7 +389,7 @@ func (r *RowCache) IndexExists(row model.Model) error {
 				val,
 				string(index),
 				uuid,
-				existing.getAny(),
+				existing.list(),
 			)
 		}
 	}
