@@ -920,8 +920,8 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) error {
 		}
 		tCache := t.cache[table]
 		for uuid, row := range updates {
-			logger := t.logger.WithValues("uuid", uuid, "table", table)
-			logger.V(5).Info("processing update")
+			dbgLogger := t.logger.WithValues("uuid", uuid, "table", table).V(5)
+			dbgLogger.Info("processing update")
 			if row.New != nil {
 				newModel, err := t.CreateModel(table, row.New, uuid)
 				if err != nil {
@@ -932,13 +932,17 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) error {
 						if _, err := tCache.Update(uuid, newModel, false); err != nil {
 							return err
 						}
-						logger.V(5).Info("updated row", "old:", fmt.Sprintf("%+v", existing), "new", fmt.Sprintf("%+v", newModel))
+						if dbgLogger.Enabled() {
+							dbgLogger.Info("updated row", "old:", fmt.Sprintf("%+v", existing), "new", fmt.Sprintf("%+v", newModel))
+						}
 						t.eventProcessor.AddEvent(updateEvent, table, existing, newModel)
 					}
 					// no diff
 					continue
 				}
-				logger.V(5).Info("creating row", "model", fmt.Sprintf("%+v", newModel))
+				if dbgLogger.Enabled() {
+					dbgLogger.Info("creating row", "model", fmt.Sprintf("%+v", newModel))
+				}
 				if err := tCache.Create(uuid, newModel, false); err != nil {
 					return err
 				}
@@ -949,7 +953,9 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) error {
 				if err != nil {
 					return err
 				}
-				logger.V(5).Info("deleting row", "model", fmt.Sprintf("%+v", oldModel))
+				if dbgLogger.Enabled() {
+					dbgLogger.Info("deleting row", "model", fmt.Sprintf("%+v", oldModel))
+				}
 				if err := tCache.Delete(uuid); err != nil {
 					return err
 				}
@@ -972,15 +978,17 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 		}
 		tCache := t.cache[table]
 		for uuid, row := range updates {
-			logger := t.logger.WithValues("uuid", uuid, "table", table)
-			logger.V(5).Info("processing update")
+			dbgLogger := t.logger.WithValues("uuid", uuid, "table", table).V(5)
+			dbgLogger.Info("processing update")
 			switch {
 			case row.Initial != nil:
 				m, err := t.CreateModel(table, row.Initial, uuid)
 				if err != nil {
 					return err
 				}
-				logger.V(5).Info("creating row", "model", fmt.Sprintf("%+v", m))
+				if dbgLogger.Enabled() {
+					dbgLogger.Info("creating row", "model", fmt.Sprintf("%+v", m))
+				}
 				if err := tCache.Create(uuid, m, false); err != nil {
 					return err
 				}
@@ -990,7 +998,9 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 				if err != nil {
 					return err
 				}
-				logger.V(5).Info("inserting row", "model", fmt.Sprintf("%+v", m))
+				if dbgLogger.Enabled() {
+					dbgLogger.Info("inserting row", "model", fmt.Sprintf("%+v", m))
+				}
 				if err := tCache.Create(uuid, m, false); err != nil {
 					return err
 				}
@@ -1009,7 +1019,9 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 					if err != nil {
 						return err
 					}
-					logger.V(5).Info("updated row", "old", fmt.Sprintf("%+v", existing), "new", fmt.Sprintf("%+v", modified))
+					if dbgLogger.Enabled() {
+						dbgLogger.Info("updated row", "old", fmt.Sprintf("%+v", existing), "new", fmt.Sprintf("%+v", modified))
+					}
 					t.eventProcessor.AddEvent(updateEvent, table, existing, modified)
 				}
 			case row.Delete != nil:
@@ -1021,7 +1033,9 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 				if m == nil {
 					return NewErrCacheInconsistent(fmt.Sprintf("row with uuid %s does not exist", uuid))
 				}
-				logger.V(5).Info("deleting row", "model", fmt.Sprintf("%+v", m))
+				if dbgLogger.Enabled() {
+					dbgLogger.Info("deleting row", "model", fmt.Sprintf("%+v", m))
+				}
 				if err := tCache.Delete(uuid); err != nil {
 					return err
 				}
