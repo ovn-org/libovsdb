@@ -112,7 +112,12 @@ func TestWithReconnect(t *testing.T) {
 	fn := WithReconnect(timeout, &backoff.ZeroBackOff{})
 	err := fn(opts)
 	require.NoError(t, err)
-	assert.Equal(t, timeout, opts.timeout)
+	assert.Equal(t, timeout, opts.connectTimeout)
 	assert.Equal(t, true, opts.reconnect)
 	assert.Equal(t, &backoff.ZeroBackOff{}, opts.backoff)
+	monitorTimeout := 5 * time.Second
+	fn = WithMonitorTimeout(monitorTimeout)
+	err = fn(opts)
+	require.NoError(t, err)
+	assert.Equal(t, monitorTimeout, opts.monitorTimeout)
 }

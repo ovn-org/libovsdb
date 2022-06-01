@@ -21,7 +21,8 @@ type options struct {
 	tlsConfig             *tls.Config
 	reconnect             bool
 	leaderOnly            bool
-	timeout               time.Duration
+	connectTimeout        time.Duration
+	monitorTimeout        time.Duration
 	backoff               backoff.BackOff
 	logger                *logr.Logger
 	registry              prometheus.Registerer
@@ -100,11 +101,21 @@ func WithLeaderOnly(leaderOnly bool) Option {
 // algorithm to use. Using WithReconnect implies that
 // requested transactions will block until the client has fully reconnected,
 // rather than immediately returning an error if there is no connection.
-func WithReconnect(timeout time.Duration, backoff backoff.BackOff) Option {
+func WithReconnect(connectTimeout time.Duration, backoff backoff.BackOff) Option {
 	return func(o *options) error {
 		o.reconnect = true
-		o.timeout = timeout
+		o.connectTimeout = connectTimeout
 		o.backoff = backoff
+		return nil
+	}
+}
+
+// WithMonitorTimeout sets the timeout for DB monitoring. If this
+// is not set, connectTimeout will be used for both tcp connect
+// and db monitoring during reconnect.
+func WithMonitorTimeout(monitorTimeout time.Duration) Option {
+	return func(o *options) error {
+		o.monitorTimeout = monitorTimeout
 		return nil
 	}
 }

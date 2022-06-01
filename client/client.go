@@ -327,6 +327,12 @@ func (o *ovsdbClient) tryEndpoint(ctx context.Context, u *url.URL) (string, erro
 	var err error
 	var c net.Conn
 
+	if o.options.connectTimeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.Background(), o.options.connectTimeout)
+		defer cancel()
+	}
+
 	switch u.Scheme {
 	case UNIX:
 		c, err = dialer.DialContext(ctx, u.Scheme, u.Path)
@@ -885,6 +891,12 @@ func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconne
 	}
 	db.modelMutex.RUnlock()
 
+	if o.options.monitorTimeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.Background(), o.options.monitorTimeout)
+		defer cancel()
+	}
+
 	var args []interface{}
 	if monitor.Method == ovsdb.ConditionalMonitorSinceRPC {
 		// If we are reconnecting a CondSince monitor that is the only
@@ -1142,9 +1154,7 @@ func (o *ovsdbClient) handleDisconnectNotification() {
 				db.deferUpdates = true
 				db.cacheMutex.Unlock()
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), o.options.timeout)
-			defer cancel()
-			err := o.connect(ctx, true)
+			err := o.connect(context.Background(), true)
 			if err != nil {
 				if suppressionCounter < 5 {
 					o.logger.V(2).Error(err, "failed to reconnect")
