@@ -1975,7 +1975,50 @@ func BenchmarkPopulate2UpdateArray(b *testing.B) {
 			require.NoError(b, err)
 		}
 	}
+}
 
+func BenchmarkTableCacheApplyModificationsSet(b *testing.B) {
+	type testDBModel struct {
+		UUID string   `ovsdb:"_uuid"`
+		Set  []string `ovsdb:"set"`
+	}
+	aFooSet, _ := ovsdb.NewOvsSet([]string{"foo"})
+	base := &testDBModel{Set: []string{}}
+	for i := 0; i < 57000; i++ {
+		base.Set = append(base.Set, fmt.Sprintf("foo%d", i))
+	}
+
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testDBModel{}})
+	assert.Nil(b, err)
+	var schema ovsdb.DatabaseSchema
+	err = json.Unmarshal([]byte(`
+	  {
+		"name": "Open_vSwitch",
+		"tables": {
+		  "Open_vSwitch": {
+			"columns": {
+			  "set": { "type": { "key": { "type": "string" }, "min": 0, "max": "unlimited" } }
+			}
+		  }
+		}
+	  }
+	`), &schema)
+	require.NoError(b, err)
+	dbModel, errs := model.NewDatabaseModel(schema, db)
+	require.Empty(b, errs)
+	tc, err := NewTableCache(dbModel, nil, nil)
+	assert.Nil(b, err)
+
+	bases := make([]*testDBModel, b.N)
+	for n := 0; n < b.N; n++ {
+		bases[n] = model.Clone(base).(*testDBModel)
+	}
+
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		_, err = tc.ApplyModifications("Open_vSwitch", bases[n], ovsdb.Row{"set": aFooSet})
+		require.NoError(b, err)
+	}
 }
 
 func TestTableCacheRowByModelTwoIndexes(t *testing.T) {
