@@ -632,8 +632,10 @@ func (r *RowCache) uuidsByConditionsAsIndexes(conditions []ovsdb.Condition, nati
 	return matching, err
 }
 
-// RowsByCondition searches models in the cache that match all conditions
-func (r *RowCache) RowsByCondition(conditions []ovsdb.Condition) (map[string]model.Model, error) {
+type cloner func(model.Model) model.Model
+
+// rowsByCondition searches models in the cache that match all conditions
+func (r *RowCache) rowsByCondition(conditions []ovsdb.Condition, cloner cloner) (map[string]model.Model, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 	results := make(map[string]model.Model)
@@ -642,7 +644,7 @@ func (r *RowCache) RowsByCondition(conditions []ovsdb.Condition) (map[string]mod
 	// no conditions matches all rows
 	if len(conditions) == 0 {
 		for uuid := range r.cache {
-			results[uuid] = r.rowByUUID(uuid)
+			results[uuid] = cloner(r.cache[uuid])
 		}
 		return results, nil
 	}
@@ -731,10 +733,22 @@ func (r *RowCache) RowsByCondition(conditions []ovsdb.Condition) (map[string]mod
 	}
 
 	for uuid := range matching {
-		results[uuid] = r.rowByUUID(uuid)
+		results[uuid] = cloner(r.cache[uuid])
 	}
 
 	return results, nil
+}
+
+func (r *RowCache) RowsByCondition(conditions []ovsdb.Condition) (map[string]model.Model, error) {
+	return r.rowsByCondition(conditions, func(m model.Model) model.Model {
+		return model.Clone(m)
+	})
+}
+
+func (r *RowCache) RowsByConditionShallow(conditions []ovsdb.Condition) (map[string]model.Model, error) {
+	return r.rowsByCondition(conditions, func(m model.Model) model.Model {
+		return m
+	})
 }
 
 // Len returns the length of the cache

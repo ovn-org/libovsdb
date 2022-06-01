@@ -146,7 +146,7 @@ func (c *cacheDatabase) List(database string, table string, conditions ...ovsdb.
 	if targetTable == nil {
 		return nil, fmt.Errorf("table does not exist")
 	}
-	return targetTable.RowsByCondition(conditions)
+	return targetTable.RowsByConditionShallow(conditions)
 }
 
 func (c *cacheDatabase) Get(database string, table string, uuid string) (model.Model, error) {

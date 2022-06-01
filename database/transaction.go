@@ -124,7 +124,7 @@ func (t *Transaction) Transact(operations []ovsdb.Operation) ([]ovsdb.OperationR
 }
 
 func (t *Transaction) rowsFromTransactionCacheAndDatabase(table string, where []ovsdb.Condition) (map[string]model.Model, error) {
-	txnRows, err := t.Cache.Table(table).RowsByCondition(where)
+	txnRows, err := t.Cache.Table(table).RowsByConditionShallow(where)
 	if err != nil {
 		return nil, fmt.Errorf("failed getting rows for table %s from transaction cache: %v", table, err)
 	}
