@@ -1666,6 +1666,7 @@ func TestTableCachePopulate2BrokenIndexes(t *testing.T) {
 func TestEventProcessor_AddEvent(t *testing.T) {
 	logger := logr.Discard()
 	ep := newEventProcessor(16, &logger)
+	ep.events = make(chan event, ep.capacity)
 	var events []event
 	for i := 0; i < 17; i++ {
 		events = append(events, event{

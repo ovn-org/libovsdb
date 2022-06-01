@@ -1154,19 +1154,28 @@ type event struct {
 // eventProcessor handles the queueing and processing of cache events
 type eventProcessor struct {
 	events chan event
-	// handlersMutex locks the handlers array when we add a handler or dispatch events
-	// we don't need a RWMutex in this case as we only have one thread reading and the write
-	// volume is very low (i.e only when AddEventHandler is called)
-	handlersMutex sync.Mutex
-	handlers      []EventHandler
-	logger        *logr.Logger
+	// eventMutex locks the events channel and handlers array when we add a
+	// handler or dispatch events
+	eventMutex sync.RWMutex
+	handlers   []EventHandler
+	logger     *logr.Logger
+	capacity   int
 }
 
 func newEventProcessor(capacity int, logger *logr.Logger) *eventProcessor {
 	return &eventProcessor{
-		events:   make(chan event, capacity),
 		handlers: []EventHandler{},
 		logger:   logger,
+		capacity: capacity,
+	}
+}
+
+// initEventsChannel is a lazy initializer for the events channel as it has
+// performance cost and not everyone has a use for it. eventMutex needs to be
+// held before calling this method.
+func (e *eventProcessor) initEventsChannel() {
+	if e.events == nil {
+		e.events = make(chan event, e.capacity)
 	}
 }
 
@@ -1175,13 +1184,20 @@ func newEventProcessor(capacity int, logger *logr.Logger) *eventProcessor {
 // to be processed by the client. Long Running handler functions adversely affect
 // other handlers and MAY cause loss of data if the channel buffer is full
 func (e *eventProcessor) AddEventHandler(handler EventHandler) {
-	e.handlersMutex.Lock()
-	defer e.handlersMutex.Unlock()
+	e.eventMutex.Lock()
+	defer e.eventMutex.Unlock()
+	e.initEventsChannel()
 	e.handlers = append(e.handlers, handler)
 }
 
 // AddEvent writes an event to the channel
 func (e *eventProcessor) AddEvent(eventType string, table string, old model.Model, new model.Model) {
+	e.eventMutex.RLock()
+	hasEventChannel := e.events != nil
+	e.eventMutex.RUnlock()
+	if !hasEventChannel {
+		return
+	}
 	// We don't need to check for error here since there
 	// is only a single writer. RPC is run in blocking mode
 	event := event{
@@ -1204,12 +1220,15 @@ func (e *eventProcessor) AddEvent(eventType string, table string, old model.Mode
 // Otherwise it will wait for events to arrive on the event channel
 // Once received, it will dispatch the event to each registered handler
 func (e *eventProcessor) Run(stopCh <-chan struct{}) {
+	e.eventMutex.Lock()
+	e.initEventsChannel()
+	e.eventMutex.Unlock()
 	for {
 		select {
 		case <-stopCh:
 			return
 		case event := <-e.events:
-			e.handlersMutex.Lock()
+			e.eventMutex.RLock()
 			for _, handler := range e.handlers {
 				switch event.eventType {
 				case addEvent:
@@ -1220,7 +1239,7 @@ func (e *eventProcessor) Run(stopCh <-chan struct{}) {
 					handler.OnDelete(event.table, event.old)
 				}
 			}
-			e.handlersMutex.Unlock()
+			e.eventMutex.RUnlock()
 		}
 	}
 }
