@@ -301,7 +301,7 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) (model.
 	if _, ok := r.cache[uuid]; !ok {
 		return nil, NewErrCacheInconsistent(fmt.Sprintf("cannot update row %s as it does not exist in the cache", uuid))
 	}
-	oldRow := model.Clone(r.cache[uuid])
+	oldRow := r.cache[uuid]
 	oldInfo, err := r.dbModel.NewModelInfo(oldRow)
 	if err != nil {
 		return nil, err
