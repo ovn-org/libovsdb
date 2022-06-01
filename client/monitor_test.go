@@ -10,7 +10,7 @@ import (
 )
 
 func TestWithTable(t *testing.T) {
-	client, err := newOVSDBClient(defDB)
+	client, err := newOVSDBClient(defDB())
 	assert.NoError(t, err)
 	m := newMonitor()
 	opt := WithTable(&OpenvSwitch{})
@@ -37,7 +37,7 @@ func populateClientModel(t *testing.T, client *ovsdbClient) {
 }
 
 func TestWithTableAndFields(t *testing.T) {
-	client, err := newOVSDBClient(defDB)
+	client, err := newOVSDBClient(defDB())
 	assert.NoError(t, err)
 	populateClientModel(t, client)
 

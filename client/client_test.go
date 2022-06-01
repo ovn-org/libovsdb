@@ -14,6 +14,8 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/cenkalti/rpc2"
+	"github.com/go-logr/logr"
+	"github.com/go-logr/stdr"
 	"github.com/google/uuid"
 	"github.com/ovn-org/libovsdb/cache"
 	db "github.com/ovn-org/libovsdb/database"
@@ -97,12 +99,15 @@ type OpenvSwitch struct {
 	SystemVersion   *string           `ovsdb:"system_version"`
 }
 
-var defDB, _ = model.NewClientDBModel("Open_vSwitch",
-	map[string]model.Model{
-		"Open_vSwitch": &OpenvSwitch{},
-		"Bridge":       &Bridge{},
-	},
-)
+func defDB() model.ClientDBModel {
+	dbModel, _ := model.NewClientDBModel("Open_vSwitch",
+		map[string]model.Model{
+			"Open_vSwitch": &OpenvSwitch{},
+			"Bridge":       &Bridge{},
+		},
+	)
+	return dbModel
+}
 
 var schema = `{
 	"name": "Open_vSwitch",
@@ -564,7 +569,7 @@ func newOvsRow(bridges ...string) string {
 }
 
 func BenchmarkUpdate1(b *testing.B) {
-	ovs, err := newOVSDBClient(defDB)
+	ovs, err := newOVSDBClient(defDB())
 	require.NoError(b, err)
 	var s ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(schema), &s)
@@ -590,7 +595,7 @@ func BenchmarkUpdate1(b *testing.B) {
 }
 
 func BenchmarkUpdate2(b *testing.B) {
-	ovs, err := newOVSDBClient(defDB)
+	ovs, err := newOVSDBClient(defDB())
 	require.NoError(b, err)
 	var s ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(schema), &s)
@@ -617,7 +622,7 @@ func BenchmarkUpdate2(b *testing.B) {
 }
 
 func BenchmarkUpdate3(b *testing.B) {
-	ovs, err := newOVSDBClient(defDB)
+	ovs, err := newOVSDBClient(defDB())
 	require.NoError(b, err)
 	var s ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(schema), &s)
@@ -645,7 +650,7 @@ func BenchmarkUpdate3(b *testing.B) {
 }
 
 func BenchmarkUpdate5(b *testing.B) {
-	ovs, err := newOVSDBClient(defDB)
+	ovs, err := newOVSDBClient(defDB())
 	require.NoError(b, err)
 	var s ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(schema), &s)
@@ -675,7 +680,7 @@ func BenchmarkUpdate5(b *testing.B) {
 }
 
 func BenchmarkUpdate8(b *testing.B) {
-	ovs, err := newOVSDBClient(defDB)
+	ovs, err := newOVSDBClient(defDB())
 	require.NoError(b, err)
 	var s ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(schema), &s)
@@ -710,7 +715,7 @@ func BenchmarkUpdate8(b *testing.B) {
 func TestEcho(t *testing.T) {
 	req := []interface{}{"hi"}
 	var reply []interface{}
-	ovs, err := newOVSDBClient(defDB)
+	ovs, err := newOVSDBClient(defDB())
 	require.NoError(t, err)
 	err = ovs.echo(req, &reply)
 	if err != nil {
@@ -722,7 +727,7 @@ func TestEcho(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
-	ovs, err := newOVSDBClient(defDB)
+	ovs, err := newOVSDBClient(defDB())
 	require.NoError(t, err)
 	var s ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(schema), &s)
@@ -753,7 +758,7 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestOperationWhenNeverConnected(t *testing.T) {
-	ovs, err := newOVSDBClient(defDB)
+	ovs, err := newOVSDBClient(defDB())
 	require.NoError(t, err)
 	var s ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(schema), &s)
@@ -800,7 +805,7 @@ func TestOperationWhenNeverConnected(t *testing.T) {
 }
 
 func TestOperationWhenNotConnected(t *testing.T) {
-	ovs, err := newOVSDBClient(defDB)
+	ovs, err := newOVSDBClient(defDB())
 	require.NoError(t, err)
 	var s ovsdb.DatabaseSchema
 	err = json.Unmarshal([]byte(schema), &s)
@@ -851,7 +856,7 @@ func TestOperationWhenNotConnected(t *testing.T) {
 }
 
 func TestSetOption(t *testing.T) {
-	o, err := newOVSDBClient(defDB)
+	o, err := newOVSDBClient(defDB())
 	require.NoError(t, err)
 
 	o.options, err = newOptions()
@@ -866,7 +871,7 @@ func TestSetOption(t *testing.T) {
 	assert.EqualError(t, err, "cannot set option when client is connected")
 }
 
-func newOVSDBServer(t *testing.T, dbModel model.ClientDBModel, schema ovsdb.DatabaseSchema) (*server.OvsdbServer, string) {
+func newOVSDBServer(t testing.TB, dbModel model.ClientDBModel, schema ovsdb.DatabaseSchema) (*server.OvsdbServer, string) {
 	serverDBModel, err := serverdb.FullDatabaseModel()
 	require.NoError(t, err)
 	serverSchema := serverdb.Schema()
@@ -911,7 +916,7 @@ func newClientServerPair(t *testing.T, connectCounter *int32, isLeader bool) (Cl
 	require.NoError(t, err)
 
 	// Create server
-	s, sock := newOVSDBServer(t, defDB, defSchema)
+	s, sock := newOVSDBServer(t, defDB(), defSchema)
 	s.OnConnect(func(_ *rpc2.Client) {
 		atomic.AddInt32(connectCounter, 1)
 	})
@@ -928,7 +933,7 @@ func newClientServerPair(t *testing.T, connectCounter *int32, isLeader bool) (Cl
 	sid := fmt.Sprintf("%04x", rand.Uint32())
 	row := &serverdb.Database{
 		UUID:      uuid.NewString(),
-		Name:      defDB.Name(),
+		Name:      defDB().Name(),
 		Connected: true,
 		Leader:    isLeader,
 		Model:     serverdb.DatabaseModelClustered,
@@ -963,7 +968,7 @@ func TestClientReconnectLeaderOnly(t *testing.T) {
 	cli2, row2, endpoint2 := newClientServerPair(t, &connected2, false)
 
 	// Create client to test reconnection for
-	ovs, err := newOVSDBClient(defDB,
+	ovs, err := newOVSDBClient(defDB(),
 		WithLeaderOnly(true),
 		WithReconnect(5*time.Second, &backoff.ZeroBackOff{}),
 		WithEndpoint(endpoint1),
@@ -1013,4 +1018,274 @@ func TestClientReconnectLeaderOnly(t *testing.T) {
 	require.Never(t, func() bool {
 		return atomic.LoadInt32(&connected2) > 2
 	}, 2*time.Second, 10*time.Millisecond)
+}
+
+func TestClientValidateTransaction(t *testing.T) {
+	var defSchema ovsdb.DatabaseSchema
+	err := json.Unmarshal([]byte(schema), &defSchema)
+	require.NoError(t, err)
+
+	// Create server with default model
+	_, sock := newOVSDBServer(t, defDB(), defSchema)
+
+	// Create a client with primary and secondary indexes
+	// and transaction validation
+	dbModel := defDB()
+	dbModel.SetIndexes(
+		map[string][]model.ClientIndex{
+			"Bridge": {
+				model.ClientIndex{
+					Type: model.PrimaryIndexType,
+					Columns: []model.ColumnKey{
+						{
+							Column: "datapath_type",
+						},
+						{
+							Column: "datapath_version",
+						},
+					},
+				},
+				model.ClientIndex{
+					Type: model.SecondaryIndexType,
+					Columns: []model.ColumnKey{
+						{
+							Column: "datapath_type",
+						},
+					},
+				},
+			},
+		},
+	)
+
+	endpoint := fmt.Sprintf("unix:%s", sock)
+	cli, err := newOVSDBClient(dbModel, WithEndpoint(endpoint), WithTransactionValidation(true))
+	require.NoError(t, err)
+	err = cli.Connect(context.Background())
+	require.NoError(t, err)
+	_, err = cli.MonitorAll(context.Background())
+	require.NoError(t, err)
+
+	tests := []struct {
+		desc              string
+		create            *Bridge
+		update            *Bridge
+		delete            *Bridge
+		expectedErrorType interface{}
+	}{
+		{
+			"Creating a first bridge should succeed",
+			&Bridge{
+				Name:            "bridge",
+				DatapathType:    "type1",
+				DatapathVersion: "1",
+			},
+			nil,
+			nil,
+			nil,
+		},
+		{
+			"Creating a duplicate schema index should fail",
+			&Bridge{
+				Name:            "bridge",
+				DatapathType:    "type2",
+				DatapathVersion: "2",
+			},
+			nil,
+			nil,
+			&ovsdb.ConstraintViolation{},
+		},
+		{
+			"Creating a duplicate primary client index should fail",
+			&Bridge{
+				Name:            "bridge2",
+				DatapathType:    "type1",
+				DatapathVersion: "1",
+			},
+			nil,
+			nil,
+			&ovsdb.ConstraintViolation{},
+		},
+		{
+			"Creating a duplicate secondary client index should succeed",
+			&Bridge{
+				Name:            "bridge2",
+				DatapathType:    "type1",
+				DatapathVersion: "2",
+			},
+			nil,
+			nil,
+			nil,
+		},
+		{
+			"Updating to duplicate a primary client index should fail",
+			nil,
+			&Bridge{
+				Name:            "bridge2",
+				DatapathType:    "type1",
+				DatapathVersion: "1",
+			},
+			nil,
+			&ovsdb.ConstraintViolation{},
+		},
+		{
+			"Changing an existing index and creating it again in the same transaction should succeed",
+			&Bridge{
+				Name:            "bridge3",
+				DatapathType:    "type1",
+				DatapathVersion: "1",
+			},
+			&Bridge{
+				Name:            "bridge",
+				DatapathVersion: "3",
+			},
+			nil,
+			nil,
+		},
+		{
+			"Deleting an existing index and creating it again in the same transaction should succeed",
+			&Bridge{
+				Name:            "bridge4",
+				DatapathType:    "type1",
+				DatapathVersion: "1",
+			},
+			nil,
+			&Bridge{
+				Name:            "bridge3",
+				DatapathType:    "type1",
+				DatapathVersion: "1",
+			},
+			nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			ops := []ovsdb.Operation{}
+			if tt.delete != nil {
+				deleteOps, err := cli.Where(tt.delete).Delete()
+				require.NoError(t, err)
+				ops = append(ops, deleteOps...)
+			}
+			if tt.update != nil {
+				updateOps, err := cli.Where(tt.update).Update(tt.update)
+				require.NoError(t, err)
+				ops = append(ops, updateOps...)
+			}
+			if tt.create != nil {
+				createOps, err := cli.Create(tt.create)
+				require.NoError(t, err)
+				ops = append(ops, createOps...)
+			}
+
+			res, err := cli.Transact(context.Background(), ops...)
+			if tt.expectedErrorType != nil {
+				require.Error(t, err)
+				require.IsTypef(t, tt.expectedErrorType, err, err.Error())
+			} else {
+				require.NoError(t, err)
+				_, err = ovsdb.CheckOperationResults(res, ops)
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func BenchmarkClientValidateTransaction(b *testing.B) {
+	var defSchema ovsdb.DatabaseSchema
+	err := json.Unmarshal([]byte(schema), &defSchema)
+	require.NoError(b, err)
+
+	// Create server with default model
+	_, sock := newOVSDBServer(b, defDB(), defSchema)
+	verbosity := stdr.SetVerbosity(0)
+	b.Cleanup(func() {
+		stdr.SetVerbosity(verbosity)
+	})
+
+	// Create a client with transaction validation
+	getClient := func(opts ...Option) *ovsdbClient {
+		dbModel := defDB()
+		endpoint := fmt.Sprintf("unix:%s", sock)
+		l := logr.Discard()
+		cli, err := newOVSDBClient(dbModel, append(opts, WithEndpoint(endpoint), WithLogger(&l))...)
+		stdr.SetVerbosity(0)
+		require.NoError(b, err)
+		err = cli.Connect(context.Background())
+		require.NoError(b, err)
+		_, err = cli.MonitorAll(context.Background())
+		require.NoError(b, err)
+		return cli
+	}
+
+	cli := getClient()
+
+	numRows := 1000
+	models := []*Bridge{}
+	for i := 0; i < numRows; i++ {
+		model := &Bridge{
+			Name:            fmt.Sprintf("Name-%d", i),
+			DatapathVersion: fmt.Sprintf("DatapathVersion-%d", i),
+		}
+		ops, err := cli.Create(model)
+		require.NoError(b, err)
+		_, err = cli.Transact(context.Background(), ops...)
+		require.NoError(b, err)
+		models = append(models, model)
+	}
+
+	rand.Seed(int64(b.N))
+
+	benchmarks := []struct {
+		name   string
+		client *ovsdbClient
+		ops    int
+	}{
+		{
+			"1 update ops with validating client",
+			getClient(WithTransactionValidation(true)),
+			1,
+		},
+		{
+			"1 update ops with non validating client",
+			getClient(),
+			1,
+		},
+		{
+			"10 update ops with validating client",
+			getClient(WithTransactionValidation(true)),
+			10,
+		},
+		{
+			"10 update ops with non validating client",
+			getClient(),
+			10,
+		},
+		{
+			"100 update ops with validating client",
+			getClient(WithTransactionValidation(true)),
+			100,
+		},
+		{
+			"100 update ops with non validating client",
+			getClient(),
+			100,
+		},
+	}
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			cli := bm.client
+			ops := []ovsdb.Operation{}
+			for j := 0; j < bm.ops; j++ {
+				model := models[rand.Intn(numRows)]
+				model.DatapathVersion = fmt.Sprintf("%s-Updated", model.DatapathVersion)
+				op, err := cli.Where(model).Update(model)
+				require.NoError(b, err)
+				ops = append(ops, op...)
+			}
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, err := cli.Transact(context.Background(), ops...)
+				require.NoError(b, err)
+			}
+		})
+	}
 }

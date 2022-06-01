@@ -11,7 +11,7 @@ import (
 	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
-	
+
 	. "github.com/ovn-org/libovsdb/test"
 )
 
@@ -708,4 +708,197 @@ func TestMultipleOps(t *testing.T) {
 		},
 	}, updates)
 
+}
+
+func TestCheckIndexes(t *testing.T) {
+	clientDbModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
+		"Open_vSwitch": &OvsType{},
+		"Bridge":       &BridgeType{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	clientDbModel.SetIndexes(
+		map[string][]model.ClientIndex{
+			"Bridge": {
+				model.ClientIndex{
+					Type: model.PrimaryIndexType,
+					Columns: []model.ColumnKey{
+						{
+							Column: "external_ids",
+							Key:    "primary_key",
+						},
+					},
+				},
+				model.ClientIndex{
+					Type: model.SecondaryIndexType,
+					Columns: []model.ColumnKey{
+						{
+							Column: "external_ids",
+							Key:    "secondary_key",
+						},
+					},
+				},
+			},
+		},
+	)
+	schema, err := GetSchema()
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": clientDbModel})
+	err = db.CreateDatabase("Open_vSwitch", schema)
+	require.NoError(t, err)
+	dbModel, errs := model.NewDatabaseModel(schema, clientDbModel)
+	require.Empty(t, errs)
+	m := mapper.NewMapper(schema)
+
+	bridgeUUID := uuid.NewString()
+	bridge := BridgeType{
+		Name: "a_bridge_to_nowhere",
+		ExternalIds: map[string]string{
+			"primary_key":   "primary_key_1",
+			"secondary_key": "secondary_key_1",
+		},
+	}
+	bridgeInfo, err := dbModel.NewModelInfo(&bridge)
+	require.NoError(t, err)
+	bridgeRow, err := m.NewRow(bridgeInfo)
+	require.Nil(t, err)
+
+	transaction := NewTransaction(dbModel, "Open_vSwitch", db, nil)
+
+	res, updates := transaction.Insert("Bridge", bridgeUUID, bridgeRow)
+	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
+	require.Nil(t, err)
+
+	err = db.Commit("Open_vSwitch", uuid.New(), updates)
+	require.NoError(t, err)
+
+	tests := []struct {
+		desc              string
+		ops               func() []ovsdb.Operation
+		expectedErrorType interface{}
+	}{
+		{
+			"Create to duplicate a schema index should fail",
+			func() []ovsdb.Operation {
+				return []ovsdb.Operation{
+					{
+						Table: "Bridge",
+						Op:    ovsdb.OperationInsert,
+						Row: ovsdb.Row{
+							"name": "a_bridge_to_nowhere",
+						},
+					},
+				}
+			},
+			&ovsdb.ConstraintViolation{},
+		},
+		{
+			"Create to a duplicate primary client index should fail",
+			func() []ovsdb.Operation {
+				return []ovsdb.Operation{
+					{
+						Table: "Bridge",
+						Op:    ovsdb.OperationInsert,
+						Row: ovsdb.Row{
+							"name": "a_bridge_to_nowhere_2",
+							"external_ids": ovsdb.OvsMap{GoMap: map[interface{}]interface{}{
+								"primary_key": "primary_key_1",
+							}},
+						},
+					},
+				}
+			},
+			&ovsdb.ConstraintViolation{},
+		},
+		{
+			"Creating a duplicate secondary client index should succeed",
+			func() []ovsdb.Operation {
+				return []ovsdb.Operation{
+					{
+						Table: "Bridge",
+						Op:    ovsdb.OperationInsert,
+						Row: ovsdb.Row{
+							"name": "a_bridge_to_nowhere_2",
+							"external_ids": ovsdb.OvsMap{GoMap: map[interface{}]interface{}{
+								"secondary_key": "secondary_key_1",
+							}},
+						},
+					},
+				}
+			},
+			nil,
+		},
+		{
+			"Changing an existing index and creating it again in the same transaction should succeed",
+			func() []ovsdb.Operation {
+				return []ovsdb.Operation{
+					{
+						Table: "Bridge",
+						Op:    ovsdb.OperationInsert,
+						Row: ovsdb.Row{
+							"name": "a_bridge_to_nowhere_2",
+							"external_ids": ovsdb.OvsMap{GoMap: map[interface{}]interface{}{
+								"primary_key": "primary_key_1",
+							}},
+						},
+					},
+					{
+						Table: "Bridge",
+						Op:    ovsdb.OperationUpdate,
+						Row: ovsdb.Row{
+							"external_ids": ovsdb.OvsMap{GoMap: map[interface{}]interface{}{
+								"primary_key": "primary_key_2",
+							}},
+						},
+						Where: []ovsdb.Condition{
+							ovsdb.NewCondition("_uuid", ovsdb.ConditionEqual, ovsdb.UUID{GoUUID: bridgeUUID}),
+						},
+					},
+				}
+			},
+			nil,
+		},
+		{
+			"Deleting an existing index and creating it again in the same transaction should succeed",
+			func() []ovsdb.Operation {
+				return []ovsdb.Operation{
+					{
+						Table: "Bridge",
+						Op:    ovsdb.OperationInsert,
+						Row: ovsdb.Row{
+							"name": "a_bridge_to_nowhere_2",
+							"external_ids": ovsdb.OvsMap{GoMap: map[interface{}]interface{}{
+								"primary_key": "primary_key_1",
+							}},
+						},
+					},
+					{
+						Table: "Bridge",
+						Op:    ovsdb.OperationDelete,
+						Where: []ovsdb.Condition{
+							ovsdb.NewCondition("_uuid", ovsdb.ConditionEqual, ovsdb.UUID{GoUUID: bridgeUUID}),
+						},
+					},
+				}
+			},
+			nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			transaction := NewTransaction(dbModel, "Open_vSwitch", db, nil)
+			ops := tt.ops()
+			res, _ := transaction.Transact(ops)
+			_, err = ovsdb.CheckOperationResults(res, ops)
+			if tt.expectedErrorType != nil {
+				require.Error(t, err)
+				require.IsTypef(t, tt.expectedErrorType, err, err.Error())
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
