@@ -23,7 +23,7 @@ type Transaction struct {
 
 func NewTransaction(model model.DatabaseModel, dbName string, database Database, logger *logr.Logger) Transaction {
 	if logger != nil {
-		l := logger.WithName("transaction") 
+		l := logger.WithName("transaction")
 		logger = &l
 	}
 	cache, err := cache.NewTableCache(model, nil, logger)
@@ -153,7 +153,7 @@ func (t *Transaction) rowsFromTransactionCacheAndDatabase(table string, where []
 	return rows, nil
 }
 
-// checkIndexes checks that there are no index conflicts: 
+// checkIndexes checks that there are no index conflicts:
 // - no duplicate indexes among any two rows operated with in the transaction
 // - no duplicate indexes of any transaction row with any database row
 func (t *Transaction) checkIndexes() error {
@@ -172,7 +172,7 @@ func (t *Transaction) checkIndexes() error {
 				return err
 			}
 			for _, existing := range errIndexExists.Existing {
-				if  _, isDeleted := t.DeletedRows[existing]; isDeleted {
+				if _, isDeleted := t.DeletedRows[existing]; isDeleted {
 					// this model is deleted in the transaction, ignore it
 					continue
 				}
