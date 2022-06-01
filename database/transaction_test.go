@@ -16,13 +16,11 @@ import (
 )
 
 func TestWaitOpEquals(t *testing.T) {
-	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
-		"Open_vSwitch": &OvsType{},
-		"Bridge":       &BridgeType{}})
+	defDB, err := FullDatabaseModel()
 	if err != nil {
 		t.Fatal(err)
 	}
-	schema, err := GetSchema()
+	schema, err := Schema()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,15 +35,15 @@ func TestWaitOpEquals(t *testing.T) {
 
 	m := mapper.NewMapper(schema)
 
-	ovs := OvsType{}
+	ovs := OpenvSwitch{}
 	info, err := dbModel.NewModelInfo(&ovs)
 	require.NoError(t, err)
 	ovsRow, err := m.NewRow(info)
 	require.Nil(t, err)
 
-	bridge := BridgeType{
+	bridge := Bridge{
 		Name: "foo",
-		ExternalIds: map[string]string{
+		ExternalIDs: map[string]string{
 			"foo":   "bar",
 			"baz":   "quux",
 			"waldo": "fred",
@@ -141,13 +139,11 @@ func TestWaitOpEquals(t *testing.T) {
 }
 
 func TestWaitOpNotEquals(t *testing.T) {
-	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
-		"Open_vSwitch": &OvsType{},
-		"Bridge":       &BridgeType{}})
+	defDB, err := FullDatabaseModel()
 	if err != nil {
 		t.Fatal(err)
 	}
-	schema, err := GetSchema()
+	schema, err := Schema()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,15 +158,15 @@ func TestWaitOpNotEquals(t *testing.T) {
 
 	m := mapper.NewMapper(schema)
 
-	ovs := OvsType{}
+	ovs := OpenvSwitch{}
 	info, err := dbModel.NewModelInfo(&ovs)
 	require.NoError(t, err)
 	ovsRow, err := m.NewRow(info)
 	require.Nil(t, err)
 
-	bridge := BridgeType{
+	bridge := Bridge{
 		Name: "foo",
-		ExternalIds: map[string]string{
+		ExternalIDs: map[string]string{
 			"foo":   "bar",
 			"baz":   "quux",
 			"waldo": "fred",
@@ -259,13 +255,11 @@ func TestWaitOpNotEquals(t *testing.T) {
 }
 
 func TestMutateOp(t *testing.T) {
-	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
-		"Open_vSwitch": &OvsType{},
-		"Bridge":       &BridgeType{}})
+	defDB, err := FullDatabaseModel()
 	if err != nil {
 		t.Fatal(err)
 	}
-	schema, err := GetSchema()
+	schema, err := Schema()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,15 +274,15 @@ func TestMutateOp(t *testing.T) {
 
 	m := mapper.NewMapper(schema)
 
-	ovs := OvsType{}
+	ovs := OpenvSwitch{}
 	info, err := dbModel.NewModelInfo(&ovs)
 	require.NoError(t, err)
 	ovsRow, err := m.NewRow(info)
 	require.Nil(t, err)
 
-	bridge := BridgeType{
+	bridge := Bridge{
 		Name: "foo",
-		ExternalIds: map[string]string{
+		ExternalIDs: map[string]string{
 			"foo":   "bar",
 			"baz":   "quux",
 			"waldo": "fred",
@@ -363,7 +357,7 @@ func TestMutateOp(t *testing.T) {
 	)
 	assert.Equal(t, ovsdb.OperationResult{Count: 1}, gotResult)
 
-	oldExternalIds, _ := ovsdb.NewOvsMap(bridge.ExternalIds)
+	oldExternalIds, _ := ovsdb.NewOvsMap(bridge.ExternalIDs)
 	newExternalIds, _ := ovsdb.NewOvsMap(map[string]string{"waldo": "fred"})
 	diffExternalIds, _ := ovsdb.NewOvsMap(map[string]string{"foo": "bar", "baz": "quux"})
 
@@ -456,13 +450,11 @@ func TestDiff(t *testing.T) {
 
 func TestOvsdbServerInsert(t *testing.T) {
 	t.Skip("need a helper for comparing rows as map elements aren't in same order")
-	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
-		"Open_vSwitch": &OvsType{},
-		"Bridge":       &BridgeType{}})
+	defDB, err := FullDatabaseModel()
 	if err != nil {
 		t.Fatal(err)
 	}
-	schema, err := GetSchema()
+	schema, err := Schema()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -474,11 +466,11 @@ func TestOvsdbServerInsert(t *testing.T) {
 	m := mapper.NewMapper(schema)
 
 	gromit := "gromit"
-	bridge := BridgeType{
+	bridge := Bridge{
 		Name:         "foo",
 		DatapathType: "bar",
 		DatapathID:   &gromit,
-		ExternalIds: map[string]string{
+		ExternalIDs: map[string]string{
 			"foo":   "bar",
 			"baz":   "qux",
 			"waldo": "fred",
@@ -514,13 +506,11 @@ func TestOvsdbServerInsert(t *testing.T) {
 }
 
 func TestOvsdbServerUpdate(t *testing.T) {
-	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
-		"Open_vSwitch": &OvsType{},
-		"Bridge":       &BridgeType{}})
+	defDB, err := FullDatabaseModel()
 	if err != nil {
 		t.Fatal(err)
 	}
-	schema, err := GetSchema()
+	schema, err := Schema()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -531,9 +521,9 @@ func TestOvsdbServerUpdate(t *testing.T) {
 	require.Empty(t, errs)
 	m := mapper.NewMapper(schema)
 
-	bridge := BridgeType{
+	bridge := Bridge{
 		Name: "foo",
-		ExternalIds: map[string]string{
+		ExternalIDs: map[string]string{
 			"foo":   "bar",
 			"baz":   "qux",
 			"waldo": "fred",
@@ -592,7 +582,7 @@ func TestOvsdbServerUpdate(t *testing.T) {
 			bridge.UUID = bridgeUUID
 			row, err := db.Get("Open_vSwitch", "Bridge", bridgeUUID)
 			assert.NoError(t, err)
-			br := row.(*BridgeType)
+			br := row.(*Bridge)
 			assert.NotEqual(t, br, bridgeRow)
 			assert.Equal(t, tt.expected.Modify, updates["Bridge"][bridgeUUID].Modify)
 		})
@@ -600,13 +590,11 @@ func TestOvsdbServerUpdate(t *testing.T) {
 }
 
 func TestMultipleOps(t *testing.T) {
-	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
-		"Open_vSwitch": &OvsType{},
-		"Bridge":       &BridgeType{}})
+	defDB, err := FullDatabaseModel()
 	if err != nil {
 		t.Fatal(err)
 	}
-	schema, err := GetSchema()
+	schema, err := Schema()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -618,7 +606,7 @@ func TestMultipleOps(t *testing.T) {
 	m := mapper.NewMapper(schema)
 
 	bridgeUUID := uuid.NewString()
-	bridge := BridgeType{
+	bridge := Bridge{
 		Name: "a_bridge_to_nowhere",
 		Ports: []string{
 			"port1",
@@ -711,9 +699,7 @@ func TestMultipleOps(t *testing.T) {
 }
 
 func TestCheckIndexes(t *testing.T) {
-	clientDbModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
-		"Open_vSwitch": &OvsType{},
-		"Bridge":       &BridgeType{}})
+	clientDbModel, err := FullDatabaseModel()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -741,7 +727,7 @@ func TestCheckIndexes(t *testing.T) {
 			},
 		},
 	)
-	schema, err := GetSchema()
+	schema, err := Schema()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -753,9 +739,9 @@ func TestCheckIndexes(t *testing.T) {
 	m := mapper.NewMapper(schema)
 
 	bridgeUUID := uuid.NewString()
-	bridge := BridgeType{
+	bridge := Bridge{
 		Name: "a_bridge_to_nowhere",
-		ExternalIds: map[string]string{
+		ExternalIDs: map[string]string{
 			"primary_key":   "primary_key_1",
 			"secondary_key": "secondary_key_1",
 		},
