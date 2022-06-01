@@ -83,8 +83,13 @@ type indexType uint
 
 const (
 	schemaIndexType indexType = iota
-	clientIndexType
+	primaryClientIndexType
+	secondaryClientIndexType
 )
+
+func clientIndexTypeToCacheIndexType(modelIndexType model.IndexType) indexType {
+	return indexType(modelIndexType + 1)
+}
 
 // indexSpec contains details about an index
 type indexSpec struct {
@@ -94,11 +99,15 @@ type indexSpec struct {
 }
 
 func (s indexSpec) isClientIndex() bool {
-	return s.indexType == clientIndexType
+	return s.indexType >= primaryClientIndexType
 }
 
 func (s indexSpec) isSchemaIndex() bool {
 	return s.indexType == schemaIndexType
+}
+
+func (s indexSpec) isPrimaryIndex() bool {
+	return s.indexType < secondaryClientIndexType
 }
 
 // newIndex builds a index from a list of columns
@@ -372,10 +381,8 @@ func (r *RowCache) IndexExists(row model.Model) error {
 	}
 	uuid := field.(string)
 	for _, indexSpec := range r.indexSpecs {
-		if !indexSpec.isSchemaIndex() {
-			// Given the ordered indexSpecs, we can break here if we reach the
-			// first non schema index
-			break
+		if !indexSpec.isPrimaryIndex() {
+			continue
 		}
 		index := indexSpec.index
 		val, err := valueFromIndex(info, indexSpec.columns)
@@ -1117,7 +1124,8 @@ func newRowCache(name string, dbModel model.DatabaseModel, dataType reflect.Type
 		if _, ok := indexes[index]; ok {
 			continue
 		}
-		spec := indexSpec{index: index, columns: columnKeys, indexType: clientIndexType}
+		indexType := clientIndexTypeToCacheIndexType(clientIndex.Type)
+		spec := indexSpec{index: index, columns: columnKeys, indexType: indexType}
 		r.indexSpecs = append(r.indexSpecs, spec)
 		indexes[index] = spec
 	}
