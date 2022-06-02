@@ -40,8 +40,7 @@ func (o *ovsdbClient) transactReconnect(ctx context.Context, operation ...ovsdb.
 	if o.rpcClient == nil || !o.connected {
 		o.rpcMutex.RUnlock()
 		if o.options.reconnect {
-			o.logger.V(5).Info("blocking transaction until reconnected", "operations",
-				fmt.Sprintf("%+v", operation))
+			o.logger.V(5).Info("blocking transaction until reconnected", "operations", operation)
 			ticker := time.NewTicker(50 * time.Millisecond)
 			defer ticker.Stop()
 		ReconnectWaitLoop:
@@ -75,7 +74,7 @@ func (o *ovsdbClient) transact(ctx context.Context, dbName string, operation ...
 	if o.rpcClient == nil {
 		return nil, ErrNotConnected
 	}
-	o.logger.V(4).Info("transacting operations", "database", dbName, "operations", fmt.Sprintf("%+v", operation))
+	o.logger.V(4).Info("transacting operations", "database", dbName, "operations", operation)
 	var reply []ovsdb.OperationResult
 	err := o.rpcClient.CallWithContext(ctx, "transact", args, &reply)
 	if err != nil {
