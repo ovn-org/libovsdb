@@ -41,7 +41,7 @@ func NewTransaction(model model.DatabaseModel, dbName string, database Database,
 }
 
 func (t *Transaction) Transact(operations []ovsdb.Operation) ([]ovsdb.OperationResult, ovsdb.TableUpdates2) {
-	results := []ovsdb.OperationResult{}
+	results := make([]ovsdb.OperationResult, 0, len(operations)+1)
 	updates := make(ovsdb.TableUpdates2)
 
 	for _, op := range operations {
