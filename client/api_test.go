@@ -970,11 +970,17 @@ func TestAPIUpdate(t *testing.T) {
 	testObj := testLogicalSwitchPort{}
 	testRow := ovsdb.Row(map[string]interface{}{"type": "somethingElse", "tag": testOvsSet(t, []int{6})})
 	tagRow := ovsdb.Row(map[string]interface{}{"tag": testOvsSet(t, []int{6})})
+	var nilInt *int
+	testNilRow := ovsdb.Row(map[string]interface{}{"type": "somethingElse", "tag": testOvsSet(t, nilInt)})
+	typeRow := ovsdb.Row(map[string]interface{}{"type": "somethingElse"})
+	fields := []interface{}{&testObj.Tag, &testObj.Type}
+
 	test := []struct {
 		name      string
 		condition func(API) ConditionalAPI
 		prepare   func(t *testLogicalSwitchPort)
 		result    []ovsdb.Operation
+		fields    []interface{}
 		err       bool
 	}{
 		{
@@ -993,6 +999,49 @@ func TestAPIUpdate(t *testing.T) {
 					Op:    ovsdb.OperationUpdate,
 					Table: "Logical_Switch_Port",
 					Row:   testRow,
+					Where: []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID0}}},
+				},
+			},
+			err: false,
+		},
+		{
+			name: "select by UUID change multiple field with nil pointer/empty set",
+			condition: func(a API) ConditionalAPI {
+				return a.Where(&testLogicalSwitch{
+					UUID: aUUID0,
+				})
+			},
+			prepare: func(t *testLogicalSwitchPort) {
+				t.Type = "somethingElse"
+				t.Tag = nilInt
+			},
+			fields: fields,
+			result: []ovsdb.Operation{
+				{
+					Op:    ovsdb.OperationUpdate,
+					Table: "Logical_Switch_Port",
+					Row:   testNilRow,
+					Where: []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID0}}},
+				},
+			},
+			err: false,
+		},
+		{
+			name: "select by UUID with no fields does not change multiple field with nil pointer/empty set",
+			condition: func(a API) ConditionalAPI {
+				return a.Where(&testLogicalSwitch{
+					UUID: aUUID0,
+				})
+			},
+			prepare: func(t *testLogicalSwitchPort) {
+				t.Type = "somethingElse"
+				t.Tag = nilInt
+			},
+			result: []ovsdb.Operation{
+				{
+					Op:    ovsdb.OperationUpdate,
+					Table: "Logical_Switch_Port",
+					Row:   typeRow,
 					Where: []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID0}}},
 				},
 			},
@@ -1220,7 +1269,7 @@ func TestAPIUpdate(t *testing.T) {
 			// clean test Object
 			testObj = testLogicalSwitchPort{}
 			tt.prepare(&testObj)
-			ops, err := cond.Update(&testObj)
+			ops, err := cond.Update(&testObj, tt.fields...)
 			if tt.err {
 				assert.NotNil(t, err)
 			} else {

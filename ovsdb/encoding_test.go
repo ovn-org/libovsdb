@@ -59,6 +59,8 @@ func TestMap(t *testing.T) {
 }
 
 func TestSet(t *testing.T) {
+	var x *int
+	var y *string
 	tests := []struct {
 		name     string
 		input    interface{}
@@ -148,6 +150,16 @@ func TestSet(t *testing.T) {
 			"valid uuid set multiple elements",
 			[]UUID{validUUID0, validUUID1},
 			fmt.Sprintf(`["set",[["uuid","%v"],["uuid","%v"]]]`, validUUIDStr0, validUUIDStr1),
+		},
+		{
+			name:     "nil pointer of valid *int type",
+			input:    x,
+			expected: `["set",[]]`,
+		},
+		{
+			name:     "nil pointer of valid *string type",
+			input:    y,
+			expected: `["set",[]]`,
 		},
 	}
 	for _, tt := range tests {
