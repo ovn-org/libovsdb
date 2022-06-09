@@ -532,7 +532,7 @@ func TestConditionFromModel(t *testing.T) {
 		t.Run(fmt.Sprintf("conditionFromModel: %s", tt.name), func(t *testing.T) {
 			cache := apiTestCache(t, nil)
 			apiIface := newAPI(cache, &discardLogger)
-			condition := apiIface.(api).conditionFromModel(false, false, tt.model, tt.conds...)
+			condition := apiIface.(api).conditionFromModel(false, tt.model, tt.conds...)
 			if tt.err {
 				assert.IsType(t, &errorConditional{}, condition)
 			} else {

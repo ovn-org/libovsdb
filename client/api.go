@@ -170,12 +170,12 @@ func (a api) List(ctx context.Context, result interface{}) error {
 
 // Where returns a conditionalAPI based on a Condition list
 func (a api) Where(model model.Model, cond ...model.Condition) ConditionalAPI {
-	return newConditionalAPI(a.cache, a.conditionFromModel(false, false, model, cond...), a.logger)
+	return newConditionalAPI(a.cache, a.conditionFromModel(false, model, cond...), a.logger)
 }
 
 // Where returns a conditionalAPI based on a Condition list
 func (a api) WhereAll(model model.Model, cond ...model.Condition) ConditionalAPI {
-	return newConditionalAPI(a.cache, a.conditionFromModel(true, false, model, cond...), a.logger)
+	return newConditionalAPI(a.cache, a.conditionFromModel(true, model, cond...), a.logger)
 }
 
 // Where returns a conditionalAPI based a Predicate
@@ -199,7 +199,7 @@ func (a api) conditionFromFunc(predicate interface{}) Conditional {
 }
 
 // FromModel returns a Condition from a model and a list of fields
-func (a api) conditionFromModel(any bool, cache bool, model model.Model, cond ...model.Condition) Conditional {
+func (a api) conditionFromModel(any bool, model model.Model, cond ...model.Condition) Conditional {
 	var conditional Conditional
 	var err error
 
