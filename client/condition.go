@@ -143,13 +143,13 @@ func (c *explicitConditional) Generate() ([][]ovsdb.Condition, error) {
 }
 
 // newExplicitConditional creates a new explicitConditional
-func newExplicitConditional(table string, cache *cache.TableCache, all bool, model model.Model, cond ...model.Condition) (Conditional, error) {
+func newExplicitConditional(table string, cache *cache.TableCache, matchAll bool, model model.Model, cond ...model.Condition) (Conditional, error) {
 	dbModel := cache.DatabaseModel()
 	info, err := dbModel.NewModelInfo(model)
 	if err != nil {
 		return nil, err
 	}
-	anyConditions, err := generateOvsdbConditionsFromModelConditions(dbModel, info, cond, all)
+	anyConditions, err := generateOvsdbConditionsFromModelConditions(dbModel, info, cond, matchAll)
 	if err != nil {
 		return nil, err
 	}

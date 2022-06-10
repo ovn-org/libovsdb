@@ -343,7 +343,7 @@ func TestAPIListWhereConditions(t *testing.T) {
 			if tt.matchAll {
 				capi = api.WhereAll(testObj, conds...)
 			} else {
-				capi = api.Where(testObj, conds...)
+				capi = api.WhereAny(testObj, conds...)
 			}
 			err := capi.List(context.Background(), &result)
 			assert.NoError(t, err)
@@ -532,7 +532,12 @@ func TestConditionFromModel(t *testing.T) {
 		t.Run(fmt.Sprintf("conditionFromModel: %s", tt.name), func(t *testing.T) {
 			cache := apiTestCache(t, nil)
 			apiIface := newAPI(cache, &discardLogger)
-			condition := apiIface.(api).conditionFromModel(false, tt.model, tt.conds...)
+			var condition Conditional
+			if len(tt.conds) > 0 {
+				condition = apiIface.(api).conditionFromExplicitConditions(true, tt.model, tt.conds...)
+			} else {
+				condition = apiIface.(api).conditionFromModel(tt.model)
+			}
 			if tt.err {
 				assert.IsType(t, &errorConditional{}, condition)
 			} else {
@@ -1096,7 +1101,7 @@ func TestAPIUpdate(t *testing.T) {
 					Type:    "sometype",
 					Enabled: &trueVal,
 				}
-				return a.Where(&t, model.Condition{
+				return a.WhereAny(&t, model.Condition{
 					Field:    &t.Type,
 					Function: ovsdb.ConditionEqual,
 					Value:    "sometype",
@@ -1119,7 +1124,7 @@ func TestAPIUpdate(t *testing.T) {
 			name: "multiple select any by field change multiple field",
 			condition: func(a API) ConditionalAPI {
 				t := testLogicalSwitchPort{}
-				return a.Where(&t,
+				return a.WhereAny(&t,
 					model.Condition{
 						Field:    &t.Type,
 						Function: ovsdb.ConditionEqual,
@@ -1189,7 +1194,7 @@ func TestAPIUpdate(t *testing.T) {
 					Type:    "someType",
 					Enabled: &trueVal,
 				}
-				return a.Where(&t, model.Condition{
+				return a.WhereAny(&t, model.Condition{
 					Field:    &t.Type,
 					Function: ovsdb.ConditionNotEqual,
 					Value:    "someType",
@@ -1215,7 +1220,7 @@ func TestAPIUpdate(t *testing.T) {
 					Type:    "sometype",
 					Enabled: &trueVal,
 				}
-				return a.Where(&t, model.Condition{
+				return a.WhereAny(&t, model.Condition{
 					Field:    &t.Tag,
 					Function: ovsdb.ConditionNotEqual,
 					Value:    &one,
@@ -1371,7 +1376,7 @@ func TestAPIDelete(t *testing.T) {
 				t := testLogicalSwitchPort{
 					Enabled: &trueVal,
 				}
-				return a.Where(&t, model.Condition{
+				return a.WhereAny(&t, model.Condition{
 					Field:    &t.Type,
 					Function: ovsdb.ConditionEqual,
 					Value:    "sometype",
@@ -1392,7 +1397,7 @@ func TestAPIDelete(t *testing.T) {
 				t := testLogicalSwitchPort{
 					Enabled: &trueVal,
 				}
-				return a.Where(&t,
+				return a.WhereAny(&t,
 					model.Condition{
 						Field:    &t.Type,
 						Function: ovsdb.ConditionEqual,
@@ -1646,7 +1651,7 @@ func TestAPIWait(t *testing.T) {
 						Value:    "lspNameCondition",
 					},
 				}
-				return a.Where(&lsp, conditions...)
+				return a.WhereAny(&lsp, conditions...)
 			},
 			until: "!=",
 			prepare: func() (model.Model, []interface{}) {

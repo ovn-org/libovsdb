@@ -49,11 +49,19 @@ Once the client object is created, a generic API can be used to interact with th
 
 Others, have to be called on a `ConditionalAPI` (`Update`, `Delete`, `Mutate`). There are three ways to create a `ConditionalAPI`:
 
-**Where()**: `Where()` can be used to create a `ConditionalAPI` using a list of Condition objects. Each condition object specifies a field using a pointer
+**Where()**: `Where()` can be used to create a `ConditionalAPI` based on the index information that the provided Model contains. Example:
+
+      ls := &LogicalSwitch{UUID: "foo"}
+      ops, _ := ovs.Where(ls).Delete()
+
+It will check the field corresponding to the `_uuid` column as well as all the other schema-defined or client-defined indexes in that order of priority.
+The first available index will be used to generate a condition.
+
+**WhereAny()**: `WhereAny()` can be used to create a `ConditionalAPI` using a list of Condition objects. Each condition object specifies a field using a pointer
 to a Model's field, a `ovsdb.ConditionFunction` and a value. The type of the value depends on the type of the field being mutated. Example:
 
       ls := &LogicalSwitch{}
-      ops, _ := ovs.Where(ls, client.Condition{
+      ops, _ := ovs.WhereAny(ls, client.Condition{
           Field: &ls.Config,
           Function: ovsdb.ConditionIncludes,
           Value: map[string]string{"foo": "bar"},
@@ -61,13 +69,8 @@ to a Model's field, a `ovsdb.ConditionFunction` and a value. The type of the val
 
 The resulting `ConditionalAPI` will create one operation per condition, so all the rows that match *any* of the specified conditions will be affected.
 
-If no conditions are provided, `Where()` will create a `ConditionalAPI` based on the index information that the provided Model contains.
-It will check the field corresponding to the `_uuid` column as well as all the other schema-defined or client-defined indexes in that order of priority.
-The first available index will be used to generate a condition.
-
-**WhereAll()**: `WhereAll()` behaves like `Where()` but with *AND* semantics. The resulting `ConditionalAPI` will put all the
+**WhereAll()**: `WhereAll()` behaves like `WhereAny()` but with *AND* semantics. The resulting `ConditionalAPI` will put all the
 conditions into a single operation. Therefore the operation will affect the rows that satisfy *all* the conditions.
-
 
 **WhereCache()**: `WhereCache()` uses a function callback to filter on the local cache. It's primary use is to perform cache operations such as
 `List()`. However, it can also be used to create server-side operations (such as `Delete()`, `Update()` or `Delete()`). If used this way, it will

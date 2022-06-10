@@ -763,7 +763,7 @@ func (suite *OVSIntegrationSuite) TestWait() {
 		},
 	}
 	timeout := 0
-	ops, err := suite.client.Where(bridgeRow, conditions...).Wait(
+	ops, err := suite.client.WhereAny(bridgeRow, conditions...).Wait(
 		ovsdb.WaitConditionNotEqual, &timeout, bridgeRow, &bridgeRow.Name)
 	require.NoError(suite.T(), err)
 	reply, err := suite.client.Transact(context.Background(), ops...)
@@ -788,7 +788,7 @@ func (suite *OVSIntegrationSuite) TestWait() {
 		},
 	}
 	timeout = 2 * 1000 // 2 seconds (in milliseconds)
-	ops, err = suite.client.Where(bridgeRow, conditions...).Wait(
+	ops, err = suite.client.WhereAny(bridgeRow, conditions...).Wait(
 		ovsdb.WaitConditionEqual, &timeout, bridgeRow, &bridgeRow.BridgeFailMode)
 	require.NoError(suite.T(), err)
 	reply, err = suite.client.Transact(context.Background(), ops...)
@@ -798,7 +798,7 @@ func (suite *OVSIntegrationSuite) TestWait() {
 
 	// Use wait to get a txn error due to until condition that is not happening
 	timeout = 222 // milliseconds
-	ops, err = suite.client.Where(bridgeRow, conditions...).Wait(
+	ops, err = suite.client.WhereAny(bridgeRow, conditions...).Wait(
 		ovsdb.WaitConditionNotEqual, &timeout, bridgeRow, &bridgeRow.BridgeFailMode)
 	require.NoError(suite.T(), err)
 	reply, err = suite.client.Transact(context.Background(), ops...)
