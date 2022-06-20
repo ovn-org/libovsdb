@@ -1677,21 +1677,23 @@ func TestEventProcessor_AddEvent(t *testing.T) {
 			},
 		})
 	}
-	// overfill channel so event 16 is dropped
+	// overfill list so event 16 is dropped
 	for _, e := range events {
 		ep.AddEvent(e.eventType, e.table, nil, e.new)
 	}
-	// assert channel is full of events
-	assert.Equal(t, 16, len(ep.events))
+	// assert list is full of events
+	assert.Equal(t, 16, ep.events.Len())
 
 	// read events and ensure they are in FIFO order
 	for i := 0; i < 16; i++ {
-		event := <-ep.events
+		element := ep.events.Front()
+		event := element.Value.(event)
+		ep.events.Remove(element)
 		assert.Equal(t, &testModel{UUID: "unique", Foo: "bar"}, event.new)
 	}
 
-	// assert channel is empty
-	assert.Equal(t, 0, len(ep.events))
+	// assert list is empty
+	assert.Equal(t, 0, ep.events.Len())
 }
 
 func TestIndex(t *testing.T) {
