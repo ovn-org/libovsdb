@@ -653,29 +653,22 @@ func diff(a interface{}, b interface{}) interface{} {
 		// replacement value
 		replacement := b.(ovsdb.OvsSet)
 		var c []interface{}
+		// it is important to keep this operation optimized as a typical
+		// scenario might have us calculating diffs over sets with a large
+		// number of uuids
+		replacementMap := make(map[interface{}]bool, len(replacement.GoSet))
+		for _, replacementElem := range replacement.GoSet {
+			replacementMap[replacementElem] = false
+		}
 		for _, originalElem := range original.GoSet {
-			found := false
-			for _, replacementElem := range replacement.GoSet {
-				if originalElem == replacementElem {
-					found = true
-					break
-				}
-			}
-			if !found {
-				// remove from client
+			if _, hasReplacement := replacementMap[originalElem]; !hasReplacement {
 				c = append(c, originalElem)
+			} else {
+				replacementMap[originalElem] = true
 			}
 		}
-		for _, replacementElem := range replacement.GoSet {
-			found := false
-			for _, originalElem := range original.GoSet {
-				if replacementElem == originalElem {
-					found = true
-					break
-				}
-			}
-			if !found {
-				// add to client
+		for replacementElem, hasOriginal := range replacementMap {
+			if !hasOriginal {
 				c = append(c, replacementElem)
 			}
 		}
