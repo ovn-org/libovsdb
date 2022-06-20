@@ -745,7 +745,7 @@ func TestClientValidateTransaction(t *testing.T) {
 	}
 }
 
-func BenchmarkClientValidateTransaction(b *testing.B) {
+func BenchmarkClientValidateMutateTransaction(b *testing.B) {
 	defSchema, err := Schema()
 	require.NoError(b, err)
 
@@ -775,12 +775,14 @@ func BenchmarkClientValidateTransaction(b *testing.B) {
 
 	cli := getClient()
 
-	numRows := 1000
+	numRows := 500
 	models := []*Bridge{}
 	for i := 0; i < numRows; i++ {
 		model := &Bridge{
-			Name:            fmt.Sprintf("Name-%d", i),
-			DatapathVersion: fmt.Sprintf("DatapathVersion-%d", i),
+			Name: fmt.Sprintf("Name-%d", i),
+		}
+		for j := 0; j < numRows; j++ {
+			model.Ports = append(model.Ports, uuid.New().String())
 		}
 		ops, err := cli.Create(model)
 		require.NoError(b, err)
@@ -797,32 +799,32 @@ func BenchmarkClientValidateTransaction(b *testing.B) {
 		ops    int
 	}{
 		{
-			"1 update ops with validating client",
+			"1 mutate ops with validating client",
 			getClient(WithTransactionValidation(true)),
 			1,
 		},
 		{
-			"1 update ops with non validating client",
+			"1 mutate ops with non validating client",
 			getClient(),
 			1,
 		},
 		{
-			"10 update ops with validating client",
+			"10 mutate ops with validating client",
 			getClient(WithTransactionValidation(true)),
 			10,
 		},
 		{
-			"10 update ops with non validating client",
+			"10 mutate ops with non validating client",
 			getClient(),
 			10,
 		},
 		{
-			"100 update ops with validating client",
+			"100 mutate ops with validating client",
 			getClient(WithTransactionValidation(true)),
 			100,
 		},
 		{
-			"100 update ops with non validating client",
+			"100 mutate ops with non validating client",
 			getClient(),
 			100,
 		},
@@ -832,9 +834,12 @@ func BenchmarkClientValidateTransaction(b *testing.B) {
 			cli := bm.client
 			ops := []ovsdb.Operation{}
 			for j := 0; j < bm.ops; j++ {
-				model := models[rand.Intn(numRows)]
-				model.DatapathVersion = fmt.Sprintf("%s-Updated", model.DatapathVersion)
-				op, err := cli.Where(model).Update(model)
+				m := models[rand.Intn(numRows)]
+				op, err := cli.Where(m).Mutate(m, model.Mutation{
+					Field:   &m.Ports,
+					Mutator: ovsdb.MutateOperationInsert,
+					Value:   []string{uuid.New().String()},
+				})
 				require.NoError(b, err)
 				ops = append(ops, op...)
 			}
