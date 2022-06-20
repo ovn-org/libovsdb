@@ -942,7 +942,12 @@ func (t *TableCache) Disconnected() {
 func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) error {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
+	return t.populate(tableUpdates)
+}
 
+// populate adds data to the cache and places an event on the channel, needs to
+// be called with the table mutex locked
+func (t *TableCache) populate(tableUpdates ovsdb.TableUpdates) error {
 	for table := range t.dbModel.Types() {
 		updates, ok := tableUpdates[table]
 		if !ok {
@@ -1053,6 +1058,20 @@ func (t *TableCache) Populate2(tableUpdates ovsdb.TableUpdates2) error {
 						dbgLogger.Info("updated row", "old", fmt.Sprintf("%+v", existing), "new", fmt.Sprintf("%+v", modified))
 					}
 					t.eventProcessor.AddEvent(updateEvent, table, existing, modified)
+				}
+			case row.Old != nil && row.New != nil:
+				// internally, we handle Mutates with Modify, but Updates with
+				// Old/New as calculating Modify from Old/New has a cost
+				updates1 := ovsdb.TableUpdates{
+					table: ovsdb.TableUpdate{
+						uuid: &ovsdb.RowUpdate{
+							Old: row.Old,
+							New: row.New,
+						},
+					},
+				}
+				if err := t.populate(updates1); err != nil {
+					return err
 				}
 			case row.Delete != nil:
 				fallthrough

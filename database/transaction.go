@@ -19,6 +19,7 @@ type Transaction struct {
 	Model       model.DatabaseModel
 	DbName      string
 	Database    Database
+	validating  bool
 }
 
 func NewTransaction(model model.DatabaseModel, dbName string, database Database, logger *logr.Logger) Transaction {
@@ -38,6 +39,15 @@ func NewTransaction(model model.DatabaseModel, dbName string, database Database,
 		DbName:      dbName,
 		Database:    database,
 	}
+}
+
+// NewValidatingTransaction is a transaction only used for validating purposes.
+// It generates updates that are valid to apply to our implementation of the
+// database butthey might not be conformant to spec over the wire.
+func NewValidatingTransaction(model model.DatabaseModel, dbName string, database Database, logger *logr.Logger) Transaction {
+	t := NewTransaction(model, dbName, database, logger)
+	t.validating = true
+	return t
 }
 
 func (t *Transaction) Transact(operations []ovsdb.Operation) ([]ovsdb.OperationResult, ovsdb.TableUpdates2) {
@@ -309,7 +319,15 @@ func (t *Transaction) Update(table string, where []ovsdb.Condition, row ovsdb.Ro
 			panic(err)
 		}
 
-		rowDelta := ovsdb.NewRow()
+		// A validating transaction does not calculate a Modify delta to avoid
+		// the performance cost, instead updates will be processed replacing Old
+		// with New 
+		var rowDelta *ovsdb.Row
+		if !t.validating {
+			r := ovsdb.NewRow()
+			rowDelta = &r
+		}
+
 		for column, value := range row {
 			colSchema := schema.Column(column)
 			if colSchema == nil {
@@ -349,15 +367,18 @@ func (t *Transaction) Update(table string, where []ovsdb.Condition, row ovsdb.Ro
 			if err != nil {
 				panic(err)
 			}
-			// convert the native to an ovs value
-			// since the value in the RowUpdate hasn't been normalized
-			newValue, err := ovsdb.NativeToOvs(colSchema, native)
-			if err != nil {
-				panic(err)
-			}
-			diff := diff(oldValue, newValue)
-			if diff != nil {
-				rowDelta[column] = diff
+
+			if rowDelta != nil {
+				// convert the native to an ovs value
+				// since the value in the RowUpdate hasn't been normalized
+				newValue, err := ovsdb.NativeToOvs(colSchema, native)
+				if err != nil {
+					panic(err)
+				}
+				diff := diff(oldValue, newValue)
+				if diff != nil {
+					(*rowDelta)[column] = diff
+				}
 			}
 		}
 
@@ -367,7 +388,7 @@ func (t *Transaction) Update(table string, where []ovsdb.Condition, row ovsdb.Ro
 		}
 
 		tableUpdate.AddRowUpdate(uuid, &ovsdb.RowUpdate2{
-			Modify: &rowDelta,
+			Modify: rowDelta,
 			Old:    &oldRow,
 			New:    &newRow,
 		})

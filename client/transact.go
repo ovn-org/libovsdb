@@ -109,7 +109,7 @@ func (o *ovsdbClient) ValidateOperations(dbName string, operations ...ovsdb.Oper
 	database.cacheMutex.RLock()
 	defer database.cacheMutex.RUnlock()
 	cacheDatabase := cacheDatabase{database.cache}
-	transaction := db.NewTransaction(database.model, dbName, &cacheDatabase, o.logger)
+	transaction := db.NewValidatingTransaction(database.model, dbName, &cacheDatabase, o.logger)
 	results, _ := transaction.Transact(operations)
 	_, err := ovsdb.CheckOperationResults(results, operations)
 
