@@ -321,7 +321,7 @@ func (t *Transaction) Update(table string, where []ovsdb.Condition, row ovsdb.Ro
 
 		// A validating transaction does not calculate a Modify delta to avoid
 		// the performance cost, instead updates will be processed replacing Old
-		// with New 
+		// with New
 		var rowDelta *ovsdb.Row
 		if !t.validating {
 			r := ovsdb.NewRow()
@@ -439,9 +439,7 @@ func (t *Transaction) Mutate(table string, where []ovsdb.Condition, mutations []
 		}
 
 		rowDelta := ovsdb.NewRow()
-		mutateCols := make(map[string]struct{})
 		for _, mutation := range mutations {
-			mutateCols[mutation.Column] = struct{}{}
 			column := schema.Column(mutation.Column)
 			var nativeValue interface{}
 			// Usually a mutation value is of the same type of the value being mutated
@@ -465,36 +463,17 @@ func (t *Transaction) Mutate(table string, where []ovsdb.Condition, mutations []
 			if err != nil {
 				panic(err)
 			}
-			newValue, _ := ovsdb.Mutate(current, mutation.Mutator, nativeValue)
+			newValue, diff := ovsdb.Mutate(current, mutation.Mutator, nativeValue)
 			if err := newInfo.SetField(mutation.Column, newValue); err != nil {
 				panic(err)
 			}
-		}
-		for changed := range mutateCols {
-			colSchema := schema.Column(changed)
-			oldValueNative, err := oldInfo.FieldByColumn(changed)
-			if err != nil {
-				panic(err)
-			}
 
-			newValueNative, err := newInfo.FieldByColumn(changed)
-			if err != nil {
-				panic(err)
-			}
-
-			oldValue, err := ovsdb.NativeToOvs(colSchema, oldValueNative)
-			if err != nil {
-				panic(err)
-			}
-
-			newValue, err := ovsdb.NativeToOvs(colSchema, newValueNative)
-			if err != nil {
-				panic(err)
-			}
-
-			delta := diff(oldValue, newValue)
-			if delta != nil {
-				rowDelta[changed] = delta
+			if diff != nil {
+				diffValue, err := ovsdb.NativeToOvs(column, diff)
+				if err != nil {
+					panic(err)
+				}
+				rowDelta[mutation.Column] = updateDiff(rowDelta[mutation.Column], diffValue)
 			}
 		}
 
@@ -728,6 +707,40 @@ func diff(a interface{}, b interface{}) interface{} {
 			return cMap
 		}
 		return nil
+	default:
+		return b
+	}
+}
+
+func updateDiff(a interface{}, b interface{}) interface{} {
+	switch a.(type) {
+	case ovsdb.OvsSet:
+		aSet := a.(ovsdb.OvsSet).GoSet
+		bSet := b.(ovsdb.OvsSet).GoSet
+		bMap := make(map[interface{}]bool, len(bSet))
+		for _, bElem := range bSet {
+			bMap[bElem] = true
+		}
+		for _, aElem := range aSet {
+			if _, hasB := bMap[aElem]; hasB {
+				bMap[aElem] = false
+			}
+		}
+		for bElem, hasA := range bMap {
+			if !hasA {
+				aSet = append(aSet, bElem)
+			}
+		}
+		set := a.(ovsdb.OvsSet)
+		set.GoSet = aSet
+		return set
+	case ovsdb.OvsMap:
+		aMap := a.(ovsdb.OvsMap).GoMap
+		bMap := b.(ovsdb.OvsMap).GoMap
+		for k, v := range bMap {
+			aMap[k] = v
+		}
+		return a
 	default:
 		return b
 	}
