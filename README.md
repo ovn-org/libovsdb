@@ -89,7 +89,7 @@ Additional indexes can be specified for a client instance to track. Just as sche
 where each set consists of the columns that compose the index. Unlike schema indexes, a key within a column can be addressed if the column
 type is a map.
 
-Client indexes are leveraged through `Where`, and `WhereAll`. Since client indexes value uniqueness is not enforced as it happens with schema indexes,
+Client indexes are leveraged through `Where`, and `WhereAll`. Since client indexes value uniqueness is not guaranteed as it happens with schema indexes,
 conditions based on them can match multiple rows.
 
 Indexed based operations generally provide better performance than operations based on explicit conditions.
@@ -115,6 +115,18 @@ can now be improved with:
     }
     // quick indexed result
     ovn.Where(lb).List(ctx, &results)
+
+Client indexes can be one of two types:
+
+* **Primary**: Primary client indexes are verified to be unique in the context of a specific client instance in an optional transaction validation that happens
+before sending the transaction to the server. Client option `ValidateTransactions` needs to be enabled. When it is, if a transaction includes a primary client
+index that already exists for a different row in the client cache or the transaction itself, the transaction will fail. Be aware that this transaction validation
+comes at a performance cost. Primary client indexes are the default unless otherwise specified but `ValidateTransactions` option is not enabled by default.
+* **Secondary**: Secondary client indexes don't have any additional validation.
+
+**Note**: `ValidateTransactions` does not consider strongly referenced rows that should be garbage collected and may report a duplicate index when it shouldn't.
+The workarounds would be either to not use validation, to explicitly remove strong referenced rows in the transaction, or to use a separate transaction than the
+one that removes the strongly referenced row to create a similar one with the same index.
 
 ## Documentation
 

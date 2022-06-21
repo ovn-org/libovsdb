@@ -1,16 +1,18 @@
 package client
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/ovn-org/libovsdb/model"
-	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
+
+	. "github.com/ovn-org/libovsdb/test"
 )
 
 func TestWithTable(t *testing.T) {
-	client, err := newOVSDBClient(defDB)
+	dbModel, err := FullDatabaseModel()
+	assert.NoError(t, err)
+	client, err := newOVSDBClient(dbModel)
 	assert.NoError(t, err)
 	m := newMonitor()
 	opt := WithTable(&OpenvSwitch{})
@@ -22,8 +24,7 @@ func TestWithTable(t *testing.T) {
 }
 
 func populateClientModel(t *testing.T, client *ovsdbClient) {
-	var s ovsdb.DatabaseSchema
-	err := json.Unmarshal([]byte(schema), &s)
+	s, err := Schema()
 	assert.NoError(t, err)
 	clientDBModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Bridge":       &Bridge{},
@@ -37,7 +38,9 @@ func populateClientModel(t *testing.T, client *ovsdbClient) {
 }
 
 func TestWithTableAndFields(t *testing.T) {
-	client, err := newOVSDBClient(defDB)
+	dbModel, err := FullDatabaseModel()
+	assert.NoError(t, err)
+	client, err := newOVSDBClient(dbModel)
 	assert.NoError(t, err)
 	populateClientModel(t, client)
 

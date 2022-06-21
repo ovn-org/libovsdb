@@ -14,14 +14,19 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/cenkalti/rpc2"
+	"github.com/go-logr/logr"
+	"github.com/go-logr/stdr"
 	"github.com/google/uuid"
 	"github.com/ovn-org/libovsdb/cache"
+	db "github.com/ovn-org/libovsdb/database"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/ovn-org/libovsdb/ovsdb/serverdb"
 	"github.com/ovn-org/libovsdb/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	. "github.com/ovn-org/libovsdb/test"
 )
 
 var (
@@ -30,461 +35,6 @@ var (
 	aUUID2 = "2f77b348-9768-4866-b761-89d5177ecda2"
 	aUUID3 = "2f77b348-9768-4866-b761-89d5177ecda3"
 )
-
-type (
-	BridgeFailMode  = string
-	BridgeProtocols = string
-)
-
-const (
-	BridgeFailModeStandalone  BridgeFailMode  = "standalone"
-	BridgeFailModeSecure      BridgeFailMode  = "secure"
-	BridgeProtocolsOpenflow10 BridgeProtocols = "OpenFlow10"
-	BridgeProtocolsOpenflow11 BridgeProtocols = "OpenFlow11"
-	BridgeProtocolsOpenflow12 BridgeProtocols = "OpenFlow12"
-	BridgeProtocolsOpenflow13 BridgeProtocols = "OpenFlow13"
-	BridgeProtocolsOpenflow14 BridgeProtocols = "OpenFlow14"
-	BridgeProtocolsOpenflow15 BridgeProtocols = "OpenFlow15"
-)
-
-// Bridge defines an object in Bridge table
-type Bridge struct {
-	UUID                string            `ovsdb:"_uuid"`
-	AutoAttach          *string           `ovsdb:"auto_attach"`
-	Controller          []string          `ovsdb:"controller"`
-	DatapathID          *string           `ovsdb:"datapath_id"`
-	DatapathType        string            `ovsdb:"datapath_type"`
-	DatapathVersion     string            `ovsdb:"datapath_version"`
-	ExternalIDs         map[string]string `ovsdb:"external_ids"`
-	FailMode            *BridgeFailMode   `ovsdb:"fail_mode"`
-	FloodVLANs          [4096]int         `ovsdb:"flood_vlans"`
-	FlowTables          map[int]string    `ovsdb:"flow_tables"`
-	IPFIX               *string           `ovsdb:"ipfix"`
-	McastSnoopingEnable bool              `ovsdb:"mcast_snooping_enable"`
-	Mirrors             []string          `ovsdb:"mirrors"`
-	Name                string            `ovsdb:"name"`
-	Netflow             *string           `ovsdb:"netflow"`
-	OtherConfig         map[string]string `ovsdb:"other_config"`
-	Ports               []string          `ovsdb:"ports"`
-	Protocols           []BridgeProtocols `ovsdb:"protocols"`
-	RSTPEnable          bool              `ovsdb:"rstp_enable"`
-	RSTPStatus          map[string]string `ovsdb:"rstp_status"`
-	Sflow               *string           `ovsdb:"sflow"`
-	Status              map[string]string `ovsdb:"status"`
-	STPEnable           bool              `ovsdb:"stp_enable"`
-}
-
-// OpenvSwitch defines an object in Open_vSwitch table
-type OpenvSwitch struct {
-	UUID            string            `ovsdb:"_uuid"`
-	Bridges         []string          `ovsdb:"bridges"`
-	CurCfg          int               `ovsdb:"cur_cfg"`
-	DatapathTypes   []string          `ovsdb:"datapath_types"`
-	Datapaths       map[string]string `ovsdb:"datapaths"`
-	DbVersion       *string           `ovsdb:"db_version"`
-	DpdkInitialized bool              `ovsdb:"dpdk_initialized"`
-	DpdkVersion     *string           `ovsdb:"dpdk_version"`
-	ExternalIDs     map[string]string `ovsdb:"external_ids"`
-	IfaceTypes      []string          `ovsdb:"iface_types"`
-	ManagerOptions  []string          `ovsdb:"manager_options"`
-	NextCfg         int               `ovsdb:"next_cfg"`
-	OtherConfig     map[string]string `ovsdb:"other_config"`
-	OVSVersion      *string           `ovsdb:"ovs_version"`
-	SSL             *string           `ovsdb:"ssl"`
-	Statistics      map[string]string `ovsdb:"statistics"`
-	SystemType      *string           `ovsdb:"system_type"`
-	SystemVersion   *string           `ovsdb:"system_version"`
-}
-
-var defDB, _ = model.NewClientDBModel("Open_vSwitch",
-	map[string]model.Model{
-		"Open_vSwitch": &OpenvSwitch{},
-		"Bridge":       &Bridge{},
-	},
-)
-
-var schema = `{
-	"name": "Open_vSwitch",
-	"version": "8.2.0",
-	"tables": {
-	  "Bridge": {
-		"columns": {
-		  "auto_attach": {
-			"type": {
-			  "key": {
-				"type": "uuid",
-				"refTable": "AutoAttach"
-			  },
-			  "min": 0,
-			  "max": 1
-			}
-		  },
-		  "controller": {
-			"type": {
-			  "key": {
-				"type": "uuid",
-				"refTable": "Controller"
-			  },
-			  "min": 0,
-			  "max": "unlimited"
-			}
-		  },
-		  "datapath_id": {
-			"type": {
-			  "key": {
-				"type": "string"
-			  },
-			  "min": 0,
-			  "max": 1
-			},
-			"ephemeral": true
-		  },
-		  "datapath_type": {
-			"type": "string"
-		  },
-		  "datapath_version": {
-			"type": "string"
-		  },
-		  "external_ids": {
-			"type": {
-			  "key": {
-				"type": "string"
-			  },
-			  "value": {
-				"type": "string"
-			  },
-			  "min": 0,
-			  "max": "unlimited"
-			}
-		  },
-		  "fail_mode": {
-			"type": {
-			  "key": {
-				"type": "string",
-				"enum": [
-				  "set",
-				  [
-					"standalone",
-					"secure"
-				  ]
-				]
-			  },
-			  "min": 0,
-			  "max": 1
-			}
-		  },
-		  "flood_vlans": {
-			"type": {
-			  "key": {
-				"type": "integer",
-				"minInteger": 0,
-				"maxInteger": 4095
-			  },
-			  "min": 0,
-			  "max": 4096
-			}
-		  },
-		  "flow_tables": {
-			"type": {
-			  "key": {
-				"type": "integer",
-				"minInteger": 0,
-				"maxInteger": 254
-			  },
-			  "value": {
-				"type": "uuid",
-				"refTable": "Flow_Table"
-			  },
-			  "min": 0,
-			  "max": "unlimited"
-			}
-		  },
-		  "ipfix": {
-			"type": {
-			  "key": {
-				"type": "uuid",
-				"refTable": "IPFIX"
-			  },
-			  "min": 0,
-			  "max": 1
-			}
-		  },
-		  "mcast_snooping_enable": {
-			"type": "boolean"
-		  },
-		  "mirrors": {
-			"type": {
-			  "key": {
-				"type": "uuid",
-				"refTable": "Mirror"
-			  },
-			  "min": 0,
-			  "max": "unlimited"
-			}
-		  },
-		  "name": {
-			"type": "string",
-			"mutable": false
-		  },
-		  "netflow": {
-			"type": {
-			  "key": {
-				"type": "uuid",
-				"refTable": "NetFlow"
-			  },
-			  "min": 0,
-			  "max": 1
-			}
-		  },
-		  "other_config": {
-			"type": {
-			  "key": {
-				"type": "string"
-			  },
-			  "value": {
-				"type": "string"
-			  },
-			  "min": 0,
-			  "max": "unlimited"
-			}
-		  },
-		  "ports": {
-			"type": {
-			  "key": {
-				"type": "uuid",
-				"refTable": "Port"
-			  },
-			  "min": 0,
-			  "max": "unlimited"
-			}
-		  },
-		  "protocols": {
-			"type": {
-			  "key": {
-				"type": "string",
-				"enum": [
-				  "set",
-				  [
-					"OpenFlow10",
-					"OpenFlow11",
-					"OpenFlow12",
-					"OpenFlow13",
-					"OpenFlow14",
-					"OpenFlow15"
-				  ]
-				]
-			  },
-			  "min": 0,
-			  "max": "unlimited"
-			}
-		  },
-		  "rstp_enable": {
-			"type": "boolean"
-		  },
-		  "rstp_status": {
-			"type": {
-			  "key": {
-				"type": "string"
-			  },
-			  "value": {
-				"type": "string"
-			  },
-			  "min": 0,
-			  "max": "unlimited"
-			},
-			"ephemeral": true
-		  },
-		  "sflow": {
-			"type": {
-			  "key": {
-				"type": "uuid",
-				"refTable": "sFlow"
-			  },
-			  "min": 0,
-			  "max": 1
-			}
-		  },
-		  "status": {
-			"type": {
-			  "key": {
-				"type": "string"
-			  },
-			  "value": {
-				"type": "string"
-			  },
-			  "min": 0,
-			  "max": "unlimited"
-			},
-			"ephemeral": true
-		  },
-		  "stp_enable": {
-			"type": "boolean"
-		  }
-		},
-		"indexes": [
-		  [
-			"name"
-		  ]
-		]
-	  },
-	  "Open_vSwitch": {
-		"columns": {
-		  "bridges": {
-			"type": {
-			  "key": {
-				"type": "uuid",
-				"refTable": "Bridge"
-			  },
-			  "min": 0,
-			  "max": "unlimited"
-			}
-		  },
-		  "cur_cfg": {
-			"type": "integer"
-		  },
-		  "datapath_types": {
-			"type": {
-			  "key": {
-				"type": "string"
-			  },
-			  "min": 0,
-			  "max": "unlimited"
-			}
-		  },
-		  "datapaths": {
-			"type": {
-			  "key": {
-				"type": "string"
-			  },
-			  "value": {
-				"type": "uuid",
-				"refTable": "Datapath"
-			  },
-			  "min": 0,
-			  "max": "unlimited"
-			}
-		  },
-		  "db_version": {
-			"type": {
-			  "key": {
-				"type": "string"
-			  },
-			  "min": 0,
-			  "max": 1
-			}
-		  },
-		  "dpdk_initialized": {
-			"type": "boolean"
-		  },
-		  "dpdk_version": {
-			"type": {
-			  "key": {
-				"type": "string"
-			  },
-			  "min": 0,
-			  "max": 1
-			}
-		  },
-		  "external_ids": {
-			"type": {
-			  "key": {
-				"type": "string"
-			  },
-			  "value": {
-				"type": "string"
-			  },
-			  "min": 0,
-			  "max": "unlimited"
-			}
-		  },
-		  "iface_types": {
-			"type": {
-			  "key": {
-				"type": "string"
-			  },
-			  "min": 0,
-			  "max": "unlimited"
-			}
-		  },
-		  "manager_options": {
-			"type": {
-			  "key": {
-				"type": "uuid",
-				"refTable": "Manager"
-			  },
-			  "min": 0,
-			  "max": "unlimited"
-			}
-		  },
-		  "next_cfg": {
-			"type": "integer"
-		  },
-		  "other_config": {
-			"type": {
-			  "key": {
-				"type": "string"
-			  },
-			  "value": {
-				"type": "string"
-			  },
-			  "min": 0,
-			  "max": "unlimited"
-			}
-		  },
-		  "ovs_version": {
-			"type": {
-			  "key": {
-				"type": "string"
-			  },
-			  "min": 0,
-			  "max": 1
-			}
-		  },
-		  "ssl": {
-			"type": {
-			  "key": {
-				"type": "uuid",
-				"refTable": "SSL"
-			  },
-			  "min": 0,
-			  "max": 1
-			}
-		  },
-		  "statistics": {
-			"type": {
-			  "key": {
-				"type": "string"
-			  },
-			  "value": {
-				"type": "string"
-			  },
-			  "min": 0,
-			  "max": "unlimited"
-			},
-			"ephemeral": true
-		  },
-		  "system_type": {
-			"type": {
-			  "key": {
-				"type": "string"
-			  },
-			  "min": 0,
-			  "max": 1
-			}
-		  },
-		  "system_version": {
-			"type": {
-			  "key": {
-				"type": "string"
-			  },
-			  "min": 0,
-			  "max": 1
-			}
-		  }
-		}
-	  }
-	}
-  }`
 
 func testOvsSet(t *testing.T, set interface{}) ovsdb.OvsSet {
 	oSet, err := ovsdb.NewOvsSet(set)
@@ -563,17 +113,13 @@ func newOvsRow(bridges ...string) string {
 }
 
 func BenchmarkUpdate1(b *testing.B) {
-	ovs, err := newOVSDBClient(defDB)
+	clientDbModel, err := FullDatabaseModel()
 	require.NoError(b, err)
-	var s ovsdb.DatabaseSchema
-	err = json.Unmarshal([]byte(schema), &s)
+	ovs, err := newOVSDBClient(clientDbModel)
 	require.NoError(b, err)
-	clientDBModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
-		"Bridge":       &Bridge{},
-		"Open_vSwitch": &OpenvSwitch{},
-	})
+	s, err := Schema()
 	require.NoError(b, err)
-	dbModel, errs := model.NewDatabaseModel(s, clientDBModel)
+	dbModel, errs := model.NewDatabaseModel(s, clientDbModel)
 	require.Empty(b, errs)
 	ovs.primaryDB().cache, err = cache.NewTableCache(dbModel, nil, nil)
 	require.NoError(b, err)
@@ -589,10 +135,11 @@ func BenchmarkUpdate1(b *testing.B) {
 }
 
 func BenchmarkUpdate2(b *testing.B) {
-	ovs, err := newOVSDBClient(defDB)
+	clientDbModel, err := FullDatabaseModel()
 	require.NoError(b, err)
-	var s ovsdb.DatabaseSchema
-	err = json.Unmarshal([]byte(schema), &s)
+	ovs, err := newOVSDBClient(clientDbModel)
+	require.NoError(b, err)
+	s, err := Schema()
 	require.NoError(b, err)
 	clientDBModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Bridge":       &Bridge{},
@@ -616,10 +163,11 @@ func BenchmarkUpdate2(b *testing.B) {
 }
 
 func BenchmarkUpdate3(b *testing.B) {
-	ovs, err := newOVSDBClient(defDB)
+	clientDbModel, err := FullDatabaseModel()
 	require.NoError(b, err)
-	var s ovsdb.DatabaseSchema
-	err = json.Unmarshal([]byte(schema), &s)
+	ovs, err := newOVSDBClient(clientDbModel)
+	require.NoError(b, err)
+	s, err := Schema()
 	require.NoError(b, err)
 	clientDBModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Bridge":       &Bridge{},
@@ -644,10 +192,11 @@ func BenchmarkUpdate3(b *testing.B) {
 }
 
 func BenchmarkUpdate5(b *testing.B) {
-	ovs, err := newOVSDBClient(defDB)
+	clientDbModel, err := FullDatabaseModel()
 	require.NoError(b, err)
-	var s ovsdb.DatabaseSchema
-	err = json.Unmarshal([]byte(schema), &s)
+	ovs, err := newOVSDBClient(clientDbModel)
+	require.NoError(b, err)
+	s, err := Schema()
 	require.NoError(b, err)
 	clientDBModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Bridge":       &Bridge{},
@@ -674,10 +223,11 @@ func BenchmarkUpdate5(b *testing.B) {
 }
 
 func BenchmarkUpdate8(b *testing.B) {
-	ovs, err := newOVSDBClient(defDB)
+	clientDbModel, err := FullDatabaseModel()
 	require.NoError(b, err)
-	var s ovsdb.DatabaseSchema
-	err = json.Unmarshal([]byte(schema), &s)
+	ovs, err := newOVSDBClient(clientDbModel)
+	require.NoError(b, err)
+	s, err := Schema()
 	require.NoError(b, err)
 	clientDBModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Bridge":       &Bridge{},
@@ -709,7 +259,9 @@ func BenchmarkUpdate8(b *testing.B) {
 func TestEcho(t *testing.T) {
 	req := []interface{}{"hi"}
 	var reply []interface{}
-	ovs, err := newOVSDBClient(defDB)
+	clientDbModel, err := FullDatabaseModel()
+	require.NoError(t, err)
+	ovs, err := newOVSDBClient(clientDbModel)
 	require.NoError(t, err)
 	err = ovs.echo(req, &reply)
 	if err != nil {
@@ -721,10 +273,11 @@ func TestEcho(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
-	ovs, err := newOVSDBClient(defDB)
+	clientDbModel, err := FullDatabaseModel()
 	require.NoError(t, err)
-	var s ovsdb.DatabaseSchema
-	err = json.Unmarshal([]byte(schema), &s)
+	ovs, err := newOVSDBClient(clientDbModel)
+	require.NoError(t, err)
+	s, err := Schema()
 	require.NoError(t, err)
 	clientDBModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Bridge":       &Bridge{},
@@ -752,10 +305,11 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestOperationWhenNeverConnected(t *testing.T) {
-	ovs, err := newOVSDBClient(defDB)
+	clientDbModel, err := FullDatabaseModel()
 	require.NoError(t, err)
-	var s ovsdb.DatabaseSchema
-	err = json.Unmarshal([]byte(schema), &s)
+	ovs, err := newOVSDBClient(clientDbModel)
+	require.NoError(t, err)
+	s, err := Schema()
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -799,10 +353,11 @@ func TestOperationWhenNeverConnected(t *testing.T) {
 }
 
 func TestOperationWhenNotConnected(t *testing.T) {
-	ovs, err := newOVSDBClient(defDB)
+	clientDbModel, err := FullDatabaseModel()
 	require.NoError(t, err)
-	var s ovsdb.DatabaseSchema
-	err = json.Unmarshal([]byte(schema), &s)
+	ovs, err := newOVSDBClient(clientDbModel)
+	require.NoError(t, err)
+	s, err := Schema()
 	require.NoError(t, err)
 	var errs []error
 	fullModel, errs := model.NewDatabaseModel(s, ovs.primaryDB().model.Client())
@@ -850,7 +405,9 @@ func TestOperationWhenNotConnected(t *testing.T) {
 }
 
 func TestSetOption(t *testing.T) {
-	o, err := newOVSDBClient(defDB)
+	clientDbModel, err := FullDatabaseModel()
+	require.NoError(t, err)
+	o, err := newOVSDBClient(clientDbModel)
 	require.NoError(t, err)
 
 	o.options, err = newOptions()
@@ -865,12 +422,12 @@ func TestSetOption(t *testing.T) {
 	assert.EqualError(t, err, "cannot set option when client is connected")
 }
 
-func newOVSDBServer(t *testing.T, dbModel model.ClientDBModel, schema ovsdb.DatabaseSchema) (*server.OvsdbServer, string) {
+func newOVSDBServer(t testing.TB, dbModel model.ClientDBModel, schema ovsdb.DatabaseSchema) (*server.OvsdbServer, string) {
 	serverDBModel, err := serverdb.FullDatabaseModel()
 	require.NoError(t, err)
 	serverSchema := serverdb.Schema()
 
-	db := server.NewInMemoryDatabase(map[string]model.ClientDBModel{
+	db := db.NewInMemoryDatabase(map[string]model.ClientDBModel{
 		schema.Name:       dbModel,
 		serverSchema.Name: serverDBModel,
 	})
@@ -902,15 +459,16 @@ func newOVSDBServer(t *testing.T, dbModel model.ClientDBModel, schema ovsdb.Data
 }
 
 func newClientServerPair(t *testing.T, connectCounter *int32, isLeader bool) (Client, *serverdb.Database, string) {
-	var defSchema ovsdb.DatabaseSchema
-	err := json.Unmarshal([]byte(schema), &defSchema)
+	defSchema, err := Schema()
 	require.NoError(t, err)
 
 	serverDBModel, err := serverdb.FullDatabaseModel()
 	require.NoError(t, err)
 
 	// Create server
-	s, sock := newOVSDBServer(t, defDB, defSchema)
+	clientDBModel, err := FullDatabaseModel()
+	require.NoError(t, err)
+	s, sock := newOVSDBServer(t, clientDBModel, defSchema)
 	s.OnConnect(func(_ *rpc2.Client) {
 		atomic.AddInt32(connectCounter, 1)
 	})
@@ -927,7 +485,7 @@ func newClientServerPair(t *testing.T, connectCounter *int32, isLeader bool) (Cl
 	sid := fmt.Sprintf("%04x", rand.Uint32())
 	row := &serverdb.Database{
 		UUID:      uuid.NewString(),
-		Name:      defDB.Name(),
+		Name:      clientDBModel.Name(),
 		Connected: true,
 		Leader:    isLeader,
 		Model:     serverdb.DatabaseModelClustered,
@@ -962,7 +520,9 @@ func TestClientReconnectLeaderOnly(t *testing.T) {
 	cli2, row2, endpoint2 := newClientServerPair(t, &connected2, false)
 
 	// Create client to test reconnection for
-	ovs, err := newOVSDBClient(defDB,
+	clientDBModel, err := FullDatabaseModel()
+	require.NoError(t, err)
+	ovs, err := newOVSDBClient(clientDBModel,
 		WithLeaderOnly(true),
 		WithReconnect(5*time.Second, &backoff.ZeroBackOff{}),
 		WithEndpoint(endpoint1),
@@ -1012,4 +572,282 @@ func TestClientReconnectLeaderOnly(t *testing.T) {
 	require.Never(t, func() bool {
 		return atomic.LoadInt32(&connected2) > 2
 	}, 2*time.Second, 10*time.Millisecond)
+}
+
+func TestClientValidateTransaction(t *testing.T) {
+	defSchema, err := Schema()
+	require.NoError(t, err)
+
+	// Create server with default model
+	serverDBModel, err := FullDatabaseModel()
+	require.NoError(t, err)
+	_, sock := newOVSDBServer(t, serverDBModel, defSchema)
+
+	// Create a client with primary and secondary indexes
+	// and transaction validation
+	clientDBModel, err := FullDatabaseModel()
+	require.NoError(t, err)
+	clientDBModel.SetIndexes(
+		map[string][]model.ClientIndex{
+			"Bridge": {
+				model.ClientIndex{
+					Type: model.PrimaryIndexType,
+					Columns: []model.ColumnKey{
+						{
+							Column: "datapath_type",
+						},
+						{
+							Column: "datapath_version",
+						},
+					},
+				},
+				model.ClientIndex{
+					Type: model.SecondaryIndexType,
+					Columns: []model.ColumnKey{
+						{
+							Column: "datapath_type",
+						},
+					},
+				},
+			},
+		},
+	)
+
+	endpoint := fmt.Sprintf("unix:%s", sock)
+	cli, err := newOVSDBClient(clientDBModel, WithEndpoint(endpoint), WithTransactionValidation(true))
+	require.NoError(t, err)
+	err = cli.Connect(context.Background())
+	require.NoError(t, err)
+	_, err = cli.MonitorAll(context.Background())
+	require.NoError(t, err)
+
+	tests := []struct {
+		desc              string
+		create            *Bridge
+		update            *Bridge
+		delete            *Bridge
+		expectedErrorType interface{}
+	}{
+		{
+			"Creating a first bridge should succeed",
+			&Bridge{
+				Name:            "bridge",
+				DatapathType:    "type1",
+				DatapathVersion: "1",
+			},
+			nil,
+			nil,
+			nil,
+		},
+		{
+			"Creating a duplicate schema index should fail",
+			&Bridge{
+				Name:            "bridge",
+				DatapathType:    "type2",
+				DatapathVersion: "2",
+			},
+			nil,
+			nil,
+			&ovsdb.ConstraintViolation{},
+		},
+		{
+			"Creating a duplicate primary client index should fail",
+			&Bridge{
+				Name:            "bridge2",
+				DatapathType:    "type1",
+				DatapathVersion: "1",
+			},
+			nil,
+			nil,
+			&ovsdb.ConstraintViolation{},
+		},
+		{
+			"Creating a duplicate secondary client index should succeed",
+			&Bridge{
+				Name:            "bridge2",
+				DatapathType:    "type1",
+				DatapathVersion: "2",
+			},
+			nil,
+			nil,
+			nil,
+		},
+		{
+			"Updating to duplicate a primary client index should fail",
+			nil,
+			&Bridge{
+				Name:            "bridge2",
+				DatapathType:    "type1",
+				DatapathVersion: "1",
+			},
+			nil,
+			&ovsdb.ConstraintViolation{},
+		},
+		{
+			"Changing an existing index and creating it again in the same transaction should succeed",
+			&Bridge{
+				Name:            "bridge3",
+				DatapathType:    "type1",
+				DatapathVersion: "1",
+			},
+			&Bridge{
+				Name:            "bridge",
+				DatapathVersion: "3",
+			},
+			nil,
+			nil,
+		},
+		{
+			"Deleting an existing index and creating it again in the same transaction should succeed",
+			&Bridge{
+				Name:            "bridge4",
+				DatapathType:    "type1",
+				DatapathVersion: "1",
+			},
+			nil,
+			&Bridge{
+				Name:            "bridge3",
+				DatapathType:    "type1",
+				DatapathVersion: "1",
+			},
+			nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			ops := []ovsdb.Operation{}
+			if tt.delete != nil {
+				deleteOps, err := cli.Where(tt.delete).Delete()
+				require.NoError(t, err)
+				ops = append(ops, deleteOps...)
+			}
+			if tt.update != nil {
+				updateOps, err := cli.Where(tt.update).Update(tt.update)
+				require.NoError(t, err)
+				ops = append(ops, updateOps...)
+			}
+			if tt.create != nil {
+				createOps, err := cli.Create(tt.create)
+				require.NoError(t, err)
+				ops = append(ops, createOps...)
+			}
+
+			res, err := cli.Transact(context.Background(), ops...)
+			if tt.expectedErrorType != nil {
+				require.Error(t, err)
+				require.IsTypef(t, tt.expectedErrorType, err, err.Error())
+			} else {
+				require.NoError(t, err)
+				_, err = ovsdb.CheckOperationResults(res, ops)
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func BenchmarkClientValidateMutateTransaction(b *testing.B) {
+	defSchema, err := Schema()
+	require.NoError(b, err)
+
+	dbModel, err := FullDatabaseModel()
+	require.NoError(b, err)
+
+	// Create server with default model
+	_, sock := newOVSDBServer(b, dbModel, defSchema)
+	verbosity := stdr.SetVerbosity(0)
+	b.Cleanup(func() {
+		stdr.SetVerbosity(verbosity)
+	})
+
+	// Create a client with transaction validation
+	getClient := func(opts ...Option) *ovsdbClient {
+		endpoint := fmt.Sprintf("unix:%s", sock)
+		l := logr.Discard()
+		cli, err := newOVSDBClient(dbModel, append(opts, WithEndpoint(endpoint), WithLogger(&l))...)
+		stdr.SetVerbosity(0)
+		require.NoError(b, err)
+		err = cli.Connect(context.Background())
+		require.NoError(b, err)
+		_, err = cli.MonitorAll(context.Background())
+		require.NoError(b, err)
+		return cli
+	}
+
+	cli := getClient()
+
+	numRows := 500
+	models := []*Bridge{}
+	for i := 0; i < numRows; i++ {
+		model := &Bridge{
+			Name: fmt.Sprintf("Name-%d", i),
+		}
+		for j := 0; j < numRows; j++ {
+			model.Ports = append(model.Ports, uuid.New().String())
+		}
+		ops, err := cli.Create(model)
+		require.NoError(b, err)
+		_, err = cli.Transact(context.Background(), ops...)
+		require.NoError(b, err)
+		models = append(models, model)
+	}
+
+	rand.Seed(int64(b.N))
+
+	benchmarks := []struct {
+		name   string
+		client *ovsdbClient
+		ops    int
+	}{
+		{
+			"1 mutate ops with validating client",
+			getClient(WithTransactionValidation(true)),
+			1,
+		},
+		{
+			"1 mutate ops with non validating client",
+			getClient(),
+			1,
+		},
+		{
+			"10 mutate ops with validating client",
+			getClient(WithTransactionValidation(true)),
+			10,
+		},
+		{
+			"10 mutate ops with non validating client",
+			getClient(),
+			10,
+		},
+		{
+			"100 mutate ops with validating client",
+			getClient(WithTransactionValidation(true)),
+			100,
+		},
+		{
+			"100 mutate ops with non validating client",
+			getClient(),
+			100,
+		},
+	}
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			cli := bm.client
+			ops := []ovsdb.Operation{}
+			for j := 0; j < bm.ops; j++ {
+				m := models[rand.Intn(numRows)]
+				op, err := cli.Where(m).Mutate(m, model.Mutation{
+					Field:   &m.Ports,
+					Mutator: ovsdb.MutateOperationInsert,
+					Value:   []string{uuid.New().String()},
+				})
+				require.NoError(b, err)
+				ops = append(ops, op...)
+			}
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, err := cli.Transact(context.Background(), ops...)
+				require.NoError(b, err)
+			}
+		})
+	}
 }
