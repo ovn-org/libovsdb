@@ -305,7 +305,8 @@ func (o *OvsdbServer) Monitor(client *rpc2.Client, args []json.RawMessage, reply
 
 	tableUpdates := make(ovsdb.TableUpdates)
 	for t, request := range request {
-		rows := transaction.Select(t, nil, request.Columns)
+		// FIXME: don't include _uuid in results if client didn't request it
+		rows := transaction.Select(t, nil, true, request.Columns)
 		for i := range rows.Rows {
 			tu := make(ovsdb.TableUpdate)
 			uuid := rows.Rows[i]["_uuid"].(ovsdb.UUID).GoUUID
@@ -352,7 +353,8 @@ func (o *OvsdbServer) MonitorCond(client *rpc2.Client, args []json.RawMessage, r
 
 	tableUpdates := make(ovsdb.TableUpdates2)
 	for t, request := range request {
-		rows := transaction.Select(t, nil, request.Columns)
+		// FIXME: don't include _uuid in results if client didn't request it
+		rows := transaction.Select(t, nil, true, request.Columns)
 		for i := range rows.Rows {
 			tu := make(ovsdb.TableUpdate2)
 			uuid := rows.Rows[i]["_uuid"].(ovsdb.UUID).GoUUID
@@ -397,7 +399,8 @@ func (o *OvsdbServer) MonitorCondSince(client *rpc2.Client, args []json.RawMessa
 
 	tableUpdates := make(ovsdb.TableUpdates2)
 	for t, request := range request {
-		rows := transaction.Select(t, nil, request.Columns)
+		// FIXME: don't include _uuid in results if client didn't request it
+		rows := transaction.Select(t, nil, true, request.Columns)
 		for i := range rows.Rows {
 			tu := make(ovsdb.TableUpdate2)
 			uuid := rows.Rows[i]["_uuid"].(ovsdb.UUID).GoUUID

@@ -22,6 +22,10 @@ func NewOvsSet(obj interface{}) (OvsSet, error) {
 	ovsSet := make([]interface{}, 0)
 	var v reflect.Value
 	if reflect.TypeOf(obj).Kind() == reflect.Ptr {
+		if reflect.ValueOf(obj).IsZero() {
+			// Empty set
+			return OvsSet{make([]interface{}, 0)}, nil
+		}
 		v = reflect.ValueOf(obj).Elem()
 		if v.Kind() == reflect.Invalid {
 			// must be a nil pointer, so just return an empty set

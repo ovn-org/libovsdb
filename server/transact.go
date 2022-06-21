@@ -43,7 +43,7 @@ func (o *OvsdbServer) transact(name string, operations []ovsdb.Operation) ([]ovs
 				}
 			}
 		case ovsdb.OperationSelect:
-			r := transaction.Select(op.Table, op.Where, op.Columns)
+			r := transaction.Select(op.Table, op.Where, false, op.Columns)
 			results = append(results, r)
 		case ovsdb.OperationUpdate:
 			r, tu := transaction.Update(name, op.Table, op.Where, op.Row)
@@ -207,7 +207,7 @@ func (t *Transaction) Insert(table string, rowUUID string, row ovsdb.Row) (ovsdb
 	}
 }
 
-func (t *Transaction) Select(table string, where []ovsdb.Condition, columns []string) ovsdb.OperationResult {
+func (t *Transaction) Select(table string, where []ovsdb.Condition, alwaysIncludeUUID bool, columns []string) ovsdb.OperationResult {
 	var results []ovsdb.Row
 	dbModel := t.Model
 
@@ -222,7 +222,7 @@ func (t *Transaction) Select(table string, where []ovsdb.Condition, columns []st
 		if err != nil {
 			panic(err)
 		}
-		resultRow, err := m.NewRow(info)
+		resultRow, err := m.NewRowWithColumns(info, alwaysIncludeUUID, columns...)
 		if err != nil {
 			panic(err)
 		}

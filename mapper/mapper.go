@@ -81,10 +81,20 @@ func (m Mapper) getData(ovsData ovsdb.Row, result *Info) error {
 	return nil
 }
 
-// NewRow transforms an orm struct to a map[string] interface{} that can be used as libovsdb.Row
+// NewRowWithColumns transforms an orm struct to a map[string] interface{} that can be used as libovsdb.Row
 // By default, default or null values are skipped. This behavior can be modified by specifying
-// a list of fields (pointers to fields in the struct) to be added to the row
-func (m Mapper) NewRow(data *Info, fields ...interface{}) (ovsdb.Row, error) {
+// a list of column names to be added to the row. If alwaysIncludeUUID is true the UUID is always
+// included in the results even if not present in columnNames.
+func (m Mapper) NewRowWithColumns(data *Info, alwaysIncludeUUID bool, columnNames ...string) (ovsdb.Row, error) {
+	// validate column names against row info
+	fields := make(map[string]struct{})
+	for _, col := range columnNames {
+		if _, err := data.FieldByColumn(col); err != nil {
+			return nil, err
+		}
+		fields[col] = struct{}{}
+	}
+
 	columns := make(map[string]*ovsdb.ColumnSchema)
 	for k, v := range data.Metadata.TableSchema.Columns {
 		columns[k] = v
@@ -100,24 +110,15 @@ func (m Mapper) NewRow(data *Info, fields ...interface{}) (ovsdb.Row, error) {
 
 		// add specific fields
 		if len(fields) > 0 {
-			found := false
-			for _, f := range fields {
-				col, err := data.ColumnByPtr(f)
-				if err != nil {
-					return nil, err
-				}
-				if col == name {
-					found = true
-					break
-				}
-			}
-			if !found {
+			wantUUID := alwaysIncludeUUID && (name == "_uuid")
+			if _, ok := fields[name]; !ok && !wantUUID {
 				continue
 			}
 		}
 		if len(fields) == 0 && ovsdb.IsDefaultValue(column, nativeElem) {
 			continue
 		}
+
 		ovsElem, err := ovsdb.NativeToOvs(column, nativeElem)
 		if err != nil {
 			return nil, fmt.Errorf("table %s, column %s: failed to generate ovs element. %s", data.Metadata.TableName, name, err.Error())
@@ -125,6 +126,22 @@ func (m Mapper) NewRow(data *Info, fields ...interface{}) (ovsdb.Row, error) {
 		ovsRow[name] = ovsElem
 	}
 	return ovsRow, nil
+}
+
+// NewRow transforms an orm struct to a map[string] interface{} that can be used as libovsdb.Row
+// By default, default or null values are skipped. This behavior can be modified by specifying
+// a list of fields (pointers to fields in the struct) to be added to the row
+func (m Mapper) NewRow(data *Info, fields ...interface{}) (ovsdb.Row, error) {
+	columnNames := make([]string, 0, len(fields))
+	for _, f := range fields {
+		col, err := data.ColumnByPtr(f)
+		if err != nil {
+			return nil, err
+		}
+		columnNames = append(columnNames, col)
+	}
+
+	return m.NewRowWithColumns(data, false, columnNames...)
 }
 
 // NewEqualityCondition returns a list of equality conditions that match a given object
