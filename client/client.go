@@ -1313,8 +1313,8 @@ func (o *ovsdbClient) List(ctx context.Context, result interface{}) error {
 }
 
 // Where implements the API interface's Where function
-func (o *ovsdbClient) Where(m model.Model) ConditionalAPI {
-	return o.primaryDB().api.Where(m)
+func (o *ovsdbClient) Where(models ...model.Model) ConditionalAPI {
+	return o.primaryDB().api.Where(models...)
 }
 
 // WhereAny implements the API interface's WhereAny function

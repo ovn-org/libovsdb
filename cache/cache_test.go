@@ -2309,7 +2309,7 @@ func TestTableCacheApplyModifications(t *testing.T) {
 	}
 }
 
-func TestTableCacheRowsByModel(t *testing.T) {
+func TestTableCacheRowsByModels(t *testing.T) {
 	type testModel struct {
 		UUID string            `ovsdb:"_uuid"`
 		Foo  string            `ovsdb:"foo"`
@@ -2381,49 +2381,85 @@ func TestTableCacheRowsByModel(t *testing.T) {
 	require.Empty(t, errs)
 
 	tests := []struct {
-		name  string
-		model model.Model
-		rows  map[string]model.Model
+		name   string
+		models []model.Model
+		rows   map[string]model.Model
 	}{
 		{
-			"by non index, no result",
-			&testModel{Foo: "no", Bar: "no", Baz: map[string]string{"baz": "no"}},
-			nil,
+			name: "by non index, no result",
+			models: []model.Model{
+				&testModel{Foo: "no", Bar: "no", Baz: map[string]string{"baz": "no"}},
+			},
+			rows: nil,
 		},
 		{
-			"by single column client index, single result",
-			&testModel{Bar: "foo"},
-			map[string]model.Model{
+			name: "by single column client index, single result",
+			models: []model.Model{
+				&testModel{Bar: "foo"},
+			},
+			rows: map[string]model.Model{
 				"foo": testData["Open_vSwitch"]["foo"],
 			},
 		},
 		{
-			"by single column client index, multiple results",
-			&testModel{Bar: "bar"},
-			map[string]model.Model{
+			name: "by single column client index, multiple models, multiple results",
+			models: []model.Model{
+				&testModel{Bar: "foo"},
+				&testModel{Bar: "baz"},
+			},
+			rows: map[string]model.Model{
+				"foo": testData["Open_vSwitch"]["foo"],
+				"baz": testData["Open_vSwitch"]["baz"],
+			},
+		},
+		{
+			name: "by single column client index, multiple results",
+			models: []model.Model{
+				&testModel{Bar: "bar"},
+			},
+			rows: map[string]model.Model{
 				"bar":    testData["Open_vSwitch"]["bar"],
 				"foobar": testData["Open_vSwitch"]["foobar"],
 			},
 		},
 		{
-			"by multi column client index, single result",
-			&testModel{Bar: "baz", Baz: map[string]string{"baz": "baz"}},
-			map[string]model.Model{
+			name: "by multi column client index, single result",
+			models: []model.Model{
+				&testModel{Bar: "baz", Baz: map[string]string{"baz": "baz"}},
+			},
+			rows: map[string]model.Model{
 				"baz": testData["Open_vSwitch"]["baz"],
 			},
 		},
 		{
-			"by client index, multiple results",
-			&testModel{Bar: "quux", Baz: map[string]string{"baz": "quux"}},
-			map[string]model.Model{
+			name: "by client index, multiple results",
+			models: []model.Model{
+				&testModel{Bar: "quux", Baz: map[string]string{"baz": "quux"}},
+			},
+			rows: map[string]model.Model{
 				"quux": testData["Open_vSwitch"]["quux"],
 				"quuz": testData["Open_vSwitch"]["quuz"],
 			},
 		},
 		{
-			"by schema index prioritized over client index",
-			&testModel{Foo: "foo", Bar: "bar", Baz: map[string]string{"baz": "bar"}},
-			map[string]model.Model{
+			name: "by client index, multiple models, multiple results",
+			models: []model.Model{
+				&testModel{Bar: "quux", Baz: map[string]string{"baz": "quux"}},
+				&testModel{Bar: "bar", Baz: map[string]string{"baz": "foobar"}},
+			},
+			rows: map[string]model.Model{
+				"quux":   testData["Open_vSwitch"]["quux"],
+				"quuz":   testData["Open_vSwitch"]["quuz"],
+				"foobar": testData["Open_vSwitch"]["foobar"],
+				"bar":    testData["Open_vSwitch"]["bar"],
+			},
+		},
+		{
+			name: "by schema index prioritized over client index",
+			models: []model.Model{
+				&testModel{Foo: "foo", Bar: "bar", Baz: map[string]string{"baz": "bar"}},
+			},
+			rows: map[string]model.Model{
 				"foo": testData["Open_vSwitch"]["foo"],
 			},
 		},
@@ -2432,7 +2468,7 @@ func TestTableCacheRowsByModel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tc, err := NewTableCache(dbModel, testData, nil)
 			require.NoError(t, err)
-			rows, err := tc.Table("Open_vSwitch").RowsByModel(tt.model)
+			rows, err := tc.Table("Open_vSwitch").RowsByModels(tt.models)
 			require.NoError(t, err)
 			require.Equal(t, tt.rows, rows)
 		})

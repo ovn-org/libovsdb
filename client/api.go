@@ -27,9 +27,11 @@ type API interface {
 	WhereCache(predicate interface{}) ConditionalAPI
 
 	// Create a ConditionalAPI from a Model's index data, where operations
-	// apply to elements that match the values provided in the model.Model
-	// according to the indexes.
-	Where(model.Model) ConditionalAPI
+	// apply to elements that match the values provided in one or more
+	// model.Models according to the indexes. All provided Models must be
+	// the same type or an error will be generated when operations are
+	// are performed on the ConditionalAPI.
+	Where(...model.Model) ConditionalAPI
 
 	// WhereAny creates a ConditionalAPI from a list of Conditions where
 	// operations apply to elements that match any (eg, logical OR) of the
@@ -173,9 +175,10 @@ func (a api) List(ctx context.Context, result interface{}) error {
 	return nil
 }
 
-// Where returns a conditionalAPI based on model indexes
-func (a api) Where(m model.Model) ConditionalAPI {
-	return newConditionalAPI(a.cache, a.conditionFromModel(m), a.logger)
+// Where returns a conditionalAPI based on model indexes. All provided models
+// must be the same type.
+func (a api) Where(models ...model.Model) ConditionalAPI {
+	return newConditionalAPI(a.cache, a.conditionFromModels(models), a.logger)
 }
 
 // WhereAny returns a conditionalAPI based on a Condition list that matches any
@@ -210,13 +213,16 @@ func (a api) conditionFromFunc(predicate interface{}) Conditional {
 	return condition
 }
 
-// conditionFromModel returns a Conditional from a model.
-func (a api) conditionFromModel(m model.Model) Conditional {
-	tableName, err := a.getTableFromModel(m)
+// conditionFromModels returns a Conditional from one or more models.
+func (a api) conditionFromModels(models []model.Model) Conditional {
+	if len(models) == 0 {
+		return newErrorConditional(fmt.Errorf("at least one model required"))
+	}
+	tableName, err := a.getTableFromModel(models[0])
 	if tableName == "" {
 		return newErrorConditional(err)
 	}
-	conditional, err := newEqualityConditional(tableName, a.cache, m)
+	conditional, err := newEqualityConditional(tableName, a.cache, models)
 	if err != nil {
 		return newErrorConditional(err)
 	}

@@ -49,10 +49,11 @@ Once the client object is created, a generic API can be used to interact with th
 
 Others, have to be called on a `ConditionalAPI` (`Update`, `Delete`, `Mutate`). There are three ways to create a `ConditionalAPI`:
 
-**Where()**: `Where()` can be used to create a `ConditionalAPI` based on the index information that the provided Model contains. Example:
+**Where()**: `Where()` can be used to create a `ConditionalAPI` based on the index information that the provided Models contain. Example:
 
       ls := &LogicalSwitch{UUID: "foo"}
-      ops, _ := ovs.Where(ls).Delete()
+      ls2 := &LogicalSwitch{UUID: "foo2"}
+      ops, _ := ovs.Where(ls, ls2).Delete()
 
 It will check the field corresponding to the `_uuid` column as well as all the other schema-defined or client-defined indexes in that order of priority.
 The first available index will be used to generate a condition.
