@@ -376,6 +376,22 @@ func TestMutateDelete(t *testing.T) {
 			},
 		},
 		{
+			"delete non-existent key value pairs",
+			map[string]string{
+				"foo": "bar",
+				"baz": "quux",
+			},
+			ovsdb.MutateOperationDelete,
+			map[string]string{
+				"key": "value",
+			},
+			map[string]string{
+				"foo": "bar",
+				"baz": "quux",
+			},
+			nil,
+		},
+		{
 			"delete keys",
 			map[string]string{
 				"foo": "bar",
