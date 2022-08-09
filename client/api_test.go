@@ -173,6 +173,13 @@ func TestAPIListSimple(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Len(t, result, len(lscacheList))
 	})
+
+	t.Run("ApiList: fails if conditional is an error", func(t *testing.T) {
+		result := []testLogicalSwitch{}
+		api := newConditionalAPI(tcache, newErrorConditional(fmt.Errorf("error")), &discardLogger)
+		err := api.List(context.Background(), &result)
+		assert.NotNil(t, err)
+	})
 }
 
 func TestAPIListPredicate(t *testing.T) {
@@ -1074,6 +1081,13 @@ func TestAPIMutate(t *testing.T) {
 			},
 			err: true,
 		},
+		{
+			name: "fails if conditional is an error",
+			condition: func(a API) ConditionalAPI {
+				return newConditionalAPI(nil, newErrorConditional(fmt.Errorf("error")), &discardLogger)
+			},
+			err: true,
+		},
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiMutate: %s", tt.name), func(t *testing.T) {
@@ -1432,6 +1446,15 @@ func TestAPIUpdate(t *testing.T) {
 			},
 			err: true,
 		},
+		{
+			name: "fails if conditional is an error",
+			condition: func(a API) ConditionalAPI {
+				return newConditionalAPI(tcache, newErrorConditional(fmt.Errorf("error")), &discardLogger)
+			},
+			prepare: func(t *testLogicalSwitchPort) {
+			},
+			err: true,
+		},
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiUpdate: %s", tt.name), func(t *testing.T) {
@@ -1648,6 +1671,13 @@ func TestAPIDelete(t *testing.T) {
 					&testLogicalSwitchPort{UUID: aUUID1},
 					&testLogicalSwitch{UUID: aUUID2},
 				)
+			},
+			err: true,
+		},
+		{
+			name: "fails if conditional is an error",
+			condition: func(a API) ConditionalAPI {
+				return newConditionalAPI(nil, newErrorConditional(fmt.Errorf("error")), &discardLogger)
 			},
 			err: true,
 		},
@@ -1958,6 +1988,16 @@ func TestAPIWait(t *testing.T) {
 			},
 			result: []ovsdb.Operation{},
 			err:    false,
+		},
+		{
+			name: "fails if conditional is an error",
+			condition: func(a API) ConditionalAPI {
+				return newConditionalAPI(nil, newErrorConditional(fmt.Errorf("error")), &discardLogger)
+			},
+			prepare: func() (model.Model, []interface{}) {
+				return nil, nil
+			},
+			err: true,
 		},
 	}
 
