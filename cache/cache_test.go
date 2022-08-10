@@ -2120,6 +2120,7 @@ func TestTableCacheApplyModifications(t *testing.T) {
 		base           *testDBModel
 		expected       *testDBModel
 		changeExpected bool
+		errorExpected  bool
 	}{
 		{
 			"replace value",
@@ -2127,12 +2128,14 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			&testDBModel{Value: "foo"},
 			&testDBModel{Value: "bar"},
 			true,
+			false,
 		},
 		{
 			"noop",
 			ovsdb.Row{"value": "bar"},
 			&testDBModel{Value: "bar"},
 			&testDBModel{Value: "bar"},
+			false,
 			false,
 		},
 		{
@@ -2141,6 +2144,7 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			&testDBModel{Set: []string{}},
 			&testDBModel{Set: []string{"foo"}},
 			true,
+			false,
 		},
 		{
 			"remove from set",
@@ -2148,6 +2152,7 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			&testDBModel{Set: []string{"foo"}},
 			&testDBModel{Set: []string{}},
 			true,
+			false,
 		},
 		{
 			"add and remove from set",
@@ -2155,6 +2160,7 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			&testDBModel{Set: []string{"foo"}},
 			&testDBModel{Set: []string{"bar"}},
 			true,
+			false,
 		},
 		{
 			"add and remove multiples from set",
@@ -2162,6 +2168,7 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			&testDBModel{Set: []string{"foo", "bar"}},
 			&testDBModel{Set: []string{"baz", "qux"}},
 			true,
+			false,
 		},
 		{
 			"replace map value",
@@ -2169,6 +2176,7 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			&testDBModel{Map: map[string]string{"foo": "baz"}},
 			&testDBModel{Map: map[string]string{"foo": "bar"}},
 			true,
+			false,
 		},
 		{
 			"add map key",
@@ -2176,6 +2184,7 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			&testDBModel{Map: map[string]string{"foo": "bar"}},
 			&testDBModel{Map: map[string]string{"foo": "bar", "bar": "baz"}},
 			true,
+			false,
 		},
 		{
 			"delete map key",
@@ -2183,6 +2192,7 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			&testDBModel{Map: map[string]string{"foo": "bar"}},
 			&testDBModel{Map: nil},
 			true,
+			false,
 		},
 		{
 			"multiple map operations",
@@ -2193,6 +2203,7 @@ func TestTableCacheApplyModifications(t *testing.T) {
 				Map2: map[string]string{"foo": "bar"},
 			},
 			true,
+			false,
 		},
 		{
 			"set optional value",
@@ -2200,20 +2211,39 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			&testDBModel{Ptr: nil, Ptr2: nil},
 			&testDBModel{Ptr: &wallace, Ptr2: &wallace},
 			true,
+			false,
 		},
 		{
-			"replace optional value",
+			"negative test: update received with multiple optional values",
 			ovsdb.Row{"ptr": aWallaceGromitSet, "ptr2": aWallaceGromitSet},
 			&testDBModel{Ptr: &wallace, Ptr2: &wallace},
-			&testDBModel{Ptr: &gromit, Ptr2: &gromit},
+			&testDBModel{Ptr: &wallace, Ptr2: &wallace},
+			false,
 			true,
 		},
 		{
-			"delete optional value",
+			"somehow we get the same value",
+			ovsdb.Row{"ptr": aWallaceSet, "ptr2": aWallaceSet},
+			&testDBModel{Ptr: &wallace, Ptr2: &wallace},
+			&testDBModel{Ptr: &wallace, Ptr2: &wallace},
+			false,
+			false,
+		},
+		{
+			"update with empty set",
 			ovsdb.Row{"ptr": aEmptySet, "ptr2": aEmptySet},
 			&testDBModel{Ptr: &wallace, Ptr2: &wallace},
 			&testDBModel{Ptr: nil, Ptr2: nil},
 			true,
+			false,
+		},
+		{
+			"update empty set with empty set",
+			ovsdb.Row{"ptr": aEmptySet, "ptr2": aEmptySet},
+			&testDBModel{Ptr: nil, Ptr2: nil},
+			&testDBModel{Ptr: nil, Ptr2: nil},
+			false,
+			false,
 		},
 	}
 	for _, tt := range tests {
@@ -2246,7 +2276,11 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			assert.Nil(t, err)
 			original := model.Clone(tt.base).(*testDBModel)
 			changed, err := tc.ApplyModifications("Open_vSwitch", original, tt.update)
-			require.NoError(t, err)
+			if tt.errorExpected {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
 			require.Equal(t, tt.expected, original)
 			require.Equal(t, tt.changeExpected, changed)
 			if !reflect.DeepEqual(tt.expected, tt.base) {
