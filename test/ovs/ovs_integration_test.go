@@ -36,7 +36,7 @@ func (suite *OVSIntegrationSuite) SetupSuite() {
 
 	tag := os.Getenv("OVS_IMAGE_TAG")
 	if tag == "" {
-		tag = "latest"
+		tag = "2.15.0"
 	}
 
 	options := &dockertest.RunOptions{
@@ -864,4 +864,36 @@ func (suite *OVSIntegrationSuite) TestOpsWaitForReconnect() {
 
 	wg.Wait()
 
+}
+
+func (suite *OVSIntegrationSuite) TestUnsetOptional() {
+	// Create the default bridge which has an optional BridgeFailMode set
+	uuid, err := suite.createBridge("br-with-optional")
+	require.NoError(suite.T(), err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Second)
+	defer cancel()
+
+	br := bridgeType{
+		UUID: uuid,
+	}
+
+	// verify the bridge has BridgeFailMode set
+	err = suite.client.Get(ctx, &br)
+	require.NoError(suite.T(), err)
+	require.NotNil(suite.T(), br.BridgeFailMode)
+
+	// modify bridge to unset BridgeFailMode
+	br.BridgeFailMode = nil
+	ops, err := suite.client.Where(&br).Update(&br, &br.BridgeFailMode)
+	require.NoError(suite.T(), err)
+	r, err := suite.client.Transact(ctx, ops...)
+	require.NoError(suite.T(), err)
+	_, err = ovsdb.CheckOperationResults(r, ops)
+	require.NoError(suite.T(), err)
+
+	// verify the bridge has BridgeFailMode unset
+	err = suite.client.Get(ctx, &br)
+	require.NoError(suite.T(), err)
+	require.Nil(suite.T(), br.BridgeFailMode)
 }
