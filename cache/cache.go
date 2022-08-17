@@ -1260,8 +1260,10 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 		return false, err
 	}
 	modified := false
+	var uuid string
 	for k, v := range update {
 		if k == "_uuid" {
+			uuid = v.(string)
 			continue
 		}
 
@@ -1321,33 +1323,27 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 		case reflect.Ptr:
 			// if NativeToOVS was successful, then simply assign
 			bv := reflect.ValueOf(current)
-			if (nv.Type() == bv.Type()) && !reflect.DeepEqual(nv.Interface(), bv.Interface()) {
-				err = info.SetField(k, nv.Interface())
-				if err != nil {
-					return modified, err
+			if nv.Type() == bv.Type() {
+				if !reflect.DeepEqual(nv.Interface(), bv.Interface()) {
+					// If we get an update, and it's an empty set, value of the column will be set to nil
+					err = info.SetField(k, nv.Interface())
+					if err != nil {
+						return modified, err
+					}
+				} else {
+					// should not happen (at least client side) where we receive the same value we already have
+					t.logger.Error(nil, fmt.Sprintf("modification recevied with value already stored in cache!"+
+						" table: %s, uuid: %s, column: %s, row: %#v", tableName, uuid, k, update))
+					continue
 				}
 				modified = true
 				break
 			}
-			// With a pointer type, an update value could be a set with 2 elements [old, new]
-			if nv.Len() != 2 {
-				return modified, fmt.Errorf("expected a slice with 2 elements for update: %+v", update)
-			}
-			// the new value is the value in the slice which isn't equal to the existing string
-			for i := 0; i < nv.Len(); i++ {
-				baseValue, err := info.FieldByColumn(k)
-				if err != nil {
-					return modified, err
-				}
-				bv := reflect.ValueOf(baseValue)
-				if !reflect.DeepEqual(nv.Index(i).Addr().Interface(), bv.Interface()) {
-					err = info.SetField(k, nv.Index(i).Addr().Interface())
-					if err != nil {
-						return modified, err
-					}
-					modified = true
-				}
-			}
+
+			// catch all for unexpected values/cases
+			return modified, fmt.Errorf("unable to handle row modification for optional value: "+
+				"table: %s, uuid: %s, column: %s, row: %#v", tableName, uuid, k, update)
+
 		case reflect.Map:
 			// The difference between two maps are all key-value pairs whose keys appears in only one of the maps,
 			// plus the key-value pairs whose keys appear in both maps but with different values.
