@@ -55,7 +55,7 @@ func getSchema() (ovsdb.DatabaseSchema, error) {
 	return schema, nil
 }
 
-func TestClientServerEcho(t *testing.T) {
+func buildTestServerAndClient(t *testing.T) (client.Client, func()) {
 	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 		"Open_vSwitch": &ovsType{},
 		"Bridge":       &bridgeType{}})
@@ -65,14 +65,13 @@ func TestClientServerEcho(t *testing.T) {
 	require.Nil(t, err)
 
 	ovsDB := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
-
 	rand.Seed(time.Now().UnixNano())
 	tmpfile := fmt.Sprintf("/tmp/ovsdb-%d.sock", rand.Intn(10000))
 	defer os.Remove(tmpfile)
 	dbModel, errs := model.NewDatabaseModel(schema, defDB)
 	require.Empty(t, errs)
 	server, err := NewOvsdbServer(ovsDB, dbModel)
-	require.Nil(t, err)
+	assert.Nil(t, err)
 
 	go func(t *testing.T, o *OvsdbServer) {
 		if err := o.Serve("unix", tmpfile); err != nil {
@@ -88,43 +87,26 @@ func TestClientServerEcho(t *testing.T) {
 	require.NoError(t, err)
 	err = ovs.Connect(context.Background())
 	require.NoError(t, err)
-	err = ovs.Echo(context.Background())
+
+	return ovs, func() {
+		ovs.Disconnect()
+		server.Close()
+	}
+}
+
+func TestClientServerEcho(t *testing.T) {
+	ovs, close := buildTestServerAndClient(t)
+	defer close()
+
+	err := ovs.Echo(context.Background())
 	assert.Nil(t, err)
 }
 
 func TestClientServerInsert(t *testing.T) {
-	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
-		"Open_vSwitch": &ovsType{},
-		"Bridge":       &bridgeType{}})
-	require.Nil(t, err)
+	ovs, close := buildTestServerAndClient(t)
+	defer close()
 
-	schema, err := getSchema()
-	require.Nil(t, err)
-
-	ovsDB := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
-	rand.Seed(time.Now().UnixNano())
-	tmpfile := fmt.Sprintf("/tmp/ovsdb-%d.sock", rand.Intn(10000))
-	defer os.Remove(tmpfile)
-	dbModel, errs := model.NewDatabaseModel(schema, defDB)
-	require.Empty(t, errs)
-	server, err := NewOvsdbServer(ovsDB, dbModel)
-	assert.Nil(t, err)
-
-	go func(t *testing.T, o *OvsdbServer) {
-		if err := o.Serve("unix", tmpfile); err != nil {
-			t.Error(err)
-		}
-	}(t, server)
-	defer server.Close()
-	require.Eventually(t, func() bool {
-		return server.Ready()
-	}, 1*time.Second, 10*time.Millisecond)
-
-	ovs, err := client.NewOVSDBClient(defDB, client.WithEndpoint(fmt.Sprintf("unix:%s", tmpfile)))
-	require.NoError(t, err)
-	err = ovs.Connect(context.Background())
-	require.NoError(t, err)
-	_, err = ovs.MonitorAll(context.Background())
+	_, err := ovs.MonitorAll(context.Background())
 	require.NoError(t, err)
 
 	wallace := "wallace"
@@ -160,41 +142,8 @@ func TestClientServerInsert(t *testing.T) {
 }
 
 func TestClientServerMonitor(t *testing.T) {
-	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
-		"Open_vSwitch": &ovsType{},
-		"Bridge":       &bridgeType{}})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	schema, err := getSchema()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	ovsDB := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
-	rand.Seed(time.Now().UnixNano())
-	tmpfile := fmt.Sprintf("/tmp/ovsdb-%d.sock", rand.Intn(10000))
-	defer os.Remove(tmpfile)
-	dbModel, errs := model.NewDatabaseModel(schema, defDB)
-	require.Empty(t, errs)
-	server, err := NewOvsdbServer(ovsDB, dbModel)
-	assert.Nil(t, err)
-
-	go func(t *testing.T, o *OvsdbServer) {
-		if err := o.Serve("unix", tmpfile); err != nil {
-			t.Error(err)
-		}
-	}(t, server)
-	defer server.Close()
-	require.Eventually(t, func() bool {
-		return server.Ready()
-	}, 1*time.Second, 10*time.Millisecond)
-
-	ovs, err := client.NewOVSDBClient(defDB, client.WithEndpoint(fmt.Sprintf("unix:%s", tmpfile)))
-	require.NoError(t, err)
-	err = ovs.Connect(context.Background())
-	require.NoError(t, err)
+	ovs, close := buildTestServerAndClient(t)
+	defer close()
 
 	ovsRow := &ovsType{
 		UUID: "ovs",
@@ -286,38 +235,10 @@ func TestClientServerMonitor(t *testing.T) {
 }
 
 func TestClientServerInsertAndDelete(t *testing.T) {
-	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
-		"Open_vSwitch": &ovsType{},
-		"Bridge":       &bridgeType{}})
-	require.Nil(t, err)
+	ovs, close := buildTestServerAndClient(t)
+	defer close()
 
-	schema, err := getSchema()
-	require.Nil(t, err)
-
-	ovsDB := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
-	rand.Seed(time.Now().UnixNano())
-	tmpfile := fmt.Sprintf("/tmp/ovsdb-%d.sock", rand.Intn(10000))
-	defer os.Remove(tmpfile)
-	dbModel, errs := model.NewDatabaseModel(schema, defDB)
-	require.Empty(t, errs)
-	server, err := NewOvsdbServer(ovsDB, dbModel)
-	assert.Nil(t, err)
-
-	go func(t *testing.T, o *OvsdbServer) {
-		if err := o.Serve("unix", tmpfile); err != nil {
-			t.Error(err)
-		}
-	}(t, server)
-	defer server.Close()
-	require.Eventually(t, func() bool {
-		return server.Ready()
-	}, 1*time.Second, 10*time.Millisecond)
-
-	ovs, err := client.NewOVSDBClient(defDB, client.WithEndpoint(fmt.Sprintf("unix:%s", tmpfile)))
-	require.NoError(t, err)
-	err = ovs.Connect(context.Background())
-	require.NoError(t, err)
-	_, err = ovs.MonitorAll(context.Background())
+	_, err := ovs.MonitorAll(context.Background())
 	require.NoError(t, err)
 
 	bridgeRow := &bridgeType{
@@ -351,38 +272,8 @@ func TestClientServerInsertAndDelete(t *testing.T) {
 }
 
 func TestClientServerInsertDuplicate(t *testing.T) {
-	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
-		"Open_vSwitch": &ovsType{},
-		"Bridge":       &bridgeType{},
-	})
-	require.Nil(t, err)
-
-	schema, err := getSchema()
-	require.Nil(t, err)
-
-	ovsDB := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
-	rand.Seed(time.Now().UnixNano())
-	tmpfile := fmt.Sprintf("/tmp/ovsdb-%d.sock", rand.Intn(10000))
-	defer os.Remove(tmpfile)
-	dbModel, errs := model.NewDatabaseModel(schema, defDB)
-	require.Empty(t, errs)
-	server, err := NewOvsdbServer(ovsDB, dbModel)
-	assert.Nil(t, err)
-
-	go func(t *testing.T, o *OvsdbServer) {
-		if err := o.Serve("unix", tmpfile); err != nil {
-			t.Error(err)
-		}
-	}(t, server)
-	defer server.Close()
-	require.Eventually(t, func() bool {
-		return server.Ready()
-	}, 1*time.Second, 10*time.Millisecond)
-
-	ovs, err := client.NewOVSDBClient(defDB, client.WithEndpoint(fmt.Sprintf("unix:%s", tmpfile)))
-	require.NoError(t, err)
-	err = ovs.Connect(context.Background())
-	require.NoError(t, err)
+	ovs, close := buildTestServerAndClient(t)
+	defer close()
 
 	bridgeRow := &bridgeType{
 		Name:        "foo",
@@ -406,40 +297,10 @@ func TestClientServerInsertDuplicate(t *testing.T) {
 }
 
 func TestClientServerInsertAndUpdate(t *testing.T) {
-	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
-		"Open_vSwitch": &ovsType{},
-		"Bridge":       &bridgeType{}})
-	require.Nil(t, err)
+	ovs, close := buildTestServerAndClient(t)
+	defer close()
 
-	schema, err := getSchema()
-	require.Nil(t, err)
-
-	ovsDB := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
-	rand.Seed(time.Now().UnixNano())
-	tmpfile := fmt.Sprintf("/tmp/ovsdb-%d.sock", rand.Intn(10000))
-	defer os.Remove(tmpfile)
-	dbModel, errs := model.NewDatabaseModel(schema, defDB)
-	require.Empty(t, errs)
-	server, err := NewOvsdbServer(ovsDB, dbModel)
-	assert.Nil(t, err)
-
-	go func(t *testing.T, o *OvsdbServer) {
-		if err := o.Serve("unix", tmpfile); err != nil {
-			t.Error(err)
-		}
-	}(t, server)
-	defer server.Close()
-	require.Eventually(t, func() bool {
-		return server.Ready()
-	}, 1*time.Second, 10*time.Millisecond)
-
-	ovs, err := client.NewOVSDBClient(defDB, client.WithEndpoint(fmt.Sprintf("unix:%s", tmpfile)))
-	require.NoError(t, err)
-	err = ovs.Connect(context.Background())
-	require.NoError(t, err)
-	defer ovs.Disconnect()
-
-	_, err = ovs.MonitorAll(context.Background())
+	_, err := ovs.MonitorAll(context.Background())
 	require.NoError(t, err)
 
 	bridgeRow := &bridgeType{
@@ -512,4 +373,43 @@ func TestClientServerInsertAndUpdate(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, bridgeRow, br)
+}
+
+func TestUnsetOptional(t *testing.T) {
+	c, close := buildTestServerAndClient(t)
+	defer close()
+	_, err := c.MonitorAll(context.Background())
+	require.NoError(t, err)
+
+	// Create the default bridge which has an optional DatapathID set
+	optional := "optional"
+	br := bridgeType{
+		Name:       "br-with-optional",
+		DatapathID: &optional,
+	}
+	ops, err := c.Create(&br)
+	require.NoError(t, err)
+	r, err := c.Transact(context.Background(), ops...)
+	require.NoError(t, err)
+	_, err = ovsdb.CheckOperationResults(r, ops)
+	require.NoError(t, err)
+
+	// verify the bridge has DatapathID set
+	err = c.Get(context.Background(), &br)
+	require.NoError(t, err)
+	require.NotNil(t, br.DatapathID)
+
+	// modify bridge to unset DatapathID
+	br.DatapathID = nil
+	ops, err = c.Where(&br).Update(&br, &br.DatapathID)
+	require.NoError(t, err)
+	r, err = c.Transact(context.Background(), ops...)
+	require.NoError(t, err)
+	_, err = ovsdb.CheckOperationResults(r, ops)
+	require.NoError(t, err)
+
+	// verify the bridge has DatapathID unset
+	err = c.Get(context.Background(), &br)
+	require.NoError(t, err)
+	require.Nil(t, br.DatapathID)
 }

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -389,10 +390,12 @@ func TestDiff(t *testing.T) {
 	originSet, _ := ovsdb.NewOvsSet([]interface{}{"foo"})
 
 	originSetAdd, _ := ovsdb.NewOvsSet([]interface{}{"bar"})
-	setAddDiff, _ := ovsdb.NewOvsSet([]interface{}{"foo", "bar"})
+	setAddDiffSingleValue := originSetAdd
+	setAddDiffMultipleValues, _ := ovsdb.NewOvsSet([]interface{}{"foo", "bar"})
 
 	originSetDel, _ := ovsdb.NewOvsSet([]interface{}{})
-	setDelDiff, _ := ovsdb.NewOvsSet([]interface{}{"foo"})
+	setDelDiffSingleValue := originSetDel
+	setDelDiffMultipleValues, _ := ovsdb.NewOvsSet([]interface{}{"foo"})
 
 	originMap, _ := ovsdb.NewOvsMap(map[interface{}]interface{}{"foo": "bar"})
 
@@ -405,50 +408,105 @@ func TestDiff(t *testing.T) {
 	originMapReplace, _ := ovsdb.NewOvsMap(map[interface{}]interface{}{"foo": "baz"})
 	originMapReplaceDiff, _ := ovsdb.NewOvsMap(map[interface{}]interface{}{"foo": "baz"})
 
+	singleValueSet := `{
+		"type": {
+			"key": {
+				"type": "string"
+			},
+			"min": 0,
+			"max": 1
+		}
+	}`
+	singleValueSetSchema := ovsdb.ColumnSchema{}
+	err := json.Unmarshal([]byte(singleValueSet), &singleValueSetSchema)
+	require.NoError(t, err)
+
+	multipleValueSet := `{
+		"type": {
+			"key": {
+				"type": "string"
+			},
+			"min": 0,
+			"max": 2
+		}
+	}`
+	multipleValueSetSchema := ovsdb.ColumnSchema{}
+	err = json.Unmarshal([]byte(multipleValueSet), &multipleValueSetSchema)
+	require.NoError(t, err)
+
 	tests := []struct {
 		name     string
+		schema   *ovsdb.ColumnSchema
 		a        interface{}
 		b        interface{}
 		expected interface{}
 	}{
 		{
-			"add to set",
+			"add to set, max == 1",
+			&singleValueSetSchema,
 			originSet,
 			originSetAdd,
-			setAddDiff,
+			setAddDiffSingleValue,
 		},
 		{
-			"delete from set",
+			"add to set, max > 1",
+			&multipleValueSetSchema,
+			originSet,
+			originSetAdd,
+			setAddDiffMultipleValues,
+		},
+		{
+			"delete from set, max == 1",
+			&singleValueSetSchema,
 			originSet,
 			originSetDel,
-			setDelDiff,
+			setDelDiffSingleValue,
 		},
 		{
-			"noop set",
+			"delete from set, max > 1",
+			&multipleValueSetSchema,
+			originSet,
+			originSetDel,
+			setDelDiffMultipleValues,
+		},
+		{
+			"noop set, max == 1",
+			&singleValueSetSchema,
+			originSet,
+			originSet,
+			originSet,
+		},
+		{
+			"noop set, max > 1",
+			&multipleValueSetSchema,
 			originSet,
 			originSet,
 			nil,
 		},
 		{
 			"add to map",
+			nil,
 			originMap,
 			originMapAdd,
 			originMapAddDiff,
 		},
 		{
 			"delete from map",
+			nil,
 			originMap,
 			originMapDel,
 			originMapDelDiff,
 		},
 		{
 			"replace in map",
+			nil,
 			originMap,
 			originMapReplace,
 			originMapReplaceDiff,
 		},
 		{
 			"noop map",
+			nil,
 			originMap,
 			originMap,
 			nil,
@@ -456,7 +514,7 @@ func TestDiff(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res := diff(tt.a, tt.b)
+			res := diff(tt.schema, tt.a, tt.b)
 			assert.Equal(t, tt.expected, res)
 		})
 	}
@@ -539,8 +597,10 @@ func TestOvsdbServerUpdate(t *testing.T) {
 	require.Nil(t, err)
 	m := mapper.NewMapper(schema)
 
+	christmas := "christmas"
 	bridge := bridgeType{
-		Name: "foo",
+		Name:       "foo",
+		DatapathID: &christmas,
 		ExternalIds: map[string]string{
 			"foo":   "bar",
 			"baz":   "qux",
@@ -563,6 +623,7 @@ func TestOvsdbServerUpdate(t *testing.T) {
 	assert.NoError(t, err)
 
 	halloween, _ := ovsdb.NewOvsSet([]string{"halloween"})
+	emptySet, _ := ovsdb.NewOvsSet([]string{})
 	tests := []struct {
 		name     string
 		row      ovsdb.Row
@@ -578,11 +639,29 @@ func TestOvsdbServerUpdate(t *testing.T) {
 			},
 		},
 		{
-			"update single optional field",
+			"update single optional field, with direct value",
 			ovsdb.Row{"datapath_id": "halloween"},
 			&ovsdb.RowUpdate2{
 				Modify: &ovsdb.Row{
 					"datapath_id": halloween,
+				},
+			},
+		},
+		{
+			"update single optional field, with set",
+			ovsdb.Row{"datapath_id": halloween},
+			&ovsdb.RowUpdate2{
+				Modify: &ovsdb.Row{
+					"datapath_id": halloween,
+				},
+			},
+		},
+		{
+			"unset single optional field",
+			ovsdb.Row{"datapath_id": emptySet},
+			&ovsdb.RowUpdate2{
+				Modify: &ovsdb.Row{
+					"datapath_id": emptySet,
 				},
 			},
 		},
