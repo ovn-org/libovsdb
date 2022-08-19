@@ -178,6 +178,7 @@ func newOVSDBClient(clientDBModel model.ClientDBModel, opts ...Option) (*ovsdbCl
 		)
 		ovs.logger = &l
 	}
+	ovs.metrics.init(clientDBModel.Name())
 	ovs.registerMetrics()
 
 	// if we should only connect to the leader, then add the special "_Server" database as well
@@ -191,7 +192,6 @@ func newOVSDBClient(clientDBModel model.ClientDBModel, opts ...Option) (*ovsdbCl
 			monitors: make(map[string]*Monitor),
 		}
 	}
-	ovs.metrics.init(clientDBModel.Name())
 
 	return ovs, nil
 }
