@@ -259,8 +259,10 @@ func (a api) Get(ctx context.Context, m model.Model) error {
 		return ErrNotFound
 	}
 
-	_, found := tableCache.RowByModel(m)
-	if found == nil {
+	_, found, err := tableCache.RowByModel(m)
+	if err != nil {
+		return err
+	} else if found == nil {
 		return ErrNotFound
 	}
 

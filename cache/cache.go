@@ -166,22 +166,22 @@ func (r *RowCache) Row(uuid string) model.Model {
 	return r.rowByUUID(uuid)
 }
 
-func (r *RowCache) rowsByModel(m model.Model, useClientIndexes bool) map[string]model.Model {
+func (r *RowCache) rowsByModel(m model.Model, useClientIndexes bool) (map[string]model.Model, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 	if reflect.TypeOf(m) != r.dataType {
-		return nil
+		return nil, fmt.Errorf("model type %s didn't match expected row type %s", reflect.TypeOf(m), r.dataType)
 	}
 	info, _ := r.dbModel.NewModelInfo(m)
 	field, err := info.FieldByColumn("_uuid")
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	uuid := field.(string)
 	if uuid != "" {
 		row := r.rowByUUID(uuid)
 		if row != nil {
-			return map[string]model.Model{uuid: row}
+			return map[string]model.Model{uuid: row}, nil
 		}
 	}
 	// indexSpecs are ordered, schema indexes go first, then client indexes
@@ -204,9 +204,9 @@ func (r *RowCache) rowsByModel(m model.Model, useClientIndexes bool) map[string]
 		for uuid := range uuids {
 			results[uuid] = r.rowByUUID(uuid)
 		}
-		return results
+		return results, nil
 	}
-	return nil
+	return nil, nil
 }
 
 // RowByModel searches the cache by UUID and schema indexes. UUID search is
@@ -214,12 +214,15 @@ func (r *RowCache) rowsByModel(m model.Model, useClientIndexes bool) map[string]
 // with which they are defined in the schema. The model for the first matching
 // index is returned along with its UUID. An empty string and nil is returned if
 // no Model is found.
-func (r *RowCache) RowByModel(m model.Model) (string, model.Model) {
-	models := r.rowsByModel(m, false)
-	for uuid, model := range models {
-		return uuid, model
+func (r *RowCache) RowByModel(m model.Model) (string, model.Model, error) {
+	models, err := r.rowsByModel(m, false)
+	if err != nil {
+		return "", nil, err
 	}
-	return "", nil
+	for uuid, model := range models {
+		return uuid, model, nil
+	}
+	return "", nil, nil
 }
 
 // RowsByModel searches the cache by UUID, schema indexes and client indexes.
@@ -229,7 +232,7 @@ func (r *RowCache) RowByModel(m model.Model) (string, model.Model) {
 // in the client DB model. The models for the first matching index are returned,
 // which might be more than 1 if they were found through a client index since in
 // that case uniqueness is not enforced. Nil is returned if no Model is found.
-func (r *RowCache) RowsByModel(m model.Model) map[string]model.Model {
+func (r *RowCache) RowsByModel(m model.Model) (map[string]model.Model, error) {
 	return r.rowsByModel(m, true)
 }
 

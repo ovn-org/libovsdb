@@ -1659,7 +1659,8 @@ func TestTableCachePopulate2BrokenIndexes(t *testing.T) {
 	assert.False(t, ok)
 
 	t.Log("Lookup Original Insert By Index")
-	_, result := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "bar"})
+	_, result, err := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "bar"})
+	require.NoError(t, err)
 	require.NotNil(t, result)
 }
 
@@ -1841,19 +1842,31 @@ func TestTableCacheRowByModelSingleIndex(t *testing.T) {
 	myFoo, tc := setupRowByModelSingleIndex(t)
 
 	t.Run("get foo by index", func(t *testing.T) {
-		_, foo := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo"})
+		_, foo, err := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo"})
+		assert.NoError(t, err)
 		assert.NotNil(t, foo)
 		assert.Equal(t, myFoo, foo)
 	})
 
 	t.Run("get non-existent item by index", func(t *testing.T) {
-		_, baz := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "baz"})
+		_, baz, err := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "baz"})
+		assert.NoError(t, err)
 		assert.Nil(t, baz)
 	})
 
 	t.Run("no index data", func(t *testing.T) {
-		_, foo := tc.Table("Open_vSwitch").RowByModel(&testModel{Bar: "foo"})
+		_, foo, err := tc.Table("Open_vSwitch").RowByModel(&testModel{Bar: "foo"})
+		assert.NoError(t, err)
 		assert.Nil(t, foo)
+	})
+
+	t.Run("wrong model type", func(t *testing.T) {
+		type badModel struct {
+			UUID string `ovsdb:"_uuid"`
+			Baz  string `ovsdb:"baz"`
+		}
+		_, _, err := tc.Table("Open_vSwitch").RowByModel(&badModel{Baz: "baz"})
+		assert.Error(t, err)
 	})
 }
 
@@ -2040,19 +2053,22 @@ func TestTableCacheRowByModelTwoIndexes(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("get foo by Foo index", func(t *testing.T) {
-		_, foo := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo"})
+		_, foo, err := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo"})
+		assert.NoError(t, err)
 		assert.NotNil(t, foo)
 		assert.Equal(t, myFoo, foo)
 	})
 
 	t.Run("get foo by Bar index", func(t *testing.T) {
-		_, foo := tc.Table("Open_vSwitch").RowByModel(&testModel{Bar: "foo"})
+		_, foo, err := tc.Table("Open_vSwitch").RowByModel(&testModel{Bar: "foo"})
+		assert.NoError(t, err)
 		assert.NotNil(t, foo)
 		assert.Equal(t, myFoo, foo)
 	})
 
 	t.Run("get non-existent item by index", func(t *testing.T) {
-		_, baz := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "baz"})
+		_, baz, err := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "baz"})
+		assert.NoError(t, err)
 		assert.Nil(t, baz)
 	})
 
@@ -2074,18 +2090,21 @@ func TestTableCacheRowByModelMultiIndex(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("incomplete index", func(t *testing.T) {
-		_, foo := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo"})
+		_, foo, err := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo"})
+		assert.NoError(t, err)
 		assert.Nil(t, foo)
 	})
 
 	t.Run("get foo by index", func(t *testing.T) {
-		_, foo := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo", Bar: "foo"})
+		_, foo, err := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo", Bar: "foo"})
+		assert.NoError(t, err)
 		assert.NotNil(t, foo)
 		assert.Equal(t, myFoo, foo)
 	})
 
 	t.Run("get non-existent item by index", func(t *testing.T) {
-		_, baz := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "baz", Bar: "baz"})
+		_, baz, err := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "baz", Bar: "baz"})
+		assert.NoError(t, err)
 		assert.Nil(t, baz)
 	})
 }
@@ -2413,7 +2432,8 @@ func TestTableCacheRowsByModel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tc, err := NewTableCache(dbModel, testData, nil)
 			require.NoError(t, err)
-			rows := tc.Table("Open_vSwitch").RowsByModel(tt.model)
+			rows, err := tc.Table("Open_vSwitch").RowsByModel(tt.model)
+			require.NoError(t, err)
 			require.Equal(t, tt.rows, rows)
 		})
 	}
