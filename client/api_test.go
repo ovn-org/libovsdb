@@ -173,6 +173,13 @@ func TestAPIListSimple(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Len(t, result, len(lscacheList))
 	})
+
+	t.Run("ApiList: fails if conditional is an error", func(t *testing.T) {
+		result := []testLogicalSwitch{}
+		api := newConditionalAPI(tcache, newErrorConditional(fmt.Errorf("error")), &discardLogger)
+		err := api.List(context.Background(), &result)
+		assert.NotNil(t, err)
+	})
 }
 
 func TestAPIListPredicate(t *testing.T) {
@@ -343,7 +350,7 @@ func TestAPIListWhereConditions(t *testing.T) {
 			if tt.matchAll {
 				capi = api.WhereAll(testObj, conds...)
 			} else {
-				capi = api.Where(testObj, conds...)
+				capi = api.WhereAny(testObj, conds...)
 			}
 			err := capi.List(context.Background(), &result)
 			assert.NoError(t, err)
@@ -440,6 +447,92 @@ func TestAPIListFields(t *testing.T) {
 	})
 }
 
+func TestAPIListMulti(t *testing.T) {
+	lspcacheList := []model.Model{
+		&testLogicalSwitchPort{
+			UUID:        aUUID0,
+			Name:        "lsp0",
+			ExternalIds: map[string]string{"foo": "bar"},
+			Enabled:     &trueVal,
+		},
+		&testLogicalSwitchPort{
+			UUID:        aUUID1,
+			Name:        "magiclsp1",
+			ExternalIds: map[string]string{"foo": "baz"},
+			Enabled:     &falseVal,
+		},
+		&testLogicalSwitchPort{
+			UUID:        aUUID2,
+			Name:        "lsp2",
+			ExternalIds: map[string]string{"unique": "id"},
+			Enabled:     &falseVal,
+		},
+		&testLogicalSwitchPort{
+			UUID:        aUUID3,
+			Name:        "magiclsp2",
+			ExternalIds: map[string]string{"foo": "baz"},
+			Enabled:     &trueVal,
+		},
+	}
+	lspcache := map[string]model.Model{}
+	for i := range lspcacheList {
+		lspcache[lspcacheList[i].(*testLogicalSwitchPort).UUID] = lspcacheList[i]
+	}
+	testData := cache.Data{
+		"Logical_Switch_Port": lspcache,
+	}
+	tcache := apiTestCache(t, testData)
+
+	test := []struct {
+		name    string
+		models  []model.Model
+		matches []model.Model
+		err     bool
+	}{
+		{
+			name: "No match",
+			models: []model.Model{
+				&testLogicalSwitchPort{UUID: "asdfasdfaf"},
+				&testLogicalSwitchPort{UUID: "ghghghghgh"},
+			},
+			matches: []model.Model{},
+			err:     false,
+		},
+		{
+			name: "One match",
+			models: []model.Model{
+				&testLogicalSwitchPort{UUID: aUUID0},
+				&testLogicalSwitchPort{UUID: "ghghghghgh"},
+			},
+			matches: []model.Model{lspcache[aUUID0]},
+			err:     false,
+		},
+		{
+			name: "Mismatched models",
+			models: []model.Model{
+				&testLogicalSwitchPort{UUID: aUUID0},
+				&testLogicalSwitch{UUID: "ghghghghgh"},
+			},
+			matches: []model.Model{},
+			err:     true,
+		},
+	}
+
+	for _, tt := range test {
+		t.Run(tt.name, func(t *testing.T) {
+			var result []*testLogicalSwitchPort
+			api := newAPI(tcache, &discardLogger)
+			err := api.Where(tt.models...).List(context.Background(), &result)
+			if tt.err {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.ElementsMatchf(t, tt.matches, result, "Content should match")
+			}
+		})
+	}
+}
+
 func TestConditionFromFunc(t *testing.T) {
 	test := []struct {
 		name string
@@ -486,32 +579,46 @@ func TestConditionFromFunc(t *testing.T) {
 func TestConditionFromModel(t *testing.T) {
 	var testObj testLogicalSwitch
 	test := []struct {
-		name  string
-		model model.Model
-		conds []model.Condition
-		err   bool
+		name   string
+		models []model.Model
+		conds  []model.Condition
+		err    bool
 	}{
 		{
-			name:  "wrong model must fail",
-			model: &struct{ a string }{},
-			err:   true,
+			name: "wrong model must fail",
+			models: []model.Model{
+				&struct{ a string }{},
+			},
+			err: true,
 		},
 		{
 			name: "wrong condition must fail",
-			model: &struct {
-				a string `ovsdb:"_uuid"`
-			}{},
+			models: []model.Model{
+				&struct {
+					a string `ovsdb:"_uuid"`
+				}{},
+			},
 			conds: []model.Condition{{Field: "foo"}},
 			err:   true,
 		},
 		{
-			name:  "correct model must succeed",
-			model: &testLogicalSwitch{},
-			err:   false,
+			name: "correct model must succeed",
+			models: []model.Model{
+				&testLogicalSwitch{},
+			},
+			err: false,
 		},
 		{
-			name:  "correct model with valid condition must succeed",
-			model: &testObj,
+			name: "correct models must succeed",
+			models: []model.Model{
+				&testLogicalSwitch{},
+				&testLogicalSwitch{},
+			},
+			err: false,
+		},
+		{
+			name:   "correct model with valid condition must succeed",
+			models: []model.Model{&testObj},
 			conds: []model.Condition{
 				{
 					Field:    &testObj.Name,
@@ -529,10 +636,15 @@ func TestConditionFromModel(t *testing.T) {
 	}
 
 	for _, tt := range test {
-		t.Run(fmt.Sprintf("conditionFromModel: %s", tt.name), func(t *testing.T) {
+		t.Run(fmt.Sprintf("conditionFromModels: %s", tt.name), func(t *testing.T) {
 			cache := apiTestCache(t, nil)
 			apiIface := newAPI(cache, &discardLogger)
-			condition := apiIface.(api).conditionFromModel(false, false, tt.model, tt.conds...)
+			var condition Conditional
+			if len(tt.conds) > 0 {
+				condition = apiIface.(api).conditionFromExplicitConditions(true, tt.models[0], tt.conds...)
+			} else {
+				condition = apiIface.(api).conditionFromModels(tt.models)
+			}
 			if tt.err {
 				assert.IsType(t, &errorConditional{}, condition)
 			} else {
@@ -809,6 +921,44 @@ func TestAPIMutate(t *testing.T) {
 			err: false,
 		},
 		{
+			name: "select multiple by UUID addElement to set",
+			condition: func(a API) ConditionalAPI {
+				return a.Where(
+					&testLogicalSwitchPort{UUID: aUUID0},
+					&testLogicalSwitchPort{UUID: aUUID1},
+					&testLogicalSwitchPort{UUID: aUUID2},
+				)
+			},
+			mutations: []model.Mutation{
+				{
+					Field:   &testObj.Addresses,
+					Mutator: ovsdb.MutateOperationInsert,
+					Value:   []string{"2.2.2.2"},
+				},
+			},
+			result: []ovsdb.Operation{
+				{
+					Op:        ovsdb.OperationMutate,
+					Table:     "Logical_Switch_Port",
+					Mutations: []ovsdb.Mutation{{Column: "addresses", Mutator: ovsdb.MutateOperationInsert, Value: testOvsSet(t, []string{"2.2.2.2"})}},
+					Where:     []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID0}}},
+				},
+				{
+					Op:        ovsdb.OperationMutate,
+					Table:     "Logical_Switch_Port",
+					Mutations: []ovsdb.Mutation{{Column: "addresses", Mutator: ovsdb.MutateOperationInsert, Value: testOvsSet(t, []string{"2.2.2.2"})}},
+					Where:     []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID1}}},
+				},
+				{
+					Op:        ovsdb.OperationMutate,
+					Table:     "Logical_Switch_Port",
+					Mutations: []ovsdb.Mutation{{Column: "addresses", Mutator: ovsdb.MutateOperationInsert, Value: testOvsSet(t, []string{"2.2.2.2"})}},
+					Where:     []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID2}}},
+				},
+			},
+			err: false,
+		},
+		{
 			name: "select by name delete element from map with cache",
 			condition: func(a API) ConditionalAPI {
 				return a.Where(&testLogicalSwitchPort{
@@ -920,6 +1070,24 @@ func TestAPIMutate(t *testing.T) {
 			mutations: []model.Mutation{},
 			err:       true,
 		},
+		{
+			name: "multiple different selected models must fail",
+			condition: func(a API) ConditionalAPI {
+				return a.Where(
+					&testLogicalSwitchPort{UUID: aUUID0},
+					&testLogicalSwitchPort{UUID: aUUID1},
+					&testLogicalSwitch{UUID: aUUID2},
+				)
+			},
+			err: true,
+		},
+		{
+			name: "fails if conditional is an error",
+			condition: func(a API) ConditionalAPI {
+				return newConditionalAPI(nil, newErrorConditional(fmt.Errorf("error")), &discardLogger)
+			},
+			err: true,
+		},
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiMutate: %s", tt.name), func(t *testing.T) {
@@ -929,7 +1097,7 @@ func TestAPIMutate(t *testing.T) {
 			if tt.err {
 				require.Error(t, err)
 			} else {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				assert.ElementsMatchf(t, tt.result, ops, "ovsdb.Operations should match")
 			}
 		})
@@ -1096,7 +1264,7 @@ func TestAPIUpdate(t *testing.T) {
 					Type:    "sometype",
 					Enabled: &trueVal,
 				}
-				return a.Where(&t, model.Condition{
+				return a.WhereAny(&t, model.Condition{
 					Field:    &t.Type,
 					Function: ovsdb.ConditionEqual,
 					Value:    "sometype",
@@ -1116,18 +1284,18 @@ func TestAPIUpdate(t *testing.T) {
 			err: false,
 		},
 		{
-			name: "multiple select any by field change multiple field",
+			name: "multiple select any by field change multiple field with cache hits",
 			condition: func(a API) ConditionalAPI {
 				t := testLogicalSwitchPort{}
-				return a.Where(&t,
+				return a.WhereAny(&t,
 					model.Condition{
 						Field:    &t.Type,
 						Function: ovsdb.ConditionEqual,
-						Value:    "sometype",
+						Value:    "someOtherType",
 					},
 					model.Condition{
 						Field:    &t.Enabled,
-						Function: ovsdb.ConditionIncludes,
+						Function: ovsdb.ConditionEqual,
 						Value:    &trueVal,
 					})
 			},
@@ -1139,13 +1307,19 @@ func TestAPIUpdate(t *testing.T) {
 					Op:    ovsdb.OperationUpdate,
 					Table: "Logical_Switch_Port",
 					Row:   tagRow,
-					Where: []ovsdb.Condition{{Column: "type", Function: ovsdb.ConditionEqual, Value: "sometype"}},
+					Where: []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID2}}},
 				},
 				{
 					Op:    ovsdb.OperationUpdate,
 					Table: "Logical_Switch_Port",
 					Row:   tagRow,
-					Where: []ovsdb.Condition{{Column: "enabled", Function: ovsdb.ConditionIncludes, Value: testOvsSet(t, &trueVal)}},
+					Where: []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID0}}},
+				},
+				{
+					Op:    ovsdb.OperationUpdate,
+					Table: "Logical_Switch_Port",
+					Row:   tagRow,
+					Where: []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID1}}},
 				},
 			},
 			err: false,
@@ -1189,7 +1363,7 @@ func TestAPIUpdate(t *testing.T) {
 					Type:    "someType",
 					Enabled: &trueVal,
 				}
-				return a.Where(&t, model.Condition{
+				return a.WhereAny(&t, model.Condition{
 					Field:    &t.Type,
 					Function: ovsdb.ConditionNotEqual,
 					Value:    "someType",
@@ -1215,7 +1389,7 @@ func TestAPIUpdate(t *testing.T) {
 					Type:    "sometype",
 					Enabled: &trueVal,
 				}
-				return a.Where(&t, model.Condition{
+				return a.WhereAny(&t, model.Condition{
 					Field:    &t.Tag,
 					Function: ovsdb.ConditionNotEqual,
 					Value:    &one,
@@ -1261,6 +1435,26 @@ func TestAPIUpdate(t *testing.T) {
 			},
 			err: false,
 		},
+		{
+			name: "multiple different selected models must fail",
+			condition: func(a API) ConditionalAPI {
+				return a.Where(
+					&testLogicalSwitchPort{UUID: aUUID0},
+					&testLogicalSwitchPort{UUID: aUUID1},
+					&testLogicalSwitch{UUID: aUUID2},
+				)
+			},
+			err: true,
+		},
+		{
+			name: "fails if conditional is an error",
+			condition: func(a API) ConditionalAPI {
+				return newConditionalAPI(tcache, newErrorConditional(fmt.Errorf("error")), &discardLogger)
+			},
+			prepare: func(t *testLogicalSwitchPort) {
+			},
+			err: true,
+		},
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiUpdate: %s", tt.name), func(t *testing.T) {
@@ -1268,13 +1462,15 @@ func TestAPIUpdate(t *testing.T) {
 			cond := tt.condition(api)
 			// clean test Object
 			testObj = testLogicalSwitchPort{}
-			tt.prepare(&testObj)
+			if tt.prepare != nil {
+				tt.prepare(&testObj)
+			}
 			ops, err := cond.Update(&testObj, tt.fields...)
 			if tt.err {
-				assert.NotNil(t, err)
+				require.Error(t, err)
 			} else {
-				assert.Nil(t, err)
-				assert.ElementsMatchf(t, tt.result, ops, "ovsdb.Operations should match")
+				require.NoError(t, err)
+				require.ElementsMatchf(t, tt.result, ops, "ovsdb.Operations should match")
 			}
 		})
 	}
@@ -1371,7 +1567,7 @@ func TestAPIDelete(t *testing.T) {
 				t := testLogicalSwitchPort{
 					Enabled: &trueVal,
 				}
-				return a.Where(&t, model.Condition{
+				return a.WhereAny(&t, model.Condition{
 					Field:    &t.Type,
 					Function: ovsdb.ConditionEqual,
 					Value:    "sometype",
@@ -1392,7 +1588,7 @@ func TestAPIDelete(t *testing.T) {
 				t := testLogicalSwitchPort{
 					Enabled: &trueVal,
 				}
-				return a.Where(&t,
+				return a.WhereAny(&t,
 					model.Condition{
 						Field:    &t.Type,
 						Function: ovsdb.ConditionEqual,
@@ -1467,6 +1663,24 @@ func TestAPIDelete(t *testing.T) {
 			},
 			err: false,
 		},
+		{
+			name: "multiple different selected models must fail",
+			condition: func(a API) ConditionalAPI {
+				return a.Where(
+					&testLogicalSwitchPort{UUID: aUUID0},
+					&testLogicalSwitchPort{UUID: aUUID1},
+					&testLogicalSwitch{UUID: aUUID2},
+				)
+			},
+			err: true,
+		},
+		{
+			name: "fails if conditional is an error",
+			condition: func(a API) ConditionalAPI {
+				return newConditionalAPI(nil, newErrorConditional(fmt.Errorf("error")), &discardLogger)
+			},
+			err: true,
+		},
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("ApiDelete: %s", tt.name), func(t *testing.T) {
@@ -1474,9 +1688,9 @@ func TestAPIDelete(t *testing.T) {
 			cond := tt.condition(api)
 			ops, err := cond.Delete()
 			if tt.err {
-				assert.NotNil(t, err)
+				assert.Error(t, err)
 			} else {
-				assert.Nil(t, err)
+				assert.NoError(t, err)
 				assert.ElementsMatchf(t, tt.result, ops, "ovsdb.Operations should match")
 			}
 		})
@@ -1555,6 +1769,71 @@ func BenchmarkAPIList(b *testing.B) {
 				}
 				err := cond.List(context.Background(), &result)
 				assert.NoError(b, err)
+			}
+		})
+	}
+}
+
+func BenchmarkAPIListMultiple(b *testing.B) {
+	const numRows = 500
+
+	lscacheList := make([]*testLogicalSwitchPort, 0, numRows)
+
+	for i := 0; i < numRows; i++ {
+		lscacheList = append(lscacheList,
+			&testLogicalSwitchPort{
+				UUID:        uuid.New().String(),
+				Name:        fmt.Sprintf("ls%d", i),
+				ExternalIds: map[string]string{"foo": "bar"},
+			})
+	}
+	lscache := map[string]model.Model{}
+	for i := range lscacheList {
+		lscache[lscacheList[i].UUID] = lscacheList[i]
+	}
+	testData := cache.Data{
+		"Logical_Switch_Port": lscache,
+	}
+	tcache := apiTestCache(b, testData)
+
+	models := make([]model.Model, len(lscacheList))
+	for i := 0; i < len(lscacheList); i++ {
+		models[i] = &testLogicalSwitchPort{UUID: lscacheList[i].UUID}
+	}
+
+	test := []struct {
+		name     string
+		whereAny bool
+	}{
+		{
+			name: "multiple results one at a time with Get",
+		},
+		{
+			name:     "multiple results in a batch with WhereAny",
+			whereAny: true,
+		},
+	}
+
+	for _, tt := range test {
+		b.Run(tt.name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				var results []*testLogicalSwitchPort
+				api := newAPI(tcache, &discardLogger)
+				if tt.whereAny {
+					// Looking up models with WhereAny() should be fast
+					cond := api.Where(models...)
+					err := cond.List(context.Background(), &results)
+					assert.NoError(b, err)
+				} else {
+					// Looking up models one-at-a-time with Get() should be slow
+					for j := 0; j < len(lscacheList); j++ {
+						m := &testLogicalSwitchPort{UUID: lscacheList[j].UUID}
+						err := api.Get(context.Background(), m)
+						assert.NoError(b, err)
+						results = append(results, m)
+					}
+				}
+				assert.Len(b, results, len(models))
 			}
 		})
 	}
@@ -1646,7 +1925,7 @@ func TestAPIWait(t *testing.T) {
 						Value:    "lspNameCondition",
 					},
 				}
-				return a.Where(&lsp, conditions...)
+				return a.WhereAny(&lsp, conditions...)
 			},
 			until: "!=",
 			prepare: func() (model.Model, []interface{}) {
@@ -1709,6 +1988,16 @@ func TestAPIWait(t *testing.T) {
 			},
 			result: []ovsdb.Operation{},
 			err:    false,
+		},
+		{
+			name: "fails if conditional is an error",
+			condition: func(a API) ConditionalAPI {
+				return newConditionalAPI(nil, newErrorConditional(fmt.Errorf("error")), &discardLogger)
+			},
+			prepare: func() (model.Model, []interface{}) {
+				return nil, nil
+			},
+			err: true,
 		},
 	}
 

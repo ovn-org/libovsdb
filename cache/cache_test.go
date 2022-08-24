@@ -1659,7 +1659,8 @@ func TestTableCachePopulate2BrokenIndexes(t *testing.T) {
 	assert.False(t, ok)
 
 	t.Log("Lookup Original Insert By Index")
-	_, result := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "bar"})
+	_, result, err := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "bar"})
+	require.NoError(t, err)
 	require.NotNil(t, result)
 }
 
@@ -1841,19 +1842,31 @@ func TestTableCacheRowByModelSingleIndex(t *testing.T) {
 	myFoo, tc := setupRowByModelSingleIndex(t)
 
 	t.Run("get foo by index", func(t *testing.T) {
-		_, foo := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo"})
+		_, foo, err := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo"})
+		assert.NoError(t, err)
 		assert.NotNil(t, foo)
 		assert.Equal(t, myFoo, foo)
 	})
 
 	t.Run("get non-existent item by index", func(t *testing.T) {
-		_, baz := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "baz"})
+		_, baz, err := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "baz"})
+		assert.NoError(t, err)
 		assert.Nil(t, baz)
 	})
 
 	t.Run("no index data", func(t *testing.T) {
-		_, foo := tc.Table("Open_vSwitch").RowByModel(&testModel{Bar: "foo"})
+		_, foo, err := tc.Table("Open_vSwitch").RowByModel(&testModel{Bar: "foo"})
+		assert.NoError(t, err)
 		assert.Nil(t, foo)
+	})
+
+	t.Run("wrong model type", func(t *testing.T) {
+		type badModel struct {
+			UUID string `ovsdb:"_uuid"`
+			Baz  string `ovsdb:"baz"`
+		}
+		_, _, err := tc.Table("Open_vSwitch").RowByModel(&badModel{Baz: "baz"})
+		assert.Error(t, err)
 	})
 }
 
@@ -2040,19 +2053,22 @@ func TestTableCacheRowByModelTwoIndexes(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("get foo by Foo index", func(t *testing.T) {
-		_, foo := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo"})
+		_, foo, err := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo"})
+		assert.NoError(t, err)
 		assert.NotNil(t, foo)
 		assert.Equal(t, myFoo, foo)
 	})
 
 	t.Run("get foo by Bar index", func(t *testing.T) {
-		_, foo := tc.Table("Open_vSwitch").RowByModel(&testModel{Bar: "foo"})
+		_, foo, err := tc.Table("Open_vSwitch").RowByModel(&testModel{Bar: "foo"})
+		assert.NoError(t, err)
 		assert.NotNil(t, foo)
 		assert.Equal(t, myFoo, foo)
 	})
 
 	t.Run("get non-existent item by index", func(t *testing.T) {
-		_, baz := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "baz"})
+		_, baz, err := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "baz"})
+		assert.NoError(t, err)
 		assert.Nil(t, baz)
 	})
 
@@ -2074,18 +2090,21 @@ func TestTableCacheRowByModelMultiIndex(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("incomplete index", func(t *testing.T) {
-		_, foo := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo"})
+		_, foo, err := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo"})
+		assert.NoError(t, err)
 		assert.Nil(t, foo)
 	})
 
 	t.Run("get foo by index", func(t *testing.T) {
-		_, foo := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo", Bar: "foo"})
+		_, foo, err := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "foo", Bar: "foo"})
+		assert.NoError(t, err)
 		assert.NotNil(t, foo)
 		assert.Equal(t, myFoo, foo)
 	})
 
 	t.Run("get non-existent item by index", func(t *testing.T) {
-		_, baz := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "baz", Bar: "baz"})
+		_, baz, err := tc.Table("Open_vSwitch").RowByModel(&testModel{Foo: "baz", Bar: "baz"})
+		assert.NoError(t, err)
 		assert.Nil(t, baz)
 	})
 }
@@ -2290,7 +2309,7 @@ func TestTableCacheApplyModifications(t *testing.T) {
 	}
 }
 
-func TestTableCacheRowsByModel(t *testing.T) {
+func TestTableCacheRowsByModels(t *testing.T) {
 	type testModel struct {
 		UUID string            `ovsdb:"_uuid"`
 		Foo  string            `ovsdb:"foo"`
@@ -2362,49 +2381,85 @@ func TestTableCacheRowsByModel(t *testing.T) {
 	require.Empty(t, errs)
 
 	tests := []struct {
-		name  string
-		model model.Model
-		rows  map[string]model.Model
+		name   string
+		models []model.Model
+		rows   map[string]model.Model
 	}{
 		{
-			"by non index, no result",
-			&testModel{Foo: "no", Bar: "no", Baz: map[string]string{"baz": "no"}},
-			nil,
+			name: "by non index, no result",
+			models: []model.Model{
+				&testModel{Foo: "no", Bar: "no", Baz: map[string]string{"baz": "no"}},
+			},
+			rows: nil,
 		},
 		{
-			"by single column client index, single result",
-			&testModel{Bar: "foo"},
-			map[string]model.Model{
+			name: "by single column client index, single result",
+			models: []model.Model{
+				&testModel{Bar: "foo"},
+			},
+			rows: map[string]model.Model{
 				"foo": testData["Open_vSwitch"]["foo"],
 			},
 		},
 		{
-			"by single column client index, multiple results",
-			&testModel{Bar: "bar"},
-			map[string]model.Model{
+			name: "by single column client index, multiple models, multiple results",
+			models: []model.Model{
+				&testModel{Bar: "foo"},
+				&testModel{Bar: "baz"},
+			},
+			rows: map[string]model.Model{
+				"foo": testData["Open_vSwitch"]["foo"],
+				"baz": testData["Open_vSwitch"]["baz"],
+			},
+		},
+		{
+			name: "by single column client index, multiple results",
+			models: []model.Model{
+				&testModel{Bar: "bar"},
+			},
+			rows: map[string]model.Model{
 				"bar":    testData["Open_vSwitch"]["bar"],
 				"foobar": testData["Open_vSwitch"]["foobar"],
 			},
 		},
 		{
-			"by multi column client index, single result",
-			&testModel{Bar: "baz", Baz: map[string]string{"baz": "baz"}},
-			map[string]model.Model{
+			name: "by multi column client index, single result",
+			models: []model.Model{
+				&testModel{Bar: "baz", Baz: map[string]string{"baz": "baz"}},
+			},
+			rows: map[string]model.Model{
 				"baz": testData["Open_vSwitch"]["baz"],
 			},
 		},
 		{
-			"by client index, multiple results",
-			&testModel{Bar: "quux", Baz: map[string]string{"baz": "quux"}},
-			map[string]model.Model{
+			name: "by client index, multiple results",
+			models: []model.Model{
+				&testModel{Bar: "quux", Baz: map[string]string{"baz": "quux"}},
+			},
+			rows: map[string]model.Model{
 				"quux": testData["Open_vSwitch"]["quux"],
 				"quuz": testData["Open_vSwitch"]["quuz"],
 			},
 		},
 		{
-			"by schema index prioritized over client index",
-			&testModel{Foo: "foo", Bar: "bar", Baz: map[string]string{"baz": "bar"}},
-			map[string]model.Model{
+			name: "by client index, multiple models, multiple results",
+			models: []model.Model{
+				&testModel{Bar: "quux", Baz: map[string]string{"baz": "quux"}},
+				&testModel{Bar: "bar", Baz: map[string]string{"baz": "foobar"}},
+			},
+			rows: map[string]model.Model{
+				"quux":   testData["Open_vSwitch"]["quux"],
+				"quuz":   testData["Open_vSwitch"]["quuz"],
+				"foobar": testData["Open_vSwitch"]["foobar"],
+				"bar":    testData["Open_vSwitch"]["bar"],
+			},
+		},
+		{
+			name: "by schema index prioritized over client index",
+			models: []model.Model{
+				&testModel{Foo: "foo", Bar: "bar", Baz: map[string]string{"baz": "bar"}},
+			},
+			rows: map[string]model.Model{
 				"foo": testData["Open_vSwitch"]["foo"],
 			},
 		},
@@ -2413,7 +2468,8 @@ func TestTableCacheRowsByModel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tc, err := NewTableCache(dbModel, testData, nil)
 			require.NoError(t, err)
-			rows := tc.Table("Open_vSwitch").RowsByModel(tt.model)
+			rows, err := tc.Table("Open_vSwitch").RowsByModels(tt.models)
+			require.NoError(t, err)
 			require.Equal(t, tt.rows, rows)
 		})
 	}

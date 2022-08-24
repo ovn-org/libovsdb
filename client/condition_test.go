@@ -48,14 +48,16 @@ func TestEqualityConditional(t *testing.T) {
 
 	test := []struct {
 		name      string
-		model     model.Model
+		models    []model.Model
 		condition [][]ovsdb.Condition
 		matches   map[string]model.Model
 		err       bool
 	}{
 		{
-			name:  "by uuid",
-			model: &testLogicalSwitchPort{UUID: aUUID0, Name: "different"},
+			name: "by uuid",
+			models: []model.Model{
+				&testLogicalSwitchPort{UUID: aUUID0, Name: "different"},
+			},
 			condition: [][]ovsdb.Condition{
 				{
 					{
@@ -66,37 +68,89 @@ func TestEqualityConditional(t *testing.T) {
 			matches: map[string]model.Model{aUUID0: lspcacheList[0]},
 		},
 		{
-			name:  "by index with cache",
-			model: &testLogicalSwitchPort{Name: "lsp1"},
+			name: "by uuids",
+			models: []model.Model{
+				&testLogicalSwitchPort{UUID: aUUID0, Name: "different"},
+				&testLogicalSwitchPort{UUID: aUUID1, Name: "different2"},
+			},
 			condition: [][]ovsdb.Condition{
-				{
-					{
-						Column:   "_uuid",
-						Function: ovsdb.ConditionEqual,
-						Value:    ovsdb.UUID{GoUUID: aUUID1},
-					}}},
-			matches: map[string]model.Model{aUUID1: lspcacheList[1]},
+				{{
+					Column:   "_uuid",
+					Function: ovsdb.ConditionEqual,
+					Value:    ovsdb.UUID{GoUUID: aUUID0},
+				}},
+				{{
+					Column:   "_uuid",
+					Function: ovsdb.ConditionEqual,
+					Value:    ovsdb.UUID{GoUUID: aUUID1},
+				}},
+			},
+			matches: map[string]model.Model{
+				aUUID0: lspcacheList[0],
+				aUUID1: lspcacheList[1],
+			},
 		},
 		{
-			name:  "by index with no cache",
-			model: &testLogicalSwitchPort{Name: "foo"},
+			name: "by index with cache",
+			models: []model.Model{
+				&testLogicalSwitchPort{Name: "lsp1"},
+				&testLogicalSwitchPort{Name: "lsp2"},
+			},
 			condition: [][]ovsdb.Condition{
-				{
-					{
-						Column:   "name",
-						Function: ovsdb.ConditionEqual,
-						Value:    "foo",
-					}}},
+				{{
+					Column:   "_uuid",
+					Function: ovsdb.ConditionEqual,
+					Value:    ovsdb.UUID{GoUUID: aUUID1},
+				}},
+				{{
+					Column:   "_uuid",
+					Function: ovsdb.ConditionEqual,
+					Value:    ovsdb.UUID{GoUUID: aUUID2},
+				}},
+			},
+			matches: map[string]model.Model{
+				aUUID1: lspcacheList[1],
+				aUUID2: lspcacheList[2],
+			},
 		},
 		{
-			name:  "by non index",
-			model: &testLogicalSwitchPort{ExternalIds: map[string]string{"foo": "baz"}},
-			err:   true,
+			name: "by index with no cache",
+			models: []model.Model{
+				&testLogicalSwitchPort{Name: "foo"},
+				&testLogicalSwitchPort{Name: "123"},
+			},
+			condition: [][]ovsdb.Condition{
+				{{
+					Column:   "name",
+					Function: ovsdb.ConditionEqual,
+					Value:    "foo",
+				}},
+				{{
+					Column:   "name",
+					Function: ovsdb.ConditionEqual,
+					Value:    "123",
+				}},
+			},
+		},
+		{
+			name: "by non index",
+			models: []model.Model{
+				&testLogicalSwitchPort{ExternalIds: map[string]string{"foo": "baz"}},
+			},
+			err: true,
+		},
+		{
+			name: "by non index multiple models",
+			models: []model.Model{
+				&testLogicalSwitchPort{ExternalIds: map[string]string{"foo": "baz"}},
+				&testLogicalSwitchPort{ExternalIds: map[string]string{"foo": "123"}},
+			},
+			err: true,
 		},
 	}
 	for _, tt := range test {
 		t.Run(fmt.Sprintf("Equality Conditional: %s", tt.name), func(t *testing.T) {
-			cond, err := newEqualityConditional("Logical_Switch_Port", tcache, tt.model)
+			cond, err := newEqualityConditional("Logical_Switch_Port", tcache, tt.models)
 			assert.Nil(t, err)
 			matches, err := cond.Matches()
 			assert.Nil(t, err)
