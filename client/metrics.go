@@ -1,6 +1,10 @@
 package client
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"sync"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 const libovsdbName = "libovsdb"
 
@@ -10,6 +14,8 @@ type metrics struct {
 	numDisconnects  prometheus.Counter
 	numMonitors     prometheus.Gauge
 }
+
+var regMetricsOnce sync.Once
 
 func (m *metrics) init(modelName string, namespace, subsystem string) {
 	// labels that are the same across all metrics
@@ -64,12 +70,14 @@ func (m *metrics) init(modelName string, namespace, subsystem string) {
 }
 
 func (m *metrics) register(r prometheus.Registerer) {
-	r.MustRegister(
-		m.numUpdates,
-		m.numTableUpdates,
-		m.numDisconnects,
-		m.numMonitors,
-	)
+	regMetricsOnce.Do(func() {
+		r.MustRegister(
+			m.numUpdates,
+			m.numTableUpdates,
+			m.numDisconnects,
+			m.numMonitors,
+		)
+	})
 }
 
 func (o *ovsdbClient) registerMetrics() {
