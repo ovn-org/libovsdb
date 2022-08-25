@@ -12,10 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
-    - name: Set up Go 1.16
+    - name: Set up Go 1.18
       uses: actions/setup-go@v2
       with:
-        go-version: 1.16
+        go-version: 1.18
       id: go
 
     - name: Install benchstat
@@ -29,13 +29,8 @@ jobs:
 
     # This cannot be run in parallel because we require running go-generate first
     # We need to skip the go installation and caching to avoid "File exists" errors in tbe logs
-    - name: golangci-lint
-      uses: golangci/golangci-lint-action@v2
-      with:
-        version: v1.40.1
-        skip-go-installation: true
-        skip-pkg-cache: true
-        skip-build-cache: true
+    - name: Lint
+      run: make lint
 
     - name: Build
       run: make build
