@@ -6,6 +6,9 @@ import (
 	"strings"
 	"text/template"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
@@ -316,7 +319,7 @@ func FieldName(column string) string {
 
 // StructName returns the name of the table struct
 func StructName(tableName string) string {
-	return strings.Title(strings.ReplaceAll(tableName, "_", ""))
+	return cases.Title(language.Und, cases.NoLower).String(strings.ReplaceAll(tableName, "_", ""))
 }
 
 func fieldType(tableName, columnName string, column *ovsdb.ColumnSchema, enumTypes bool) string {
@@ -363,7 +366,7 @@ func fieldType(tableName, columnName string, column *ovsdb.ColumnSchema, enumTyp
 
 // EnumName returns the name of the enum field
 func enumName(tableName, columnName string) string {
-	return strings.Title(StructName(tableName)) + camelCase(columnName)
+	return cases.Title(language.Und, cases.NoLower).String(StructName(tableName)) + camelCase(columnName)
 }
 
 // FieldType returns the string representation of a column type without enum types expansion
@@ -457,10 +460,10 @@ func camelCase(field string) string {
 	if len(parts) > 1 {
 		s = ""
 		for _, p := range parts {
-			s += strings.Title(expandInitilaisms(p))
+			s += cases.Title(language.Und, cases.NoLower).String(expandInitilaisms(p))
 		}
 	} else {
-		s = strings.Title(expandInitilaisms(s))
+		s = cases.Title(language.Und, cases.NoLower).String(expandInitilaisms(s))
 	}
 	return s
 }
