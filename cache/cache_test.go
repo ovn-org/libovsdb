@@ -2264,6 +2264,14 @@ func TestTableCacheApplyModifications(t *testing.T) {
 			false,
 			false,
 		},
+		{
+			"add to set with other columns that do not exist in client schema",
+			ovsdb.Row{"foo": "bar", "set": aFooSet, "does": "notExist"},
+			&testDBModel{Set: []string{}},
+			&testDBModel{Set: []string{"foo"}},
+			true,
+			false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

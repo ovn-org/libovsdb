@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/gob"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -1284,7 +1285,12 @@ func (t *TableCache) ApplyModifications(tableName string, base model.Model, upda
 		}
 
 		current, err := info.FieldByColumn(k)
-		if err != nil {
+		var colNotFoundErr *mapper.ErrColumnNotFound
+		if errors.As(err, &colNotFoundErr) {
+			// Ignore missing columns
+			t.logger.V(2).Info("OVSDB row modification received with missing column", "name", k)
+			continue
+		} else if err != nil {
 			return modified, err
 		}
 
