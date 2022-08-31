@@ -12,13 +12,26 @@ import (
 // a 2-element JSON array that represents a database set value.  The
 // first element of the array must be the string "set", and the
 // second element must be an array of zero or more <atom>s giving the
-// values in the set.  All of the <atom>s must have the same type.
+// values in the set.  All of the <atom>s must have the same type, and all
+// values must be unique within the set.
 type OvsSet struct {
 	GoSet []interface{}
 }
 
+func getUUID(val interface{}) (UUID, error) {
+	uuid, ok := val.(UUID)
+	if ok {
+		return uuid, nil
+	}
+	str, ok := val.(string)
+	if ok {
+		return UUID{GoUUID: str}, nil
+	}
+	return UUID{}, fmt.Errorf("expected UUID or string but got %T", val)
+}
+
 // NewOvsSet creates a new OVSDB style set from a Go interface (object)
-func NewOvsSet(obj interface{}) (OvsSet, error) {
+func NewOvsSet(keyType string, obj interface{}) (OvsSet, error) {
 	ovsSet := make([]interface{}, 0)
 	var v reflect.Value
 	if reflect.TypeOf(obj).Kind() == reflect.Ptr {
@@ -34,10 +47,27 @@ func NewOvsSet(obj interface{}) (OvsSet, error) {
 	switch v.Kind() {
 	case reflect.Slice:
 		for i := 0; i < v.Len(); i++ {
-			ovsSet = append(ovsSet, v.Index(i).Interface())
+			if keyType == TypeUUID {
+				uuid, err := getUUID(v.Index(i).Interface())
+				if err != nil {
+					return OvsSet{}, err
+				}
+				ovsSet = append(ovsSet, uuid)
+			} else {
+				ovsSet = append(ovsSet, v.Index(i).Interface())
+			}
 		}
-	case reflect.String,
-		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+	case reflect.String:
+		if keyType == TypeUUID {
+			uuid, err := getUUID(v.Interface())
+			if err != nil {
+				return OvsSet{}, err
+			}
+			ovsSet = append(ovsSet, uuid)
+		} else {
+			ovsSet = append(ovsSet, v.Interface())
+		}
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
 		reflect.Float32, reflect.Float64, reflect.Bool:
 		ovsSet = append(ovsSet, v.Interface())

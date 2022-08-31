@@ -63,98 +63,116 @@ func TestSet(t *testing.T) {
 	var y *string
 	tests := []struct {
 		name     string
+		setType  string
 		input    interface{}
 		expected string
 	}{
 		{
 			"empty set",
+			TypeString,
 			[]string{},
 			`["set",[]]`,
 		},
 		{
 			"string",
+			TypeString,
 			`aa`,
 			`"aa"`,
 		},
 		{
 			"bool",
+			TypeBoolean,
 			false,
 			`false`,
 		},
 		{
 			"float 64",
+			TypeReal,
 			float64(10),
 			`10`,
 		},
 		{
 			"float",
+			TypeReal,
 			10.2,
 			`10.2`,
 		},
 		{
 			"string slice",
+			TypeString,
 			[]string{`aa`},
 			`"aa"`,
 		},
 		{
 			"string slice with multiple elements",
+			TypeString,
 			[]string{`aa`, `bb`},
 			`["set",["aa","bb"]]`,
 		},
 		{
 			"float slice",
+			TypeString,
 			[]float64{10.2, 15.4},
 			`["set",[10.2,15.4]]`,
 		},
 		{
 			"empty uuid",
+			TypeUUID,
 			[]UUID{},
 			`["set",[]]`,
 		},
 		{
 			"uuid",
+			TypeUUID,
 			UUID{GoUUID: `aa`},
 			`["named-uuid","aa"]`,
 		},
 		{
 			"uuid slice single element",
+			TypeUUID,
 			[]UUID{{GoUUID: `aa`}},
 			`["named-uuid","aa"]`,
 		},
 		{
 			"uuid slice multiple elements",
+			TypeUUID,
 			[]UUID{{GoUUID: `aa`}, {GoUUID: `bb`}},
 			`["set",[["named-uuid","aa"],["named-uuid","bb"]]]`,
 		},
 		{
 			"valid uuid",
+			TypeUUID,
 			validUUID0,
 			fmt.Sprintf(`["uuid","%v"]`, validUUIDStr0),
 		},
 		{
 			"valid uuid set single element",
+			TypeUUID,
 			[]UUID{validUUID0},
 			fmt.Sprintf(`["uuid","%v"]`, validUUIDStr0),
 		},
 		{
 			"valid uuid set multiple elements",
+			TypeUUID,
 			[]UUID{validUUID0, validUUID1},
 			fmt.Sprintf(`["set",[["uuid","%v"],["uuid","%v"]]]`, validUUIDStr0, validUUIDStr1),
 		},
 		{
 			name:     "nil pointer of valid *int type",
+			setType:  TypeInteger,
 			input:    x,
 			expected: `["set",[]]`,
 		},
 		{
 			name:     "nil pointer of valid *string type",
+			setType:  TypeString,
 			input:    y,
 			expected: `["set",[]]`,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			set, err := NewOvsSet(tt.input)
+			set, err := NewOvsSet(tt.setType, tt.input)
 			assert.Nil(t, err)
 			jsonStr, err := json.Marshal(set)
 			assert.Nil(t, err)

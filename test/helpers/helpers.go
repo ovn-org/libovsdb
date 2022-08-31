@@ -6,8 +6,8 @@ import (
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
-func MakeOvsSet(t assert.TestingT, set interface{}) ovsdb.OvsSet {
-	oSet, err := ovsdb.NewOvsSet(set)
+func MakeOvsSet(t assert.TestingT, keyType string, set interface{}) ovsdb.OvsSet {
+	oSet, err := ovsdb.NewOvsSet(keyType, set)
 	assert.Nil(t, err)
 	return oSet
 }

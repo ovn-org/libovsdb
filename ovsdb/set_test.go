@@ -19,8 +19,8 @@ var testUUIDs = []string{
 	"7e191fdb-228d-4bf3-9db4-883c8705ac7e",
 }
 
-func benchmarkSetMarshalJSON(s interface{}, b *testing.B) {
-	testSet, err := NewOvsSet(s)
+func benchmarkSetMarshalJSON(keyType string, s interface{}, b *testing.B) {
+	testSet, err := NewOvsSet(keyType, s)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -31,60 +31,60 @@ func benchmarkSetMarshalJSON(s interface{}, b *testing.B) {
 		}
 	}
 }
-func BenchmarkSetMarshalJSONString1(b *testing.B) { benchmarkSetMarshalJSON("foo", b) }
+func BenchmarkSetMarshalJSONString1(b *testing.B) { benchmarkSetMarshalJSON(TypeString, "foo", b) }
 func BenchmarkSetMarshalJSONString2(b *testing.B) {
-	benchmarkSetMarshalJSON([]string{"foo", "bar"}, b)
+	benchmarkSetMarshalJSON(TypeString, []string{"foo", "bar"}, b)
 }
 func BenchmarkSetMarshalJSONString3(b *testing.B) {
-	benchmarkSetMarshalJSON([]string{"foo", "bar", "baz"}, b)
+	benchmarkSetMarshalJSON(TypeString, []string{"foo", "bar", "baz"}, b)
 }
 func BenchmarkSetMarshalJSONString5(b *testing.B) {
-	benchmarkSetMarshalJSON([]string{"foo", "bar", "baz", "quux", "foofoo"}, b)
+	benchmarkSetMarshalJSON(TypeString, []string{"foo", "bar", "baz", "quux", "foofoo"}, b)
 }
 func BenchmarkSetMarshalJSONString8(b *testing.B) {
-	benchmarkSetMarshalJSON([]string{"foo", "bar", "baz", "quux", "foofoo", "foobar", "foobaz", "fooquux"}, b)
+	benchmarkSetMarshalJSON(TypeString, []string{"foo", "bar", "baz", "quux", "foofoo", "foobar", "foobaz", "fooquux"}, b)
 }
 
-func BenchmarkSetMarshalJSONInt1(b *testing.B) { benchmarkSetMarshalJSON(1, b) }
+func BenchmarkSetMarshalJSONInt1(b *testing.B) { benchmarkSetMarshalJSON(TypeInteger, 1, b) }
 func BenchmarkSetMarshalJSONInt2(b *testing.B) {
-	benchmarkSetMarshalJSON([]int{1, 2}, b)
+	benchmarkSetMarshalJSON(TypeInteger, []int{1, 2}, b)
 }
 func BenchmarkSetMarshalJSONInt3(b *testing.B) {
-	benchmarkSetMarshalJSON([]int{1, 2, 3}, b)
+	benchmarkSetMarshalJSON(TypeInteger, []int{1, 2, 3}, b)
 }
 func BenchmarkSetMarshalJSONInt5(b *testing.B) {
-	benchmarkSetMarshalJSON([]int{1, 2, 3, 4, 5}, b)
+	benchmarkSetMarshalJSON(TypeInteger, []int{1, 2, 3, 4, 5}, b)
 }
 func BenchmarkSetMarshalJSONInt8(b *testing.B) {
-	benchmarkSetMarshalJSON([]int{1, 2, 3, 4, 5, 6, 7, 8}, b)
+	benchmarkSetMarshalJSON(TypeInteger, []int{1, 2, 3, 4, 5, 6, 7, 8}, b)
 }
 
-func BenchmarkSetMarshalJSONFloat1(b *testing.B) { benchmarkSetMarshalJSON(1.0, b) }
+func BenchmarkSetMarshalJSONFloat1(b *testing.B) { benchmarkSetMarshalJSON(TypeReal, 1.0, b) }
 func BenchmarkSetMarshalJSONFloat2(b *testing.B) {
-	benchmarkSetMarshalJSON([]int{1.0, 2.0}, b)
+	benchmarkSetMarshalJSON(TypeReal, []int{1.0, 2.0}, b)
 }
 func BenchmarkSetMarshalJSONFloat3(b *testing.B) {
-	benchmarkSetMarshalJSON([]int{1.0, 2.0, 3.0}, b)
+	benchmarkSetMarshalJSON(TypeReal, []int{1.0, 2.0, 3.0}, b)
 }
 func BenchmarkSetMarshalJSONFloat5(b *testing.B) {
-	benchmarkSetMarshalJSON([]int{1.0, 2.0, 3.0, 4.0, 5.0}, b)
+	benchmarkSetMarshalJSON(TypeReal, []int{1.0, 2.0, 3.0, 4.0, 5.0}, b)
 }
 func BenchmarkSetMarshalJSONFloat8(b *testing.B) {
-	benchmarkSetMarshalJSON([]int{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0}, b)
+	benchmarkSetMarshalJSON(TypeReal, []int{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0}, b)
 }
 
-func BenchmarkSetMarshalJSONUUID1(b *testing.B) { benchmarkSetMarshalJSON(testUUIDs[0], b) }
+func BenchmarkSetMarshalJSONUUID1(b *testing.B) { benchmarkSetMarshalJSON(TypeUUID, testUUIDs[0], b) }
 func BenchmarkSetMarshalJSONUUID2(b *testing.B) {
-	benchmarkSetMarshalJSON(testUUIDs[0:2], b)
+	benchmarkSetMarshalJSON(TypeUUID, testUUIDs[0:2], b)
 }
 func BenchmarkSetMarshalJSONUUID3(b *testing.B) {
-	benchmarkSetMarshalJSON(testUUIDs[0:3], b)
+	benchmarkSetMarshalJSON(TypeUUID, testUUIDs[0:3], b)
 }
 func BenchmarkSetMarshalJSONUUID5(b *testing.B) {
-	benchmarkSetMarshalJSON(testUUIDs[0:5], b)
+	benchmarkSetMarshalJSON(TypeUUID, testUUIDs[0:5], b)
 }
 func BenchmarkSetMarshalJSONUUID8(b *testing.B) {
-	benchmarkSetMarshalJSON(testUUIDs, b)
+	benchmarkSetMarshalJSON(TypeUUID, testUUIDs, b)
 }
 
 func benchmarkSetUnmarshalJSON(data []byte, b *testing.B) {

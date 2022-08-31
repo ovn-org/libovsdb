@@ -348,7 +348,7 @@ func TestExplicitConditionalWithNoCache(t *testing.T) {
 					{
 						Column:   "enabled",
 						Function: ovsdb.ConditionEqual,
-						Value:    testhelpers.MakeOvsSet(t, &trueVal),
+						Value:    testhelpers.MakeOvsSet(t, ovsdb.TypeBoolean, &trueVal),
 					}}},
 		},
 		{
@@ -370,7 +370,7 @@ func TestExplicitConditionalWithNoCache(t *testing.T) {
 					{
 						Column:   "enabled",
 						Function: ovsdb.ConditionEqual,
-						Value:    testhelpers.MakeOvsSet(t, &trueVal),
+						Value:    testhelpers.MakeOvsSet(t, ovsdb.TypeBoolean, &trueVal),
 					}},
 				{
 					{
@@ -397,7 +397,7 @@ func TestExplicitConditionalWithNoCache(t *testing.T) {
 				{
 					Column:   "enabled",
 					Function: ovsdb.ConditionEqual,
-					Value:    testhelpers.MakeOvsSet(t, &trueVal),
+					Value:    testhelpers.MakeOvsSet(t, ovsdb.TypeBoolean, &trueVal),
 				},
 				{
 					Column:   "name",

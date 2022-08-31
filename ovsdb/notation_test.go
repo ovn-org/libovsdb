@@ -73,7 +73,7 @@ func TestOpRowsSerialization(t *testing.T) {
 
 func TestValidateOvsSet(t *testing.T) {
 	goSlice := []int{1, 2, 3, 4}
-	oSet, err := NewOvsSet(goSlice)
+	oSet, err := NewOvsSet(TypeInteger, goSlice)
 	if err != nil {
 		t.Error("Error creating OvsSet ", err)
 	}
@@ -86,7 +86,7 @@ func TestValidateOvsSet(t *testing.T) {
 		t.Error("Expected: ", expected, "Got", string(data))
 	}
 	// Negative condition test
-	oSet, err = NewOvsSet(struct{ foo string }{})
+	oSet, err = NewOvsSet(TypeString, struct{ foo string }{})
 	if err == nil {
 		t.Error("OvsSet must fail for anything other than Slices and atomic types")
 		t.Error("Got", oSet)

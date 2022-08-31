@@ -2037,7 +2037,8 @@ func BenchmarkPopulate2UpdateArray(b *testing.B) {
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		for i := 0; i < numRows; i++ {
-			updatedRow := ovsdb.Row(map[string]interface{}{"array": ovsdb.OvsSet{GoSet: updateSet}})
+			ovsSet, _ := ovsdb.NewOvsSet(ovsdb.TypeString, updateSet)
+			updatedRow := ovsdb.Row(map[string]interface{}{"array": ovsSet})
 			err := tc.Populate2(ovsdb.TableUpdates2{
 				"Open_vSwitch": {
 					"foo": &ovsdb.RowUpdate2{
@@ -2714,7 +2715,7 @@ func BenchmarkPopulate2SingleModify(b *testing.B) {
 		UUID string   `ovsdb:"_uuid"`
 		Set  []string `ovsdb:"set"`
 	}
-	aFooSet, _ := ovsdb.NewOvsSet([]string{"foo"})
+	aFooSet, _ := ovsdb.NewOvsSet(ovsdb.TypeString, []string{"foo"})
 	base := &testDBModel{Set: []string{}}
 	for i := 0; i < 57000; i++ {
 		base.Set = append(base.Set, fmt.Sprintf("foo%d", i))
