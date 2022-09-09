@@ -24,6 +24,13 @@ var sampleTable = []byte(`{
             "min": 0
           }
         },
+        "aLimitedSet": {
+          "type": {
+            "key": "string",
+            "max": 3,
+            "min": 0
+          }
+        },
         "aMap": {
           "type": {
             "key": "string",
@@ -75,10 +82,11 @@ func TestNewMapperInfo(t *testing.T) {
 
 func TestMapperInfoSet(t *testing.T) {
 	type obj struct {
-		Ostring string            `ovsdb:"aString"`
-		Oint    int               `ovsdb:"aInteger"`
-		Oset    []string          `ovsdb:"aSet"`
-		Omap    map[string]string `ovsdb:"aMap"`
+		Ostring     string            `ovsdb:"aString"`
+		Oint        int               `ovsdb:"aInteger"`
+		Oset        []string          `ovsdb:"aSet"`
+		OLimitedSet []string          `ovsdb:"aLimitedSet"`
+		Omap        map[string]string `ovsdb:"aMap"`
 	}
 
 	type test struct {
@@ -105,6 +113,22 @@ func TestMapperInfoSet(t *testing.T) {
 			field:  []string{"foo", "bar"},
 			column: "aSet",
 			err:    false,
+		},
+		{
+			name:   "limited set under max",
+			table:  sampleTable,
+			obj:    &obj{},
+			field:  []string{"foo", "bar"},
+			column: "aLimitedSet",
+			err:    false,
+		},
+		{
+			name:   "limited set over max",
+			table:  sampleTable,
+			obj:    &obj{},
+			field:  []string{"foo", "bar", "baz", "qux"},
+			column: "aLimitedSet",
+			err:    true,
 		},
 		{
 			name:   "map",

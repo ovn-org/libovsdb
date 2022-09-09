@@ -66,7 +66,25 @@ func (i *Info) SetField(column string, value interface{}) error {
 		return fmt.Errorf("column %s: native value %v (%s) is not assignable to field %s (%s)",
 			column, value, reflect.TypeOf(value), fieldName, fieldValue.Type())
 	}
-	fieldValue.Set(reflect.ValueOf(value))
+
+	colSchema := i.Metadata.TableSchema.Column(column)
+	if colSchema == nil {
+		return fmt.Errorf("SetField: column %s schema not found", column)
+	}
+
+	// Validate set length requirements
+	newVal := reflect.ValueOf(value)
+	if colSchema.Type == ovsdb.TypeSet || colSchema.Type == ovsdb.TypeEnum {
+		maxVal := colSchema.TypeObj.Max()
+		minVal := colSchema.TypeObj.Min()
+		if maxVal > 1 && newVal.Len() > maxVal {
+			return fmt.Errorf("SetField: column %s overflow: %d new elements but max is %d", column, newVal.Len(), maxVal)
+		} else if minVal > 0 && newVal.Len() < minVal {
+			return fmt.Errorf("SetField: column %s underflow: %d new elements but min is %d", column, newVal.Len(), minVal)
+		}
+	}
+
+	fieldValue.Set(newVal)
 	return nil
 }
 
