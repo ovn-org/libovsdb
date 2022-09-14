@@ -193,18 +193,30 @@ func (o *OvsdbServer) Transact(client *rpc2.Client, args []json.RawMessage, repl
 			op.UUIDName = newUUID
 		}
 		for i, condition := range op.Where {
-			op.Where[i].Value = expandNamedUUID(condition.Value, namedUUID)
+			op.Where[i].Value, err = expandNamedUUID(condition.Value, namedUUID)
+			if err != nil {
+				return err
+			}
 		}
 		for i, mutation := range op.Mutations {
-			op.Mutations[i].Value = expandNamedUUID(mutation.Value, namedUUID)
+			op.Mutations[i].Value, err = expandNamedUUID(mutation.Value, namedUUID)
+			if err != nil {
+				return err
+			}
 		}
 		for _, row := range op.Rows {
 			for k, v := range row {
-				row[k] = expandNamedUUID(v, namedUUID)
+				row[k], err = expandNamedUUID(v, namedUUID)
+				if err != nil {
+					return err
+				}
 			}
 		}
 		for k, v := range op.Row {
-			op.Row[k] = expandNamedUUID(v, namedUUID)
+			op.Row[k], err = expandNamedUUID(v, namedUUID)
+			if err != nil {
+				return err
+			}
 		}
 		ops = append(ops, op)
 	}
@@ -420,21 +432,29 @@ func (o *OvsdbServer) processMonitors(id uuid.UUID, update database.Update) {
 	o.monitorMutex.RUnlock()
 }
 
-func expandNamedUUID(value interface{}, namedUUID map[string]ovsdb.UUID) interface{} {
+func expandNamedUUID(value interface{}, namedUUID map[string]ovsdb.UUID) (interface{}, error) {
 	if uuid, ok := value.(ovsdb.UUID); ok {
 		if newUUID, ok := namedUUID[uuid.GoUUID]; ok {
-			return newUUID
+			return newUUID, nil
 		}
 	}
 	if set, ok := value.(ovsdb.OvsSet); ok {
-		for i, s := range set.GoSet {
-			if _, ok := s.(ovsdb.UUID); !ok {
-				return value
-			}
-			uuid := s.(ovsdb.UUID)
+		if !set.HasElementType(ovsdb.UUID{}) {
+			// Not a UUID set; nothing to expand. Return original value.
+			return value, nil
+		}
+		if err := set.Range(func(i int, val interface{}) (bool, error) {
+			uuid := val.(ovsdb.UUID)
 			if newUUID, ok := namedUUID[uuid.GoUUID]; ok {
-				set.GoSet[i] = newUUID
+				// Replace named UUID with the real one
+				if err := set.Replace(i, newUUID); err != nil {
+					return true, err
+				}
 			}
+			// Continue to next element
+			return false, nil
+		}); err != nil {
+			return nil, err
 		}
 	}
 	if m, ok := value.(ovsdb.OvsMap); ok {
@@ -452,5 +472,5 @@ func expandNamedUUID(value interface{}, namedUUID map[string]ovsdb.UUID) interfa
 			}
 		}
 	}
-	return value
+	return value, nil
 }

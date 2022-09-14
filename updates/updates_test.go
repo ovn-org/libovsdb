@@ -6,6 +6,7 @@ import (
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/ovn-org/libovsdb/test"
+	"github.com/ovn-org/libovsdb/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -667,12 +668,12 @@ func TestUpdates_AddOperation(t *testing.T) {
 						{
 							Column:  "ports",
 							Mutator: ovsdb.MutateOperationInsert,
-							Value:   ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "uuid1"}, ovsdb.UUID{GoUUID: "uuid3"}}},
+							Value:   testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "uuid1"}, {GoUUID: "uuid3"}}),
 						},
 						{
 							Column:  "ports",
 							Mutator: ovsdb.MutateOperationDelete,
-							Value:   ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "uuid3"}, ovsdb.UUID{GoUUID: "uuid1"}}},
+							Value:   testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "uuid3"}, {GoUUID: "uuid1"}}),
 						},
 					},
 				},
@@ -694,14 +695,14 @@ func TestUpdates_AddOperation(t *testing.T) {
 							rowUpdate2: &ovsdb.RowUpdate2{
 								Old: &ovsdb.Row{
 									"name":  "bridge",
-									"ports": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "uuid1"}, ovsdb.UUID{GoUUID: "uuid2"}}},
+									"ports": testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "uuid1"}, {GoUUID: "uuid2"}}),
 								},
 								New: &ovsdb.Row{
 									"name":  "bridge",
-									"ports": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "uuid2"}}},
+									"ports": testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "uuid2"}}),
 								},
 								Modify: &ovsdb.Row{
-									"ports": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "uuid1"}}},
+									"ports": testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "uuid1"}}),
 								},
 							},
 						},
@@ -735,7 +736,7 @@ func TestUpdates_AddOperation(t *testing.T) {
 						{
 							Column:  "external_ids",
 							Mutator: ovsdb.MutateOperationDelete,
-							Value:   ovsdb.OvsSet{GoSet: []interface{}{"key"}},
+							Value:   testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{"key"}),
 						},
 						{
 							Column:  "external_ids",
@@ -761,7 +762,7 @@ func TestUpdates_AddOperation(t *testing.T) {
 						{
 							Column:  "ports",
 							Mutator: ovsdb.MutateOperationInsert,
-							Value:   ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "uuid"}}},
+							Value:   testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "uuid"}}),
 						},
 					},
 				},
@@ -798,11 +799,11 @@ func TestUpdates_AddOperation(t *testing.T) {
 							rowUpdate2: &ovsdb.RowUpdate2{
 								New: &ovsdb.Row{
 									"name":  "bridge",
-									"ports": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "uuid"}}},
+									"ports": testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "uuid"}}),
 								},
 								Insert: &ovsdb.Row{
 									"name":  "bridge",
-									"ports": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "uuid"}}},
+									"ports": testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "uuid"}}),
 								},
 							},
 						},
@@ -825,7 +826,7 @@ func TestUpdates_AddOperation(t *testing.T) {
 						{
 							Column:  "ports",
 							Mutator: ovsdb.MutateOperationInsert,
-							Value:   ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "uuid"}}},
+							Value:   testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "uuid"}}),
 						},
 					},
 				},
@@ -876,11 +877,11 @@ func TestUpdates_AddOperation(t *testing.T) {
 								},
 								New: &ovsdb.Row{
 									"name":  "bridge2",
-									"ports": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "uuid"}}},
+									"ports": testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "uuid"}}),
 								},
 								Modify: &ovsdb.Row{
 									"name":  "bridge2",
-									"ports": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "uuid"}}},
+									"ports": testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "uuid"}}),
 								},
 							},
 						},
@@ -979,7 +980,7 @@ func TestUpdates_AddOperation(t *testing.T) {
 						{
 							Column:  "ports",
 							Mutator: ovsdb.MutateOperationInsert,
-							Value:   ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "uuid-2"}}},
+							Value:   testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "uuid-2"}}),
 						},
 					},
 				},
@@ -996,11 +997,11 @@ func TestUpdates_AddOperation(t *testing.T) {
 							rowUpdate2: &ovsdb.RowUpdate2{
 								Old: &ovsdb.Row{
 									"name":  "bridge",
-									"ports": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "uuid-1"}}},
+									"ports": testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "uuid-1"}}),
 								},
 								Delete: &ovsdb.Row{
 									"name":  "bridge",
-									"ports": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "uuid-1"}}},
+									"ports": testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "uuid-1"}}),
 								},
 							},
 						},
@@ -1020,7 +1021,7 @@ func TestUpdates_AddOperation(t *testing.T) {
 						{
 							Column:  "ports",
 							Mutator: ovsdb.MutateOperationInsert,
-							Value:   ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "uuid-2"}}},
+							Value:   testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "uuid-2"}}),
 						},
 					},
 				},
@@ -1039,7 +1040,7 @@ func TestUpdates_AddOperation(t *testing.T) {
 						{
 							Column:  "ports",
 							Mutator: ovsdb.MutateOperationInsert,
-							Value:   ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "uuid-2"}}},
+							Value:   testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "uuid-2"}}),
 						},
 					},
 				},
@@ -1357,7 +1358,7 @@ func TestModelUpdates_AddRowUpdate2(t *testing.T) {
 				},
 				ru2: ovsdb.RowUpdate2{
 					Modify: &ovsdb.Row{
-						"ports": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "foo"}, ovsdb.UUID{GoUUID: "bar"}}},
+						"ports": testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "foo"}, {GoUUID: "bar"}}),
 					},
 				},
 			},
@@ -1377,7 +1378,7 @@ func TestModelUpdates_AddRowUpdate2(t *testing.T) {
 							},
 							rowUpdate2: &ovsdb.RowUpdate2{
 								Modify: &ovsdb.Row{
-									"ports": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "foo"}, ovsdb.UUID{GoUUID: "bar"}}},
+									"ports": testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "foo"}, {GoUUID: "bar"}}),
 								},
 							},
 						},
@@ -1437,7 +1438,7 @@ func TestModelUpdates_AddRowUpdate2(t *testing.T) {
 				},
 				ru2: ovsdb.RowUpdate2{
 					Modify: &ovsdb.Row{
-						"datapath_id": ovsdb.OvsSet{GoSet: []interface{}{newDatapathID}},
+						"datapath_id": testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{newDatapathID}),
 					},
 				},
 			},
@@ -1457,7 +1458,7 @@ func TestModelUpdates_AddRowUpdate2(t *testing.T) {
 							},
 							rowUpdate2: &ovsdb.RowUpdate2{
 								Modify: &ovsdb.Row{
-									"datapath_id": ovsdb.OvsSet{GoSet: []interface{}{newDatapathID}},
+									"datapath_id": testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{newDatapathID}),
 								},
 							},
 						},
@@ -1476,7 +1477,7 @@ func TestModelUpdates_AddRowUpdate2(t *testing.T) {
 				},
 				ru2: ovsdb.RowUpdate2{
 					Modify: &ovsdb.Row{
-						"datapath_id": ovsdb.OvsSet{GoSet: []interface{}{newDatapathID}},
+						"datapath_id": testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{newDatapathID}),
 					},
 				},
 			},
@@ -1495,7 +1496,7 @@ func TestModelUpdates_AddRowUpdate2(t *testing.T) {
 							},
 							rowUpdate2: &ovsdb.RowUpdate2{
 								Modify: &ovsdb.Row{
-									"datapath_id": ovsdb.OvsSet{GoSet: []interface{}{newDatapathID}},
+									"datapath_id": testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{newDatapathID}),
 								},
 							},
 						},
@@ -1515,7 +1516,7 @@ func TestModelUpdates_AddRowUpdate2(t *testing.T) {
 				},
 				ru2: ovsdb.RowUpdate2{
 					Modify: &ovsdb.Row{
-						"datapath_id": ovsdb.OvsSet{GoSet: []interface{}{}},
+						"datapath_id": testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{}),
 					},
 				},
 			},
@@ -1534,7 +1535,7 @@ func TestModelUpdates_AddRowUpdate2(t *testing.T) {
 							},
 							rowUpdate2: &ovsdb.RowUpdate2{
 								Modify: &ovsdb.Row{
-									"datapath_id": ovsdb.OvsSet{GoSet: []interface{}{}},
+									"datapath_id": testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{}),
 								},
 							},
 						},
@@ -1558,8 +1559,8 @@ func TestModelUpdates_AddRowUpdate2(t *testing.T) {
 				ru2: ovsdb.RowUpdate2{
 					Modify: &ovsdb.Row{
 						"datapath_type": "type",
-						"datapath_id":   ovsdb.OvsSet{GoSet: []interface{}{oldDatapathID}},
-						"ports":         ovsdb.OvsSet{GoSet: []interface{}{}},
+						"datapath_id":   testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{oldDatapathID}),
+						"ports":         testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{}),
 						"external_ids":  ovsdb.OvsMap{GoMap: map[interface{}]interface{}{}},
 					},
 				},

@@ -8,6 +8,7 @@ import (
 	"github.com/ovn-org/libovsdb/database"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
+	"github.com/ovn-org/libovsdb/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -32,14 +33,14 @@ func TestExpandNamedUUID(t *testing.T) {
 		{
 			"set",
 			map[string]ovsdb.UUID{"foo": {GoUUID: testUUID}},
-			ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "foo"}}},
-			ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: testUUID}}},
+			testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []interface{}{ovsdb.UUID{GoUUID: "foo"}}),
+			testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []interface{}{ovsdb.UUID{GoUUID: testUUID}}),
 		},
 		{
 			"set multiple",
 			map[string]ovsdb.UUID{"foo": {GoUUID: testUUID}, "bar": {GoUUID: testUUID1}},
-			ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "foo"}, ovsdb.UUID{GoUUID: "bar"}, ovsdb.UUID{GoUUID: "baz"}}},
-			ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: testUUID}, ovsdb.UUID{GoUUID: testUUID1}, ovsdb.UUID{GoUUID: "baz"}}},
+			testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []interface{}{ovsdb.UUID{GoUUID: "foo"}, ovsdb.UUID{GoUUID: "bar"}, ovsdb.UUID{GoUUID: "baz"}}),
+			testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []interface{}{ovsdb.UUID{GoUUID: testUUID}, ovsdb.UUID{GoUUID: testUUID1}, ovsdb.UUID{GoUUID: "baz"}}),
 		},
 		{
 			"map key",
@@ -62,7 +63,8 @@ func TestExpandNamedUUID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := expandNamedUUID(tt.value, tt.namedUUIDs)
+			got, err := expandNamedUUID(tt.value, tt.namedUUIDs)
+			assert.NoError(t, err)
 			assert.Equal(t, tt.expected, got)
 		})
 	}

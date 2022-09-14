@@ -117,15 +117,17 @@ func OvsToNativeSlice(baseType string, ovsElem interface{}) (interface{}, error)
 	var nativeSet reflect.Value
 	switch ovsSet := ovsElem.(type) {
 	case OvsSet:
-		nativeSet = reflect.MakeSlice(reflect.SliceOf(naType), 0, len(ovsSet.GoSet))
-		for _, v := range ovsSet.GoSet {
+		nativeSet = reflect.MakeSlice(reflect.SliceOf(naType), 0, ovsSet.Len())
+		if err := ovsSet.Range(func(i int, v interface{}) (bool, error) {
 			nv, err := OvsToNativeAtomic(baseType, v)
 			if err != nil {
-				return nil, err
+				return true, err
 			}
 			nativeSet = reflect.Append(nativeSet, reflect.ValueOf(nv))
+			return false, nil
+		}); err != nil {
+			return nil, err
 		}
-
 	default:
 		nativeSet = reflect.MakeSlice(reflect.SliceOf(naType), 0, 1)
 		nv, err := OvsToNativeAtomic(baseType, ovsElem)
@@ -153,12 +155,12 @@ func OvsToNative(column *ColumnSchema, ovsElem interface{}) (interface{}, error)
 		case reflect.Ptr:
 			switch ovsSet := ovsElem.(type) {
 			case OvsSet:
-				if len(ovsSet.GoSet) > 1 {
-					return nil, fmt.Errorf("expected a slice of len =< 1, but got a slice with %d elements", len(ovsSet.GoSet))
-				} else if len(ovsSet.GoSet) == 0 {
+				if ovsSet.Len() > 1 {
+					return nil, fmt.Errorf("expected a slice of len =< 1, but got a slice with %d elements", ovsSet.Len())
+				} else if ovsSet.Len() == 0 {
 					return reflect.Zero(naType).Interface(), nil
 				}
-				native, err := OvsToNativeAtomic(column.TypeObj.Key.Type, ovsSet.GoSet[0])
+				native, err := OvsToNativeAtomic(column.TypeObj.Key.Type, ovsSet.goSet[0])
 				if err != nil {
 					return nil, err
 				}

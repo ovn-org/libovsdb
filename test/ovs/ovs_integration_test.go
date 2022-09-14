@@ -16,6 +16,7 @@ import (
 	"github.com/ovn-org/libovsdb/client"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
+	"github.com/ovn-org/libovsdb/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -1013,7 +1014,7 @@ func (suite *OVSIntegrationSuite) TestMultipleOpsSameRow() {
 			UUIDName: port1UUID,
 			Row: ovsdb.Row{
 				"name":       port1UUID,
-				"interfaces": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: iface1UUID}}},
+				"interfaces": testhelpers.MakeOvsSet(suite.T(), ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: iface1UUID}}),
 			},
 		},
 	}
@@ -1040,7 +1041,7 @@ func (suite *OVSIntegrationSuite) TestMultipleOpsSameRow() {
 			UUIDName: port10UUID,
 			Row: ovsdb.Row{
 				"name":       port10UUID,
-				"interfaces": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: iface10UUID}}},
+				"interfaces": testhelpers.MakeOvsSet(suite.T(), ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: iface10UUID}}),
 			},
 		},
 	}

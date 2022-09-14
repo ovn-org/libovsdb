@@ -194,6 +194,13 @@ func TestOperationsMarshalUnmarshalJSON(t *testing.T) {
 }
 
 func TestOvsSliceToGoNotation(t *testing.T) {
+	emptySet, err := NewOvsSet(TypeString, []interface{}{})
+	assert.NoError(t, err)
+	stringSet, err := NewOvsSet(TypeString, []interface{}{"foo", "bar", "baz"})
+	assert.NoError(t, err)
+	uuidSet, err := NewOvsSet(TypeUUID, []interface{}{UUID{GoUUID: "foo"}, UUID{GoUUID: "bar"}})
+	assert.NoError(t, err)
+
 	tests := []struct {
 		name    string
 		value   interface{}
@@ -209,19 +216,19 @@ func TestOvsSliceToGoNotation(t *testing.T) {
 		{
 			"empty set",
 			[]interface{}{"set", []interface{}{}},
-			OvsSet{GoSet: []interface{}{}},
+			emptySet,
 			false,
 		},
 		{
 			"set",
 			[]interface{}{"set", []interface{}{"foo", "bar", "baz"}},
-			OvsSet{GoSet: []interface{}{"foo", "bar", "baz"}},
+			stringSet,
 			false,
 		},
 		{
 			"uuid set",
 			[]interface{}{"set", []interface{}{[]interface{}{"named-uuid", "foo"}, []interface{}{"named-uuid", "bar"}}},
-			OvsSet{GoSet: []interface{}{UUID{GoUUID: "foo"}, UUID{GoUUID: "bar"}}},
+			uuidSet,
 			false,
 		},
 		{
