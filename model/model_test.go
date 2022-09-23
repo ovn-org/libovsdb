@@ -91,7 +91,7 @@ func TestValidate(t *testing.T) {
 		"TestTable": &struct {
 			aUUID   string            `ovsdb:"_uuid"`
 			aString string            `ovsdb:"aString"`
-			aInt    int               `ovsdb:"aInt"`
+			aInt    uint64            `ovsdb:"aInt"`
 			aFloat  float64           `ovsdb:"aFloat"`
 			aSet    []string          `ovsdb:"aSet"`
 			aMap    map[string]string `ovsdb:"aMap"`

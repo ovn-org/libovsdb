@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	intType  = reflect.TypeOf(0)
+	intType  = reflect.TypeOf(uint64(0))
 	realType = reflect.TypeOf(0.0)
 	boolType = reflect.TypeOf(true)
 	strType  = reflect.TypeOf("")
@@ -52,8 +52,8 @@ func NativeTypeFromAtomic(basicType string) reflect.Type {
 	}
 }
 
-//NativeType returns the reflect.Type that can hold the value of a column
-//OVS Type to Native Type convertions:
+// NativeType returns the reflect.Type that can hold the value of a column
+// OVS Type to Native Type convertions:
 // OVS sets -> go slices, arrays or a go native type depending on the key
 // OVS uuid -> go strings
 // OVS map  -> go map
@@ -99,7 +99,7 @@ func OvsToNativeAtomic(basicType string, ovsElem interface{}) (interface{}, erro
 		return ovsElem, nil
 	case TypeInteger:
 		naType := NativeTypeFromAtomic(basicType)
-		// Default decoding of numbers is float64, convert them to int
+		// Default decoding of numbers is float64, convert them to uint64
 		if !reflect.TypeOf(ovsElem).ConvertibleTo(naType) {
 			return nil, NewErrWrongType("OvsToNativeAtomic", fmt.Sprintf("Convertible to %s", naType), ovsElem)
 		}

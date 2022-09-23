@@ -17,10 +17,10 @@ import (
 )
 
 var (
-	trueVal  = true
-	falseVal = false
-	one      = 1
-	six      = 6
+	trueVal         = true
+	falseVal        = false
+	one      uint64 = 1
+	six      uint64 = 6
 )
 
 var discardLogger = logr.Discard()
@@ -1136,9 +1136,9 @@ func TestAPIUpdate(t *testing.T) {
 	tcache := apiTestCache(t, testData)
 
 	testObj := testLogicalSwitchPort{}
-	testRow := ovsdb.Row(map[string]interface{}{"type": "somethingElse", "tag": testOvsSet(t, []int{6})})
-	tagRow := ovsdb.Row(map[string]interface{}{"tag": testOvsSet(t, []int{6})})
-	var nilInt *int
+	testRow := ovsdb.Row(map[string]interface{}{"type": "somethingElse", "tag": testOvsSet(t, []uint64{6})})
+	tagRow := ovsdb.Row(map[string]interface{}{"tag": testOvsSet(t, []uint64{6})})
+	var nilInt *uint64
 	testNilRow := ovsdb.Row(map[string]interface{}{"type": "somethingElse", "tag": testOvsSet(t, nilInt)})
 	typeRow := ovsdb.Row(map[string]interface{}{"type": "somethingElse"})
 	fields := []interface{}{&testObj.Tag, &testObj.Type}

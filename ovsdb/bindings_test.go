@@ -29,14 +29,15 @@ var (
 		aUUID3,
 	}
 
-	aIntSet = []int{
+	aIntSet = []uint64{
 		3,
 		2,
 		42,
 	}
 	aFloat = 42.00
 
-	aInt = 42
+	aInt    uint64 = 42
+	aBitInt uint64 = 18446744073709551615
 
 	aFloatSet = []float64{
 		3.0,
@@ -75,7 +76,7 @@ func TestOvsToNativeAndNativeToOvs(t *testing.T) {
 	is, _ := NewOvsSet(aIntSet)
 	fs, _ := NewOvsSet(aFloatSet)
 
-	sis, _ := NewOvsSet([]int{aInt})
+	sis, _ := NewOvsSet([]uint64{aInt})
 	sfs, _ := NewOvsSet([]float64{aFloat})
 
 	es, _ := NewOvsSet(aEmptySet)
@@ -125,6 +126,13 @@ func TestOvsToNativeAndNativeToOvs(t *testing.T) {
 			input:  aInt,
 			native: aInt,
 			ovs:    aInt,
+		},
+		{
+			name:   "Big Integers",
+			schema: []byte(`{"type":"integer"}`),
+			input:  aBitInt,
+			native: aBitInt,
+			ovs:    aBitInt,
 		},
 		{
 			name:   "Integer set with float ovs type ",
@@ -236,7 +244,7 @@ func TestOvsToNativeAndNativeToOvs(t *testing.T) {
 				}
 			}`),
 			input:  sis,
-			native: []int{aInt},
+			native: []uint64{aInt},
 			ovs:    sis,
 		},
 		{
@@ -252,7 +260,7 @@ func TestOvsToNativeAndNativeToOvs(t *testing.T) {
 				}
 			}`),
 			input:  sfs,
-			native: []int{aInt},
+			native: []uint64{aInt},
 			ovs:    sis,
 		},
 
@@ -844,21 +852,21 @@ func TestMutationValidation(t *testing.T) {
 			name:     "integer",
 			column:   []byte(`{"type":"integer"}`),
 			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubtract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo},
-			value:    4,
+			value:    uint64(4),
 			valid:    true,
 		},
 		{
 			name:     "unmutable",
 			column:   []byte(`{"type":"integer", "mutable": false}`),
 			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubtract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo},
-			value:    4,
+			value:    uint64(4),
 			valid:    false,
 		},
 		{
 			name:     "integer wrong mutator",
 			column:   []byte(`{"type":"integer"}`),
 			mutators: []Mutator{"some", "wrong", "mutator"},
-			value:    4,
+			value:    uint64(4),
 			valid:    false,
 		},
 		{
@@ -892,7 +900,7 @@ func TestMutationValidation(t *testing.T) {
 				   }
 				 }`),
 			mutators: []Mutator{MutateOperationAdd, MutateOperationAdd, MutateOperationSubtract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo},
-			value:    4,
+			value:    uint64(4),
 			valid:    true,
 		},
 		{
@@ -970,7 +978,7 @@ func TestMutationValidation(t *testing.T) {
 				   }
 				 }`),
 			mutators: []Mutator{MutateOperationInsert, MutateOperationDelete},
-			value:    []int{45, 11},
+			value:    []uint64{uint64(45), uint64(11)},
 			valid:    true,
 		},
 		{
@@ -1075,7 +1083,7 @@ func TestConditionValidation(t *testing.T) {
 			name:      "numeric",
 			column:    []byte(`{"type":"integer"}`),
 			functions: []ConditionFunction{ConditionGreaterThanOrEqual, ConditionGreaterThan, ConditionLessThan, ConditionLessThanOrEqual, ConditionEqual, ConditionIncludes, ConditionNotEqual, ConditionExcludes},
-			value:     1000,
+			value:     uint64(1000),
 			valid:     true,
 		},
 		{

@@ -171,11 +171,11 @@ var _ model.ComparableModel = &{{ $structName }}{}
 // (see GetTableTemplateData). In addition, the following functions can be used
 // within the template:
 //
-//    - `PrintVal`: prints a field value
-//    - `FieldName`: prints the name of a field based on its column
-//    - `FieldType`: prints the field type based on its column and schema
-//    - `FieldTypeWithEnums`: same as FieldType but with enum type expansion
-//    - `OvsdbTag`: prints the ovsdb tag
+//   - `PrintVal`: prints a field value
+//   - `FieldName`: prints the name of a field based on its column
+//   - `FieldType`: prints the field type based on its column and schema
+//   - `FieldTypeWithEnums`: same as FieldType but with enum type expansion
+//   - `OvsdbTag`: prints the ovsdb tag
 func NewTableTemplate() *template.Template {
 	return template.Must(template.New("").Funcs(
 		template.FuncMap{
@@ -396,7 +396,7 @@ func FieldEnum(tableName, columnName string, column *ovsdb.ColumnSchema) *Enum {
 func AtomicType(atype string) string {
 	switch atype {
 	case ovsdb.TypeInteger:
-		return "int"
+		return "uint64"
 	case ovsdb.TypeReal:
 		return "float64"
 	case ovsdb.TypeBoolean:
@@ -485,7 +485,7 @@ func expandInitilaisms(s string) string {
 
 func printVal(v interface{}, t string) string {
 	switch t {
-	case "int":
+	case "uint64":
 		return fmt.Sprintf(`%d`, v)
 	case "float64":
 		return fmt.Sprintf(`%f`, v)

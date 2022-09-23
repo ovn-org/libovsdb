@@ -26,7 +26,7 @@ var (
 		aUUID3,
 	}
 
-	aIntSet = []int{
+	aIntSet = []uint64{
 		3,
 		2,
 		42,
@@ -191,7 +191,7 @@ func TestMapperGetData(t *testing.T) {
 		ASingleSet          *string           `ovsdb:"aSingleSet"`
 		AUUIDSet            []string          `ovsdb:"aUUIDSet"`
 		AUUID               string            `ovsdb:"aUUID"`
-		AIntSet             []int             `ovsdb:"aIntSet"`
+		AIntSet             []uint64          `ovsdb:"aIntSet"`
 		AFloat              float64           `ovsdb:"aFloat"`
 		AFloatSet           [10]float64       `ovsdb:"aFloatSet"`
 		YetAnotherStringSet []string          `ovsdb:"aEmptySet"`
@@ -293,11 +293,11 @@ func TestMapperNewRow(t *testing.T) {
 	}, {
 		name: "aIntSet",
 		objInput: &struct {
-			MyIntSet []int `ovsdb:"aIntSet"`
+			MyIntSet []uint64 `ovsdb:"aIntSet"`
 		}{
-			MyIntSet: []int{0, 42},
+			MyIntSet: []uint64{0, 42},
 		},
-		expectedRow: ovsdb.Row(map[string]interface{}{"aIntSet": testOvsSet(t, []int{0, 42})}),
+		expectedRow: ovsdb.Row(map[string]interface{}{"aIntSet": testOvsSet(t, []uint64{0, 42})}),
 	}, {
 		name: "aFloat",
 		objInput: &struct {
@@ -663,8 +663,8 @@ func TestMapperEqualIndexes(t *testing.T) {
 		Config map[string]string `ovsdb:"config"`
 		Comp1  string            `ovsdb:"composed_1"`
 		Comp2  string            `ovsdb:"composed_2"`
-		Int1   int               `ovsdb:"int1"`
-		Int2   int               `ovsdb:"int2"`
+		Int1   uint64            `ovsdb:"int1"`
+		Int2   uint64            `ovsdb:"int2"`
 	}
 
 	var schema ovsdb.DatabaseSchema
@@ -930,8 +930,8 @@ func TestMapperMutation(t *testing.T) {
 		String    string            `ovsdb:"string"`
 		Set       []string          `ovsdb:"set"`
 		Map       map[string]string `ovsdb:"map"`
-		Int       int               `ovsdb:"int"`
-		UnMutable int               `ovsdb:"unmutable"`
+		Int       uint64            `ovsdb:"int"`
+		UnMutable uint64            `ovsdb:"unmutable"`
 	}
 
 	var schema ovsdb.DatabaseSchema
@@ -962,8 +962,8 @@ func TestMapperMutation(t *testing.T) {
 			column:   "int",
 			obj:      testType{},
 			mutator:  ovsdb.MutateOperationAdd,
-			value:    1,
-			expected: ovsdb.NewMutation("int", ovsdb.MutateOperationAdd, 1),
+			value:    uint64(1),
+			expected: ovsdb.NewMutation("int", ovsdb.MutateOperationAdd, uint64(1)),
 			err:      false,
 		},
 		{
@@ -971,8 +971,8 @@ func TestMapperMutation(t *testing.T) {
 			column:   "int",
 			obj:      testType{},
 			mutator:  ovsdb.MutateOperationModulo,
-			value:    2,
-			expected: ovsdb.NewMutation("int", ovsdb.MutateOperationModulo, 2),
+			value:    uint64(2),
+			expected: ovsdb.NewMutation("int", ovsdb.MutateOperationModulo, uint64(2)),
 			err:      false,
 		},
 		{
@@ -980,7 +980,7 @@ func TestMapperMutation(t *testing.T) {
 			column:  "unmutable",
 			obj:     testType{},
 			mutator: ovsdb.MutateOperationSubtract,
-			value:   2,
+			value:   uint64(2),
 			err:     true,
 		},
 		{
@@ -1111,8 +1111,8 @@ func TestNewMonitorRequest(t *testing.T) {
 		Config map[string]string `ovsdb:"config"`
 		Comp1  string            `ovsdb:"composed_1"`
 		Comp2  string            `ovsdb:"composed_2"`
-		Int1   int               `ovsdb:"int1"`
-		Int2   int               `ovsdb:"int2"`
+		Int1   uint64            `ovsdb:"int1"`
+		Int2   uint64            `ovsdb:"int2"`
 	}
 	var schema ovsdb.DatabaseSchema
 	err := json.Unmarshal(testSchema, &schema)

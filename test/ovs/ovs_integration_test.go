@@ -144,7 +144,7 @@ type bridgeType struct {
 type ovsType struct {
 	UUID            string            `ovsdb:"_uuid"`
 	Bridges         []string          `ovsdb:"bridges"`
-	CurCfg          int               `ovsdb:"cur_cfg"`
+	CurCfg          uint64            `ovsdb:"cur_cfg"`
 	DatapathTypes   []string          `ovsdb:"datapath_types"`
 	Datapaths       map[string]string `ovsdb:"datapaths"`
 	DbVersion       *string           `ovsdb:"db_version"`
@@ -153,7 +153,7 @@ type ovsType struct {
 	ExternalIDs     map[string]string `ovsdb:"external_ids"`
 	IfaceTypes      []string          `ovsdb:"iface_types"`
 	ManagerOptions  []string          `ovsdb:"manager_options"`
-	NextCfg         int               `ovsdb:"next_cfg"`
+	NextCfg         uint64            `ovsdb:"next_cfg"`
 	OtherConfig     map[string]string `ovsdb:"other_config"`
 	OVSVersion      *string           `ovsdb:"ovs_version"`
 	SSL             *string           `ovsdb:"ssl"`
@@ -170,8 +170,8 @@ type ipfixType struct {
 
 // queueType is the simplified ORM model of the Queue table
 type queueType struct {
-	UUID string `ovsdb:"_uuid"`
-	DSCP *int   `ovsdb:"dscp"`
+	UUID string  `ovsdb:"_uuid"`
+	DSCP *uint64 `ovsdb:"dscp"`
 }
 
 var defDB, _ = model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
@@ -807,7 +807,7 @@ func (suite *OVSIntegrationSuite) TestWait() {
 	assert.Error(suite.T(), err)
 }
 
-func (suite *OVSIntegrationSuite) createQueue(queueName string, dscp int) (string, error) {
+func (suite *OVSIntegrationSuite) createQueue(queueName string, dscp uint64) (string, error) {
 	q := queueType{
 		DSCP: &dscp,
 	}

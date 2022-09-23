@@ -20,7 +20,7 @@ type Database struct {
 	UUID      string        `ovsdb:"_uuid"`
 	Cid       *string       `ovsdb:"cid"`
 	Connected bool          `ovsdb:"connected"`
-	Index     *int          `ovsdb:"index"`
+	Index     *uint64       `ovsdb:"index"`
 	Leader    bool          `ovsdb:"leader"`
 	Model     DatabaseModel `ovsdb:"model"`
 	Name      string        `ovsdb:"name"`
@@ -46,7 +46,7 @@ func equalDatabaseCid(a, b *string) bool {
 	return *a == *b
 }
 
-func copyDatabaseIndex(a *int) *int {
+func copyDatabaseIndex(a *uint64) *uint64 {
 	if a == nil {
 		return nil
 	}
@@ -54,7 +54,7 @@ func copyDatabaseIndex(a *int) *int {
 	return &b
 }
 
-func equalDatabaseIndex(a, b *int) bool {
+func equalDatabaseIndex(a, b *uint64) bool {
 	if (a == nil) != (b == nil) {
 		return false
 	}

@@ -128,7 +128,7 @@ func (*testLogicalSwitch) Table() string {
 	return "Logical_Switch"
 }
 
-//LogicalSwitchPort struct defines an object in Logical_Switch_Port table
+// LogicalSwitchPort struct defines an object in Logical_Switch_Port table
 type testLogicalSwitchPort struct {
 	UUID             string            `ovsdb:"_uuid"`
 	Up               *bool             `ovsdb:"up"`
@@ -140,8 +140,8 @@ type testLogicalSwitchPort struct {
 	Enabled          *bool             `ovsdb:"enabled"`
 	Addresses        []string          `ovsdb:"addresses"`
 	Dhcpv6Options    *string           `ovsdb:"dhcpv6_options"`
-	TagRequest       *int              `ovsdb:"tag_request"`
-	Tag              *int              `ovsdb:"tag"`
+	TagRequest       *uint64           `ovsdb:"tag_request"`
+	Tag              *uint64           `ovsdb:"tag"`
 	PortSecurity     []string          `ovsdb:"port_security"`
 	ExternalIds      map[string]string `ovsdb:"external_ids"`
 	Type             string            `ovsdb:"type"`

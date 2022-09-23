@@ -18,7 +18,7 @@ type testModel struct {
 	UUID  string   `ovsdb:"_uuid"`
 	Foo   string   `ovsdb:"foo"`
 	Bar   string   `ovsdb:"bar"`
-	Baz   int      `ovsdb:"baz"`
+	Baz   uint64   `ovsdb:"baz"`
 	Array []string `ovsdb:"array"`
 }
 

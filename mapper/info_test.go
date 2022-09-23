@@ -76,7 +76,7 @@ func TestNewMapperInfo(t *testing.T) {
 func TestMapperInfoSet(t *testing.T) {
 	type obj struct {
 		Ostring string            `ovsdb:"aString"`
-		Oint    int               `ovsdb:"aInteger"`
+		Oint    uint64            `ovsdb:"aInteger"`
 		Oset    []string          `ovsdb:"aSet"`
 		Omap    map[string]string `ovsdb:"aMap"`
 	}
@@ -162,7 +162,7 @@ func TestMapperInfoSet(t *testing.T) {
 func TestMapperInfoColByPtr(t *testing.T) {
 	type obj struct {
 		ostring string            `ovsdb:"aString"`
-		oint    int               `ovsdb:"aInteger"`
+		oint    uint64            `ovsdb:"aInteger"`
 		oset    []string          `ovsdb:"aSet"`
 		omap    map[string]string `ovsdb:"aMap"`
 	}

@@ -57,8 +57,8 @@ type Bridge struct {
 	DatapathVersion     string            `ovsdb:"datapath_version"`
 	ExternalIDs         map[string]string `ovsdb:"external_ids"`
 	FailMode            *BridgeFailMode   `ovsdb:"fail_mode"`
-	FloodVLANs          [4096]int         `ovsdb:"flood_vlans"`
-	FlowTables          map[int]string    `ovsdb:"flow_tables"`
+	FloodVLANs          [4096]uint64      `ovsdb:"flood_vlans"`
+	FlowTables          map[uint64]string `ovsdb:"flow_tables"`
 	IPFIX               *string           `ovsdb:"ipfix"`
 	McastSnoopingEnable bool              `ovsdb:"mcast_snooping_enable"`
 	Mirrors             []string          `ovsdb:"mirrors"`
@@ -78,7 +78,7 @@ type Bridge struct {
 type OpenvSwitch struct {
 	UUID            string            `ovsdb:"_uuid"`
 	Bridges         []string          `ovsdb:"bridges"`
-	CurCfg          int               `ovsdb:"cur_cfg"`
+	CurCfg          uint64            `ovsdb:"cur_cfg"`
 	DatapathTypes   []string          `ovsdb:"datapath_types"`
 	Datapaths       map[string]string `ovsdb:"datapaths"`
 	DbVersion       *string           `ovsdb:"db_version"`
@@ -87,7 +87,7 @@ type OpenvSwitch struct {
 	ExternalIDs     map[string]string `ovsdb:"external_ids"`
 	IfaceTypes      []string          `ovsdb:"iface_types"`
 	ManagerOptions  []string          `ovsdb:"manager_options"`
-	NextCfg         int               `ovsdb:"next_cfg"`
+	NextCfg         uint64            `ovsdb:"next_cfg"`
 	OtherConfig     map[string]string `ovsdb:"other_config"`
 	OVSVersion      *string           `ovsdb:"ovs_version"`
 	SSL             *string           `ovsdb:"ssl"`

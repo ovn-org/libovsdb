@@ -74,7 +74,7 @@ type AtomicTable struct {
 	UUID      string               ` + "`" + `ovsdb:"_uuid"` + "`" + `
 	EventType AtomicTableEventType ` + "`" + `ovsdb:"event_type"` + "`" + `
 	Float     float64              ` + "`" + `ovsdb:"float"` + "`" + `
-	Int       int                  ` + "`" + `ovsdb:"int"` + "`" + `
+	Int       uint64               ` + "`" + `ovsdb:"int"` + "`" + `
 	Protocol  *AtomicTableProtocol ` + "`" + `ovsdb:"protocol"` + "`" + `
 	Str       string               ` + "`" + `ovsdb:"str"` + "`" + `
 }
@@ -95,7 +95,7 @@ type AtomicTable struct {
 	UUID      string  ` + "`" + `ovsdb:"_uuid"` + "`" + `
 	EventType string  ` + "`" + `ovsdb:"event_type"` + "`" + `
 	Float     float64 ` + "`" + `ovsdb:"float"` + "`" + `
-	Int       int     ` + "`" + `ovsdb:"int"` + "`" + `
+	Int       uint64  ` + "`" + `ovsdb:"int"` + "`" + `
 	Protocol  *string ` + "`" + `ovsdb:"protocol"` + "`" + `
 	Str       string  ` + "`" + `ovsdb:"str"` + "`" + `
 }
@@ -134,14 +134,14 @@ type AtomicTable struct {
 	UUID      string               ` + "`" + `ovsdb:"_uuid"` + "`" + `
 	EventType AtomicTableEventType ` + "`" + `ovsdb:"event_type"` + "`" + `
 	Float     float64              ` + "`" + `ovsdb:"float"` + "`" + `
-	Int       int                  ` + "`" + `ovsdb:"int"` + "`" + `
+	Int       uint64               ` + "`" + `ovsdb:"int"` + "`" + `
 	Protocol  *AtomicTableProtocol ` + "`" + `ovsdb:"protocol"` + "`" + `
 	Str       string               ` + "`" + `ovsdb:"str"` + "`" + `
 
 	OtherUUID      string
 	OtherEventType string
 	OtherFloat     float64
-	OtherInt       int
+	OtherInt       uint64
 	OtherProtocol  *string
 	OtherStr       string
 }
@@ -176,7 +176,7 @@ type AtomicTable struct {
 	UUID      string               ` + "`" + `ovsdb:"_uuid"` + "`" + `
 	EventType AtomicTableEventType ` + "`" + `ovsdb:"event_type"` + "`" + `
 	Float     float64              ` + "`" + `ovsdb:"float"` + "`" + `
-	Int       int                  ` + "`" + `ovsdb:"int"` + "`" + `
+	Int       uint64               ` + "`" + `ovsdb:"int"` + "`" + `
 	Protocol  *AtomicTableProtocol ` + "`" + `ovsdb:"protocol"` + "`" + `
 	Str       string               ` + "`" + `ovsdb:"str"` + "`" + `
 }
@@ -308,14 +308,14 @@ type AtomicTable struct {
 	UUID      string               ` + "`" + `ovsdb:"_uuid"` + "`" + `
 	EventType AtomicTableEventType ` + "`" + `ovsdb:"event_type"` + "`" + `
 	Float     float64              ` + "`" + `ovsdb:"float"` + "`" + `
-	Int       int                  ` + "`" + `ovsdb:"int"` + "`" + `
+	Int       uint64               ` + "`" + `ovsdb:"int"` + "`" + `
 	Protocol  *AtomicTableProtocol ` + "`" + `ovsdb:"protocol"` + "`" + `
 	Str       string               ` + "`" + `ovsdb:"str"` + "`" + `
 
 	OtherUUID      string
 	OtherEventType string
 	OtherFloat     float64
-	OtherInt       int
+	OtherInt       uint64
 	OtherProtocol  *string
 	OtherStr       string
 }
@@ -418,7 +418,7 @@ type AtomicTable struct {
 	UUID      string  ` + "`" + `ovsdb:"_uuid"` + "`" + `
 	EventType string  ` + "`" + `ovsdb:"event_type"` + "`" + `
 	Float     float64 ` + "`" + `ovsdb:"float"` + "`" + `
-	Int       int     ` + "`" + `ovsdb:"int"` + "`" + `
+	Int       uint64  ` + "`" + `ovsdb:"int"` + "`" + `
 	Protocol  *string ` + "`" + `ovsdb:"protocol"` + "`" + `
 	Str       string  ` + "`" + `ovsdb:"str"` + "`" + `
 }
@@ -515,7 +515,7 @@ type AtomicTable struct {
 	UUID      string               ` + "`" + `ovsdb:"_uuid"` + "`" + `
 	EventType AtomicTableEventType ` + "`" + `ovsdb:"event_type"` + "`" + `
 	Float     float64              ` + "`" + `ovsdb:"float"` + "`" + `
-	Int       int                  ` + "`" + `ovsdb:"int"` + "`" + `
+	Int       uint64               ` + "`" + `ovsdb:"int"` + "`" + `
 	Protocol  *AtomicTableProtocol ` + "`" + `ovsdb:"protocol"` + "`" + `
 	Str       string               ` + "`" + `ovsdb:"str"` + "`" + `
 }
@@ -620,7 +620,7 @@ func TestAtomicType(t *testing.T) {
 		in   string
 		out  string
 	}{
-		{"IntegerToInt", ovsdb.TypeInteger, "int"},
+		{"IntegerToInt", ovsdb.TypeInteger, "uint64"},
 		{"RealToFloat", ovsdb.TypeReal, "float64"},
 		{"BooleanToBool", ovsdb.TypeBoolean, "bool"},
 		{"StringToString", ovsdb.TypeString, "string"},
@@ -764,8 +764,8 @@ func buildTestBridge() *vswitchd.Bridge {
 		DatapathVersion:     *buildRandStr(),
 		ExternalIDs:         map[string]string{*buildRandStr(): *buildRandStr(), *buildRandStr(): *buildRandStr()},
 		FailMode:            &vswitchd.BridgeFailModeSecure,
-		FloodVLANs:          [4096]int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
-		FlowTables:          map[int]string{1: *buildRandStr(), 2: *buildRandStr()},
+		FloodVLANs:          [4096]uint64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
+		FlowTables:          map[uint64]string{1: *buildRandStr(), 2: *buildRandStr()},
 		IPFIX:               buildRandStr(),
 		McastSnoopingEnable: false,
 		Mirrors:             []string{*buildRandStr(), *buildRandStr()},
@@ -784,7 +784,7 @@ func buildTestBridge() *vswitchd.Bridge {
 
 func buildTestInterface() *vswitchd.Interface {
 	aBool := false
-	aInt := 0
+	aInt := uint64(0)
 	return &vswitchd.Interface{
 		UUID:                      *buildRandStr(),
 		AdminState:                buildRandStr(),
@@ -795,7 +795,7 @@ func buildTestInterface() *vswitchd.Interface {
 		CFMFlapCount:              &aInt,
 		CFMHealth:                 &aInt,
 		CFMMpid:                   &aInt,
-		CFMRemoteMpids:            []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
+		CFMRemoteMpids:            []uint64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
 		CFMRemoteOpstate:          buildRandStr(),
 		Duplex:                    buildRandStr(),
 		Error:                     buildRandStr(),
@@ -819,7 +819,7 @@ func buildTestInterface() *vswitchd.Interface {
 		OfportRequest:             &aInt,
 		Options:                   map[string]string{*buildRandStr(): *buildRandStr(), *buildRandStr(): *buildRandStr()},
 		OtherConfig:               map[string]string{*buildRandStr(): *buildRandStr(), *buildRandStr(): *buildRandStr()},
-		Statistics:                map[string]int{*buildRandStr(): 0, *buildRandStr(): 1},
+		Statistics:                map[string]uint64{*buildRandStr(): 0, *buildRandStr(): 1},
 		Status:                    map[string]string{*buildRandStr(): *buildRandStr(), *buildRandStr(): *buildRandStr()},
 		Type:                      *buildRandStr(),
 	}
