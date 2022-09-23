@@ -171,11 +171,11 @@ var _ model.ComparableModel = &{{ $structName }}{}
 // (see GetTableTemplateData). In addition, the following functions can be used
 // within the template:
 //
-//    - `PrintVal`: prints a field value
-//    - `FieldName`: prints the name of a field based on its column
-//    - `FieldType`: prints the field type based on its column and schema
-//    - `FieldTypeWithEnums`: same as FieldType but with enum type expansion
-//    - `OvsdbTag`: prints the ovsdb tag
+//   - `PrintVal`: prints a field value
+//   - `FieldName`: prints the name of a field based on its column
+//   - `FieldType`: prints the field type based on its column and schema
+//   - `FieldTypeWithEnums`: same as FieldType but with enum type expansion
+//   - `OvsdbTag`: prints the ovsdb tag
 func NewTableTemplate() *template.Template {
 	return template.Must(template.New("").Funcs(
 		template.FuncMap{
@@ -194,6 +194,9 @@ func NewTableTemplate() *template.Template {
 {{ define "preStructDefinitions" }}{{ end }}
 {{- define "structComment" }}
 // {{ index . "StructName" }} defines an object in {{ index . "TableName" }} table
+{{- end }}
+{{- define "showTableName" }}
+const {{ index . "StructName" }}Table = "{{ index . "TableName" }}"
 {{- end }}
 {{ define "extraTags" }}{{ end }}
 {{ define "extraFields" }}{{ end }}
@@ -224,6 +227,7 @@ package {{ index . "PackageName" }}
 {{ template "extendedGenImports" . }}
 {{ template "extraImports" . }}
 {{ template "preStructDefinitions" . }}
+{{ template "showTableName" . }}
 {{ template "enums" . }}
 {{ template "structComment" . }}
 type {{ index . "StructName" }} struct {
