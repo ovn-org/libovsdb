@@ -788,3 +788,52 @@ func TestMultipleOps(t *testing.T) {
 	}, updates)
 
 }
+
+func TestOvsdbServerDbDoesNotExist(t *testing.T) {
+	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
+		"Open_vSwitch": &OvsType{},
+		"Bridge":       &BridgeType{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	schema, err := GetSchema()
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
+	err = db.CreateDatabase("Open_vSwitch", schema)
+	require.NoError(t, err)
+	dbModel, errs := model.NewDatabaseModel(schema, defDB)
+	require.Empty(t, errs)
+
+	ops := []ovsdb.Operation{
+		{
+			Op:       ovsdb.OperationInsert,
+			Table:    "Bridge",
+			UUIDName: uuid.NewString(),
+			Row: ovsdb.Row{
+				"name": "bridge",
+			},
+		},
+		{
+			Op:    ovsdb.OperationUpdate,
+			Table: "Bridge",
+			Where: []ovsdb.Condition{
+				{
+					Column:   "name",
+					Function: ovsdb.ConditionEqual,
+					Value:    "bridge",
+				},
+			},
+			Row: ovsdb.Row{
+				"datapath_type": "type",
+			},
+		},
+	}
+
+	transaction := NewTransaction(dbModel, "nonexsitent_db", db, nil)
+	res, _ := transaction.Transact(ops)
+	assert.Len(t, res, len(ops))
+	assert.Equal(t, "database does not exist", res[0].Error)
+	assert.Nil(t, res[1])
+}

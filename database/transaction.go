@@ -40,26 +40,32 @@ func NewTransaction(model model.DatabaseModel, dbName string, database Database,
 	}
 }
 
-func (t *Transaction) Transact(operations []ovsdb.Operation) ([]ovsdb.OperationResult, ovsdb.TableUpdates2) {
-	results := []ovsdb.OperationResult{}
+func (t *Transaction) Transact(operations []ovsdb.Operation) ([]*ovsdb.OperationResult, ovsdb.TableUpdates2) {
+	results := []*ovsdb.OperationResult{}
 	updates := make(ovsdb.TableUpdates2)
 
-	// simple case: database name does not exist
-	if !t.Database.Exists(t.DbName) {
-		r := ovsdb.OperationResult{
-			Error: "database does not exist",
-		}
-		for range operations {
-			results = append(results, r)
-		}
-		return results, updates
-	}
-
+	var r ovsdb.OperationResult
 	for _, op := range operations {
+		// if we had a previous error, just append a nil result for every op
+		// after that
+		if r.Error != "" {
+			results = append(results, nil)
+			continue
+		}
+
+		// simple case: database name does not exist
+		if !t.Database.Exists(t.DbName) {
+			r = ovsdb.OperationResult{
+				Error: "database does not exist",
+			}
+			results = append(results, &r)
+			continue
+		}
+
 		switch op.Op {
 		case ovsdb.OperationInsert:
-			r, tu := t.Insert(op.Table, op.UUIDName, op.Row)
-			results = append(results, r)
+			var tu ovsdb.TableUpdates2
+			r, tu = t.Insert(op.Table, op.UUIDName, op.Row)
 			if tu != nil {
 				updates.Merge(tu)
 				if err := t.Cache.Populate2(tu); err != nil {
@@ -67,11 +73,10 @@ func (t *Transaction) Transact(operations []ovsdb.Operation) ([]ovsdb.OperationR
 				}
 			}
 		case ovsdb.OperationSelect:
-			r := t.Select(op.Table, op.Where, op.Columns)
-			results = append(results, r)
+			r = t.Select(op.Table, op.Where, op.Columns)
 		case ovsdb.OperationUpdate:
-			r, tu := t.Update(op.Table, op.Where, op.Row)
-			results = append(results, r)
+			var tu ovsdb.TableUpdates2
+			r, tu = t.Update(op.Table, op.Where, op.Row)
 			if tu != nil {
 				updates.Merge(tu)
 				if err := t.Cache.Populate2(tu); err != nil {
@@ -79,8 +84,8 @@ func (t *Transaction) Transact(operations []ovsdb.Operation) ([]ovsdb.OperationR
 				}
 			}
 		case ovsdb.OperationMutate:
-			r, tu := t.Mutate(op.Table, op.Where, op.Mutations)
-			results = append(results, r)
+			var tu ovsdb.TableUpdates2
+			r, tu = t.Mutate(op.Table, op.Where, op.Mutations)
 			if tu != nil {
 				updates.Merge(tu)
 				if err := t.Cache.Populate2(tu); err != nil {
@@ -88,8 +93,8 @@ func (t *Transaction) Transact(operations []ovsdb.Operation) ([]ovsdb.OperationR
 				}
 			}
 		case ovsdb.OperationDelete:
-			r, tu := t.Delete(op.Table, op.Where)
-			results = append(results, r)
+			var tu ovsdb.TableUpdates2
+			r, tu = t.Delete(op.Table, op.Where)
 			if tu != nil {
 				updates.Merge(tu)
 				if err := t.Cache.Populate2(tu); err != nil {
@@ -97,24 +102,25 @@ func (t *Transaction) Transact(operations []ovsdb.Operation) ([]ovsdb.OperationR
 				}
 			}
 		case ovsdb.OperationWait:
-			r := t.Wait(op.Table, op.Timeout, op.Where, op.Columns, op.Until, op.Rows)
-			results = append(results, r)
+			r = t.Wait(op.Table, op.Timeout, op.Where, op.Columns, op.Until, op.Rows)
 		case ovsdb.OperationCommit:
 			durable := op.Durable
-			r := t.Commit(op.Table, *durable)
-			results = append(results, r)
+			r = t.Commit(op.Table, *durable)
 		case ovsdb.OperationAbort:
-			r := t.Abort(op.Table)
-			results = append(results, r)
+			r = t.Abort(op.Table)
 		case ovsdb.OperationComment:
-			r := t.Comment(op.Table, *op.Comment)
-			results = append(results, r)
+			r = t.Comment(op.Table, *op.Comment)
 		case ovsdb.OperationAssert:
-			r := t.Assert(op.Table, *op.Lock)
-			results = append(results, r)
+			r = t.Assert(op.Table, *op.Lock)
 		default:
-			return nil, updates
+			e := ovsdb.NotSupported{}
+			r = ovsdb.OperationResult{
+				Error: e.Error(),
+			}
 		}
+
+		result := r
+		results = append(results, &result)
 	}
 	return results, updates
 }
