@@ -272,12 +272,14 @@ func (r *RowCache) Create(uuid string, m model.Model, checkIndexes bool) error {
 			return err
 		}
 
+		uuidset := newUUIDSet(uuid)
+
 		vals := r.indexes[index]
-		if existing, ok := vals[val]; ok && !existing.empty() && checkIndexes && indexSpec.isSchemaIndex() {
+		existing := vals[val]
+		if checkIndexes && indexSpec.isSchemaIndex() && !existing.empty() && !existing.equals(uuidset) {
 			return NewIndexExistsError(r.name, val, string(index), uuid, existing.getAny())
 		}
 
-		uuidset := newUUIDSet(uuid)
 		if indexSpec.isSchemaIndex() {
 			newIndexes[index][val] = uuidset
 		} else {
@@ -331,9 +333,12 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) (model.
 		}
 		// old and new values are NOT the same
 
+		uuidset := newUUIDSet(uuid)
+
 		// check that there are no conflicts
 		vals := r.indexes[index]
-		if existing, ok := vals[newVal]; ok && indexSpec.isSchemaIndex() && checkIndexes && !existing.empty() && !existing.has(uuid) {
+		existing := vals[newVal]
+		if checkIndexes && indexSpec.isSchemaIndex() && !existing.empty() && !existing.equals(uuidset) {
 			errs = append(errs, NewIndexExistsError(
 				r.name,
 				newVal,
@@ -343,7 +348,6 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) (model.
 			))
 		}
 
-		uuidset := newUUIDSet(uuid)
 		if indexSpec.isSchemaIndex() {
 			newIndexes[index][newVal] = uuidset
 			newIndexes[index][oldVal] = nil
@@ -391,7 +395,8 @@ func (r *RowCache) IndexExists(row model.Model) error {
 			continue
 		}
 		vals := r.indexes[index]
-		if existing := vals[val]; !existing.empty() && !existing.has(uuid) {
+		existing := vals[val]
+		if !existing.empty() && !existing.equals(newUUIDSet(uuid)) {
 			return NewIndexExistsError(
 				r.name,
 				val,
@@ -473,6 +478,7 @@ func (r *RowCache) RowsShallow() map[string]model.Model {
 // quick as possible, via indexes, a reduced list of candidate models that might
 // match all conditions, which should be better than just evaluating all
 // conditions against all rows of a table.
+//
 //nolint:gocyclo // warns overall function is complex but ignores inner functions
 func (r *RowCache) uuidsByConditionsAsIndexes(conditions []ovsdb.Condition, nativeValues []interface{}) (uuidset, error) {
 	type indexableCondition struct {
