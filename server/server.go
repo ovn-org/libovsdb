@@ -14,7 +14,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/go-logr/stdr"
 	"github.com/google/uuid"
-	"github.com/ovn-org/libovsdb/cache"
+	"github.com/ovn-org/libovsdb/database"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
@@ -24,7 +24,7 @@ type OvsdbServer struct {
 	srv          *rpc2.Server
 	listener     net.Listener
 	done         chan struct{}
-	db           Database
+	db           database.Database
 	ready        bool
 	readyMutex   sync.RWMutex
 	models       map[string]model.DatabaseModel
@@ -36,7 +36,7 @@ type OvsdbServer struct {
 }
 
 // NewOvsdbServer returns a new OvsdbServer
-func NewOvsdbServer(db Database, models ...model.DatabaseModel) (*OvsdbServer, error) {
+func NewOvsdbServer(db database.Database, models ...model.DatabaseModel) (*OvsdbServer, error) {
 	l := stdr.NewWithOptions(log.New(os.Stderr, "", log.LstdFlags), stdr.Options{LogCaller: stdr.All}).WithName("server")
 	stdr.SetVerbosity(5)
 	o := &OvsdbServer{
@@ -163,30 +163,6 @@ func (o *OvsdbServer) GetSchema(client *rpc2.Client, args []interface{}, reply *
 	return nil
 }
 
-type Transaction struct {
-	ID          uuid.UUID
-	Cache       *cache.TableCache
-	DeletedRows map[string]struct{}
-	Model       model.DatabaseModel
-	DbName      string
-	Database    Database
-}
-
-func (o *OvsdbServer) NewTransaction(model model.DatabaseModel, dbName string, database Database) Transaction {
-	cache, err := cache.NewTableCache(model, nil, &o.logger)
-	if err != nil {
-		panic(err)
-	}
-	return Transaction{
-		ID:          uuid.New(),
-		Cache:       cache,
-		DeletedRows: make(map[string]struct{}),
-		Model:       model,
-		DbName:      dbName,
-		Database:    database,
-	}
-}
-
 // Transact issues a new database transaction and returns the results
 func (o *OvsdbServer) Transact(client *rpc2.Client, args []json.RawMessage, reply *[]ovsdb.OperationResult) error {
 	// While allowing other rpc handlers to run in parallel, this ovsdb server expects transactions
@@ -248,6 +224,14 @@ func (o *OvsdbServer) Transact(client *rpc2.Client, args []json.RawMessage, repl
 	return o.db.Commit(db, transactionID, updates)
 }
 
+func (o *OvsdbServer) transact(name string, operations []ovsdb.Operation) ([]ovsdb.OperationResult, ovsdb.TableUpdates2) {
+	o.modelsMutex.Lock()
+	dbModel := o.models[name]
+	o.modelsMutex.Unlock()
+	transaction := database.NewTransaction(dbModel, name, o.db, &o.logger)
+	return transaction.Transact(name, operations)
+}
+
 func deepCopy(a ovsdb.TableUpdates) (ovsdb.TableUpdates, error) {
 	var b ovsdb.TableUpdates
 	raw, err := json.Marshal(a)
@@ -301,7 +285,7 @@ func (o *OvsdbServer) Monitor(client *rpc2.Client, args []json.RawMessage, reply
 	o.modelsMutex.Lock()
 	dbModel := o.models[db]
 	o.modelsMutex.Unlock()
-	transaction := o.NewTransaction(dbModel, db, o.db)
+	transaction := database.NewTransaction(dbModel, db, o.db, &o.logger)
 
 	tableUpdates := make(ovsdb.TableUpdates)
 	for t, request := range request {
@@ -348,7 +332,7 @@ func (o *OvsdbServer) MonitorCond(client *rpc2.Client, args []json.RawMessage, r
 	o.modelsMutex.Lock()
 	dbModel := o.models[db]
 	o.modelsMutex.Unlock()
-	transaction := o.NewTransaction(dbModel, db, o.db)
+	transaction := database.NewTransaction(dbModel, db, o.db, &o.logger)
 
 	tableUpdates := make(ovsdb.TableUpdates2)
 	for t, request := range request {
@@ -393,7 +377,7 @@ func (o *OvsdbServer) MonitorCondSince(client *rpc2.Client, args []json.RawMessa
 	o.modelsMutex.Lock()
 	dbModel := o.models[db]
 	o.modelsMutex.Unlock()
-	transaction := o.NewTransaction(dbModel, db, o.db)
+	transaction := database.NewTransaction(dbModel, db, o.db, &o.logger)
 
 	tableUpdates := make(ovsdb.TableUpdates2)
 	for t, request := range request {

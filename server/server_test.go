@@ -5,10 +5,13 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/ovn-org/libovsdb/database"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	. "github.com/ovn-org/libovsdb/test"
 )
 
 func TestExpandNamedUUID(t *testing.T) {
@@ -67,16 +70,16 @@ func TestExpandNamedUUID(t *testing.T) {
 
 func TestOvsdbServerMonitor(t *testing.T) {
 	defDB, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
-		"Open_vSwitch": &ovsType{},
-		"Bridge":       &bridgeType{}})
+		"Open_vSwitch": &OvsType{},
+		"Bridge":       &BridgeType{}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	schema, err := getSchema()
+	schema, err := GetSchema()
 	if err != nil {
 		t.Fatal(err)
 	}
-	ovsDB := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
+	ovsDB := database.NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
 	dbModel, errs := model.NewDatabaseModel(schema, defDB)
 	require.Empty(t, errs)
 	o, err := NewOvsdbServer(ovsDB, dbModel)
@@ -98,7 +101,7 @@ func TestOvsdbServerMonitor(t *testing.T) {
 	bazUUID := uuid.NewString()
 	quuxUUID := uuid.NewString()
 
-	transaction := o.NewTransaction(dbModel, "Open_vSwitch", o.db)
+	transaction := database.NewTransaction(dbModel, "Open_vSwitch", o.db, &o.logger)
 
 	_, updates := transaction.Insert("Bridge", fooUUID, ovsdb.Row{"name": "foo"})
 	_, update2 := transaction.Insert("Bridge", barUUID, ovsdb.Row{"name": "bar"})

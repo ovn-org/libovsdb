@@ -1,27 +1,51 @@
-package server
+package database
 
 import (
 	"fmt"
 	"reflect"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
-func (o *OvsdbServer) transact(name string, operations []ovsdb.Operation) ([]ovsdb.OperationResult, ovsdb.TableUpdates2) {
-	o.modelsMutex.Lock()
-	dbModel := o.models[name]
-	o.modelsMutex.Unlock()
-	transaction := o.NewTransaction(dbModel, name, o.db)
+type Transaction struct {
+	ID          uuid.UUID
+	Cache       *cache.TableCache
+	DeletedRows map[string]struct{}
+	Model       model.DatabaseModel
+	DbName      string
+	Database    Database
+}
 
+func NewTransaction(model model.DatabaseModel, dbName string, database Database, logger *logr.Logger) Transaction {
+	if logger != nil {
+		l := logger.WithName("transaction")
+		logger = &l
+	}
+	cache, err := cache.NewTableCache(model, nil, logger)
+	if err != nil {
+		panic(err)
+	}
+	return Transaction{
+		ID:          uuid.New(),
+		Cache:       cache,
+		DeletedRows: make(map[string]struct{}),
+		Model:       model,
+		DbName:      dbName,
+		Database:    database,
+	}
+}
+
+func (t *Transaction) Transact(name string, operations []ovsdb.Operation) ([]ovsdb.OperationResult, ovsdb.TableUpdates2) {
 	results := []ovsdb.OperationResult{}
 	updates := make(ovsdb.TableUpdates2)
 
 	// simple case: database name does not exist
-	if !o.db.Exists(name) {
+	if !t.Database.Exists(name) {
 		r := ovsdb.OperationResult{
 			Error: "database does not exist",
 		}
@@ -34,59 +58,59 @@ func (o *OvsdbServer) transact(name string, operations []ovsdb.Operation) ([]ovs
 	for _, op := range operations {
 		switch op.Op {
 		case ovsdb.OperationInsert:
-			r, tu := transaction.Insert(op.Table, op.UUIDName, op.Row)
+			r, tu := t.Insert(op.Table, op.UUIDName, op.Row)
 			results = append(results, r)
 			if tu != nil {
 				updates.Merge(tu)
-				if err := transaction.Cache.Populate2(tu); err != nil {
+				if err := t.Cache.Populate2(tu); err != nil {
 					panic(err)
 				}
 			}
 		case ovsdb.OperationSelect:
-			r := transaction.Select(op.Table, op.Where, op.Columns)
+			r := t.Select(op.Table, op.Where, op.Columns)
 			results = append(results, r)
 		case ovsdb.OperationUpdate:
-			r, tu := transaction.Update(name, op.Table, op.Where, op.Row)
+			r, tu := t.Update(name, op.Table, op.Where, op.Row)
 			results = append(results, r)
 			if tu != nil {
 				updates.Merge(tu)
-				if err := transaction.Cache.Populate2(tu); err != nil {
+				if err := t.Cache.Populate2(tu); err != nil {
 					panic(err)
 				}
 			}
 		case ovsdb.OperationMutate:
-			r, tu := transaction.Mutate(name, op.Table, op.Where, op.Mutations)
+			r, tu := t.Mutate(name, op.Table, op.Where, op.Mutations)
 			results = append(results, r)
 			if tu != nil {
 				updates.Merge(tu)
-				if err := transaction.Cache.Populate2(tu); err != nil {
+				if err := t.Cache.Populate2(tu); err != nil {
 					panic(err)
 				}
 			}
 		case ovsdb.OperationDelete:
-			r, tu := transaction.Delete(name, op.Table, op.Where)
+			r, tu := t.Delete(name, op.Table, op.Where)
 			results = append(results, r)
 			if tu != nil {
 				updates.Merge(tu)
-				if err := transaction.Cache.Populate2(tu); err != nil {
+				if err := t.Cache.Populate2(tu); err != nil {
 					panic(err)
 				}
 			}
 		case ovsdb.OperationWait:
-			r := transaction.Wait(name, op.Table, op.Timeout, op.Where, op.Columns, op.Until, op.Rows)
+			r := t.Wait(name, op.Table, op.Timeout, op.Where, op.Columns, op.Until, op.Rows)
 			results = append(results, r)
 		case ovsdb.OperationCommit:
 			durable := op.Durable
-			r := transaction.Commit(name, op.Table, *durable)
+			r := t.Commit(name, op.Table, *durable)
 			results = append(results, r)
 		case ovsdb.OperationAbort:
-			r := transaction.Abort(name, op.Table)
+			r := t.Abort(name, op.Table)
 			results = append(results, r)
 		case ovsdb.OperationComment:
-			r := transaction.Comment(name, op.Table, *op.Comment)
+			r := t.Comment(name, op.Table, *op.Comment)
 			results = append(results, r)
 		case ovsdb.OperationAssert:
-			r := transaction.Assert(name, op.Table, *op.Lock)
+			r := t.Assert(name, op.Table, *op.Lock)
 			results = append(results, r)
 		default:
 			return nil, updates
