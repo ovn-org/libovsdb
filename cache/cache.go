@@ -264,7 +264,7 @@ func (r *RowCache) Create(uuid string, m model.Model, checkIndexes bool) error {
 	if err != nil {
 		return err
 	}
-	newIndexes := r.newIndexes()
+	addIndexes := r.newIndexes()
 	for _, indexSpec := range r.indexSpecs {
 		index := indexSpec.index
 		val, err := valueFromIndex(info, indexSpec.columns)
@@ -280,19 +280,21 @@ func (r *RowCache) Create(uuid string, m model.Model, checkIndexes bool) error {
 			return NewIndexExistsError(r.name, val, string(index), uuid, existing.getAny())
 		}
 
-		if indexSpec.isSchemaIndex() {
-			newIndexes[index][val] = uuidset
-		} else {
-			newIndexes[index][val] = addUUIDSet(r.indexes[index][val], uuidset)
-		}
+		addIndexes[index][val] = uuidset
 	}
 
 	// write indexes
-	for k1, v1 := range newIndexes {
-		for k2, v2 := range v1 {
-			r.indexes[k1][k2] = v2
+	for _, indexSpec := range r.indexSpecs {
+		index := indexSpec.index
+		for k, v := range addIndexes[index] {
+			if indexSpec.isSchemaIndex() {
+				r.indexes[index][k] = v
+			} else {
+				r.indexes[index][k] = addUUIDSet(r.indexes[index][k], v)
+			}
 		}
 	}
+
 	r.cache[uuid] = model.Clone(m)
 	return nil
 }
@@ -313,7 +315,9 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) (model.
 	if err != nil {
 		return nil, err
 	}
-	newIndexes := r.newIndexes()
+
+	addIndexes := r.newIndexes()
+	removeIndexes := r.newIndexes()
 	var errs []error
 	for _, indexSpec := range r.indexSpecs {
 		index := indexSpec.index
@@ -348,27 +352,30 @@ func (r *RowCache) Update(uuid string, m model.Model, checkIndexes bool) (model.
 			))
 		}
 
-		if indexSpec.isSchemaIndex() {
-			newIndexes[index][newVal] = uuidset
-			newIndexes[index][oldVal] = nil
-		} else {
-			newIndexes[index][newVal] = addUUIDSet(r.indexes[index][newVal], uuidset)
-			newIndexes[index][oldVal] = substractUUIDSet(r.indexes[index][oldVal], uuidset)
-		}
+		addIndexes[index][newVal] = uuidset
+		removeIndexes[index][oldVal] = uuidset
 	}
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("%+v", errs)
 	}
+
 	// write indexes
-	for k1, v1 := range newIndexes {
-		for k2, v2 := range v1 {
-			if len(v2) == 0 {
-				delete(r.indexes[k1], k2)
+	for _, indexSpec := range r.indexSpecs {
+		index := indexSpec.index
+		for k, v := range addIndexes[index] {
+			if indexSpec.isSchemaIndex() {
+				r.indexes[index][k] = v
 			} else {
-				r.indexes[k1][k2] = v2
+				r.indexes[index][k] = addUUIDSet(r.indexes[index][k], v)
+			}
+		}
+		for k, v := range removeIndexes[index] {
+			if indexSpec.isSchemaIndex() || substractUUIDSet(r.indexes[index][k], v).empty() {
+				delete(r.indexes[index], k)
 			}
 		}
 	}
+
 	r.cache[uuid] = model.Clone(m)
 	return oldRow, nil
 }
@@ -421,24 +428,31 @@ func (r *RowCache) Delete(uuid string) error {
 	if err != nil {
 		return err
 	}
+
+	removeIndexes := r.newIndexes()
 	for _, indexSpec := range r.indexSpecs {
 		index := indexSpec.index
 		oldVal, err := valueFromIndex(oldInfo, indexSpec.columns)
 		if err != nil {
 			return err
 		}
-		// only remove the index if it is pointing to this uuid
-		// otherwise we can cause a consistency issue if we've processed
-		// updates out of order
-		vals := r.indexes[index]
-		existing, ok := vals[oldVal]
-		if ok {
-			existing.remove(uuid)
-			if len(existing) == 0 {
-				delete(vals, oldVal)
+
+		removeIndexes[index][oldVal] = newUUIDSet(uuid)
+	}
+
+	// write indexes
+	for _, indexSpec := range r.indexSpecs {
+		index := indexSpec.index
+		for k, v := range removeIndexes[index] {
+			// only remove the index if it is pointing to this uuid
+			// otherwise we can cause a consistency issue if we've processed
+			// updates out of order
+			if substractUUIDSet(r.indexes[index][k], v).empty() {
+				delete(r.indexes[index], k)
 			}
 		}
 	}
+
 	delete(r.cache, uuid)
 	return nil
 }
