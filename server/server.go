@@ -229,7 +229,7 @@ func (o *OvsdbServer) transact(name string, operations []ovsdb.Operation) ([]ovs
 	dbModel := o.models[name]
 	o.modelsMutex.Unlock()
 	transaction := database.NewTransaction(dbModel, name, o.db, &o.logger)
-	return transaction.Transact(name, operations)
+	return transaction.Transact(operations)
 }
 
 func deepCopy(a ovsdb.TableUpdates) (ovsdb.TableUpdates, error) {

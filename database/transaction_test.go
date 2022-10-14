@@ -74,7 +74,6 @@ func TestWaitOpEquals(t *testing.T) {
 	timeout := 0
 	// Attempt to wait for row with name foo to appear
 	gotResult := transaction.Wait(
-		"Open_vSwitch",
 		"Bridge",
 		&timeout,
 		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
@@ -87,7 +86,6 @@ func TestWaitOpEquals(t *testing.T) {
 
 	// Attempt to wait for 2 rows, where one does not exist
 	gotResult = transaction.Wait(
-		"Open_vSwitch",
 		"Bridge",
 		&timeout,
 		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
@@ -106,7 +104,6 @@ func TestWaitOpEquals(t *testing.T) {
 	require.Nil(t, err)
 	// Attempt to wait for a row, with multiple columns specified
 	gotResult = transaction.Wait(
-		"Open_vSwitch",
 		"Bridge",
 		&timeout,
 		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
@@ -119,7 +116,6 @@ func TestWaitOpEquals(t *testing.T) {
 
 	// Attempt to wait for a row, with multiple columns, but not specified in row filtering
 	gotResult = transaction.Wait(
-		"Open_vSwitch",
 		"Bridge",
 		&timeout,
 		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
@@ -133,7 +129,6 @@ func TestWaitOpEquals(t *testing.T) {
 	// Attempt to get something with a non-zero timeout that will fail
 	timeout = 400
 	gotResult = transaction.Wait(
-		"Open_vSwitch",
 		"Bridge",
 		&timeout,
 		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
@@ -204,7 +199,6 @@ func TestWaitOpNotEquals(t *testing.T) {
 	timeout := 0
 	// Attempt a wait where no entry with name blah should exist
 	gotResult := transaction.Wait(
-		"Open_vSwitch",
 		"Bridge",
 		&timeout,
 		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
@@ -217,7 +211,6 @@ func TestWaitOpNotEquals(t *testing.T) {
 
 	// Attempt another wait with multiple rows specified, one that would match, and one that doesn't
 	gotResult = transaction.Wait(
-		"Open_vSwitch",
 		"Bridge",
 		&timeout,
 		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
@@ -237,7 +230,6 @@ func TestWaitOpNotEquals(t *testing.T) {
 	require.Nil(t, err)
 	// Attempt to wait for a row, with multiple columns specified and one is not a match
 	gotResult = transaction.Wait(
-		"Open_vSwitch",
 		"Bridge",
 		&timeout,
 		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
@@ -252,7 +244,6 @@ func TestWaitOpNotEquals(t *testing.T) {
 	start := time.Now()
 	timeout = 200
 	gotResult = transaction.Wait(
-		"Open_vSwitch",
 		"Bridge",
 		&timeout,
 		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
@@ -325,7 +316,6 @@ func TestMutateOp(t *testing.T) {
 
 	gotResult, gotUpdate := transaction.Mutate(
 		"Open_vSwitch",
-		"Open_vSwitch",
 		[]ovsdb.Condition{
 			ovsdb.NewCondition("_uuid", ovsdb.ConditionEqual, ovsdb.UUID{GoUUID: ovsUUID}),
 		},
@@ -363,7 +353,6 @@ func TestMutateOp(t *testing.T) {
 	keyValueDelete, err := ovsdb.NewOvsMap(map[string]string{"baz": "quux"})
 	assert.Nil(t, err)
 	gotResult, gotUpdate = transaction.Mutate(
-		"Open_vSwitch",
 		"Bridge",
 		[]ovsdb.Condition{
 			ovsdb.NewCondition("_uuid", ovsdb.ConditionEqual, ovsdb.UUID{GoUUID: bridgeUUID}),
@@ -672,7 +661,6 @@ func TestOvsdbServerUpdate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			res, updates := transaction.Update(
-				"Open_vSwitch",
 				"Bridge",
 				[]ovsdb.Condition{{
 					Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: bridgeUUID},
@@ -761,7 +749,7 @@ func TestMultipleOps(t *testing.T) {
 	}
 	ops = append(ops, op2)
 
-	results, updates := transaction.Transact("Open_vSwitch", ops)
+	results, updates := transaction.Transact(ops)
 	require.Len(t, results, len(ops))
 	for _, result := range results {
 		assert.Equal(t, "", result.Error)

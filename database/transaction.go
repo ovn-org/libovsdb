@@ -40,12 +40,12 @@ func NewTransaction(model model.DatabaseModel, dbName string, database Database,
 	}
 }
 
-func (t *Transaction) Transact(name string, operations []ovsdb.Operation) ([]ovsdb.OperationResult, ovsdb.TableUpdates2) {
+func (t *Transaction) Transact(operations []ovsdb.Operation) ([]ovsdb.OperationResult, ovsdb.TableUpdates2) {
 	results := []ovsdb.OperationResult{}
 	updates := make(ovsdb.TableUpdates2)
 
 	// simple case: database name does not exist
-	if !t.Database.Exists(name) {
+	if !t.Database.Exists(t.DbName) {
 		r := ovsdb.OperationResult{
 			Error: "database does not exist",
 		}
@@ -70,7 +70,7 @@ func (t *Transaction) Transact(name string, operations []ovsdb.Operation) ([]ovs
 			r := t.Select(op.Table, op.Where, op.Columns)
 			results = append(results, r)
 		case ovsdb.OperationUpdate:
-			r, tu := t.Update(name, op.Table, op.Where, op.Row)
+			r, tu := t.Update(op.Table, op.Where, op.Row)
 			results = append(results, r)
 			if tu != nil {
 				updates.Merge(tu)
@@ -79,7 +79,7 @@ func (t *Transaction) Transact(name string, operations []ovsdb.Operation) ([]ovs
 				}
 			}
 		case ovsdb.OperationMutate:
-			r, tu := t.Mutate(name, op.Table, op.Where, op.Mutations)
+			r, tu := t.Mutate(op.Table, op.Where, op.Mutations)
 			results = append(results, r)
 			if tu != nil {
 				updates.Merge(tu)
@@ -88,7 +88,7 @@ func (t *Transaction) Transact(name string, operations []ovsdb.Operation) ([]ovs
 				}
 			}
 		case ovsdb.OperationDelete:
-			r, tu := t.Delete(name, op.Table, op.Where)
+			r, tu := t.Delete(op.Table, op.Where)
 			results = append(results, r)
 			if tu != nil {
 				updates.Merge(tu)
@@ -97,20 +97,20 @@ func (t *Transaction) Transact(name string, operations []ovsdb.Operation) ([]ovs
 				}
 			}
 		case ovsdb.OperationWait:
-			r := t.Wait(name, op.Table, op.Timeout, op.Where, op.Columns, op.Until, op.Rows)
+			r := t.Wait(op.Table, op.Timeout, op.Where, op.Columns, op.Until, op.Rows)
 			results = append(results, r)
 		case ovsdb.OperationCommit:
 			durable := op.Durable
-			r := t.Commit(name, op.Table, *durable)
+			r := t.Commit(op.Table, *durable)
 			results = append(results, r)
 		case ovsdb.OperationAbort:
-			r := t.Abort(name, op.Table)
+			r := t.Abort(op.Table)
 			results = append(results, r)
 		case ovsdb.OperationComment:
-			r := t.Comment(name, op.Table, *op.Comment)
+			r := t.Comment(op.Table, *op.Comment)
 			results = append(results, r)
 		case ovsdb.OperationAssert:
-			r := t.Assert(name, op.Table, *op.Lock)
+			r := t.Assert(op.Table, *op.Lock)
 			results = append(results, r)
 		default:
 			return nil, updates
@@ -257,7 +257,7 @@ func (t *Transaction) Select(table string, where []ovsdb.Condition, columns []st
 	}
 }
 
-func (t *Transaction) Update(database, table string, where []ovsdb.Condition, row ovsdb.Row) (ovsdb.OperationResult, ovsdb.TableUpdates2) {
+func (t *Transaction) Update(table string, where []ovsdb.Condition, row ovsdb.Row) (ovsdb.OperationResult, ovsdb.TableUpdates2) {
 	dbModel := t.Model
 	m := dbModel.Mapper
 	schema := dbModel.Schema.Table(table)
@@ -379,7 +379,7 @@ func (t *Transaction) Update(database, table string, where []ovsdb.Condition, ro
 		}
 }
 
-func (t *Transaction) Mutate(database, table string, where []ovsdb.Condition, mutations []ovsdb.Mutation) (ovsdb.OperationResult, ovsdb.TableUpdates2) {
+func (t *Transaction) Mutate(table string, where []ovsdb.Condition, mutations []ovsdb.Mutation) (ovsdb.OperationResult, ovsdb.TableUpdates2) {
 	dbModel := t.Model
 	m := dbModel.Mapper
 	schema := dbModel.Schema.Table(table)
@@ -509,7 +509,7 @@ func (t *Transaction) Mutate(database, table string, where []ovsdb.Condition, mu
 		}
 }
 
-func (t *Transaction) Delete(database, table string, where []ovsdb.Condition) (ovsdb.OperationResult, ovsdb.TableUpdates2) {
+func (t *Transaction) Delete(table string, where []ovsdb.Condition) (ovsdb.OperationResult, ovsdb.TableUpdates2) {
 	dbModel := t.Model
 	m := dbModel.Mapper
 	tableUpdate := make(ovsdb.TableUpdate2)
@@ -539,7 +539,7 @@ func (t *Transaction) Delete(database, table string, where []ovsdb.Condition) (o
 		}
 }
 
-func (t *Transaction) Wait(database, table string, timeout *int, where []ovsdb.Condition, columns []string, until string, rows []ovsdb.Row) ovsdb.OperationResult {
+func (t *Transaction) Wait(table string, timeout *int, where []ovsdb.Condition, columns []string, until string, rows []ovsdb.Row) ovsdb.OperationResult {
 	start := time.Now()
 
 	if until != "!=" && until != "==" {
@@ -638,22 +638,22 @@ Loop:
 	return ovsdb.OperationResult{Error: e.Error()}
 }
 
-func (t *Transaction) Commit(database, table string, durable bool) ovsdb.OperationResult {
+func (t *Transaction) Commit(table string, durable bool) ovsdb.OperationResult {
 	e := ovsdb.NotSupported{}
 	return ovsdb.OperationResult{Error: e.Error()}
 }
 
-func (t *Transaction) Abort(database, table string) ovsdb.OperationResult {
+func (t *Transaction) Abort(table string) ovsdb.OperationResult {
 	e := ovsdb.NotSupported{}
 	return ovsdb.OperationResult{Error: e.Error()}
 }
 
-func (t *Transaction) Comment(database, table string, comment string) ovsdb.OperationResult {
+func (t *Transaction) Comment(table string, comment string) ovsdb.OperationResult {
 	e := ovsdb.NotSupported{}
 	return ovsdb.OperationResult{Error: e.Error()}
 }
 
-func (t *Transaction) Assert(database, table, lock string) ovsdb.OperationResult {
+func (t *Transaction) Assert(table, lock string) ovsdb.OperationResult {
 	e := ovsdb.NotSupported{}
 	return ovsdb.OperationResult{Error: e.Error()}
 }
