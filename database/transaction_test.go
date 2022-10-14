@@ -837,3 +837,202 @@ func TestOvsdbServerDbDoesNotExist(t *testing.T) {
 	assert.Equal(t, "database does not exist", res[0].Error)
 	assert.Nil(t, res[1])
 }
+
+func TestCheckIndexes(t *testing.T) {
+	clientDbModel, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
+		"Open_vSwitch":              &OvsType{},
+		"Bridge":                    &BridgeType{},
+		"Flow_Sample_Collector_Set": &FlowSampleCollectorSetType{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	schema, err := GetSchema()
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": clientDbModel})
+	err = db.CreateDatabase("Open_vSwitch", schema)
+	require.NoError(t, err)
+	dbModel, errs := model.NewDatabaseModel(schema, clientDbModel)
+	require.Empty(t, errs)
+
+	bridgeUUID := uuid.NewString()
+	fscsUUID := uuid.NewString()
+	ops := []ovsdb.Operation{
+		{
+			Table:    "Bridge",
+			Op:       ovsdb.OperationInsert,
+			UUIDName: bridgeUUID,
+			Row: ovsdb.Row{
+				"name": "a_bridge_to_nowhere",
+			},
+		},
+		{
+			Table:    "Flow_Sample_Collector_Set",
+			Op:       ovsdb.OperationInsert,
+			UUIDName: fscsUUID,
+			Row: ovsdb.Row{
+				"id":     1,
+				"bridge": ovsdb.UUID{GoUUID: bridgeUUID},
+			},
+		},
+		{
+			Table: "Flow_Sample_Collector_Set",
+			Op:    ovsdb.OperationInsert,
+			Row: ovsdb.Row{
+				"id":     2,
+				"bridge": ovsdb.UUID{GoUUID: bridgeUUID},
+			},
+		},
+	}
+
+	transaction := NewTransaction(dbModel, "Open_vSwitch", db, nil)
+	results, updates := transaction.Transact(ops)
+	require.Len(t, results, len(ops))
+	for _, result := range results {
+		assert.Equal(t, "", result.Error)
+	}
+	err = db.Commit("Open_vSwitch", uuid.New(), updates)
+	require.NoError(t, err)
+
+	tests := []struct {
+		desc        string
+		ops         func() []ovsdb.Operation
+		expectedErr string
+	}{
+		{
+			"Inserting an existing database index should fail",
+			func() []ovsdb.Operation {
+				return []ovsdb.Operation{
+					{
+						Table: "Flow_Sample_Collector_Set",
+						Op:    ovsdb.OperationInsert,
+						Row: ovsdb.Row{
+							"id":     1,
+							"bridge": ovsdb.UUID{GoUUID: bridgeUUID},
+						},
+					},
+				}
+			},
+			"constraint violation",
+		},
+		{
+			"Updating an index to an existing database index should fail",
+			func() []ovsdb.Operation {
+				return []ovsdb.Operation{
+					{
+						Table: "Flow_Sample_Collector_Set",
+						Op:    ovsdb.OperationUpdate,
+						Row: ovsdb.Row{
+							"id":     2,
+							"bridge": ovsdb.UUID{GoUUID: bridgeUUID},
+						},
+						Where: []ovsdb.Condition{
+							ovsdb.NewCondition("_uuid", ovsdb.ConditionEqual, ovsdb.UUID{GoUUID: fscsUUID}),
+						},
+					},
+				}
+			},
+			"constraint violation",
+		},
+		{
+			"Updating an index to an existing transaction index should fail",
+			func() []ovsdb.Operation {
+				return []ovsdb.Operation{
+					{
+						Table: "Flow_Sample_Collector_Set",
+						Op:    ovsdb.OperationInsert,
+						Row: ovsdb.Row{
+							"id":     3,
+							"bridge": ovsdb.UUID{GoUUID: bridgeUUID},
+						},
+					},
+					{
+						Table: "Flow_Sample_Collector_Set",
+						Op:    ovsdb.OperationUpdate,
+						Row: ovsdb.Row{
+							"id":     3,
+							"bridge": ovsdb.UUID{GoUUID: bridgeUUID},
+						},
+						Where: []ovsdb.Condition{
+							ovsdb.NewCondition("_uuid", ovsdb.ConditionEqual, ovsdb.UUID{GoUUID: fscsUUID}),
+						},
+					},
+				}
+			},
+			"constraint violation",
+		},
+		{
+			"Updating an index to an old index that is updated in the same transaction should succeed",
+			func() []ovsdb.Operation {
+				return []ovsdb.Operation{
+					{
+						Table: "Flow_Sample_Collector_Set",
+						Op:    ovsdb.OperationInsert,
+						Row: ovsdb.Row{
+							"id":     1,
+							"bridge": ovsdb.UUID{GoUUID: bridgeUUID},
+						},
+					},
+					{
+						Table: "Flow_Sample_Collector_Set",
+						Op:    ovsdb.OperationUpdate,
+						Row: ovsdb.Row{
+							"id":     3,
+							"bridge": ovsdb.UUID{GoUUID: bridgeUUID},
+						},
+						Where: []ovsdb.Condition{
+							ovsdb.NewCondition("_uuid", ovsdb.ConditionEqual, ovsdb.UUID{GoUUID: fscsUUID}),
+						},
+					},
+				}
+			},
+			"",
+		},
+		{
+			"Updating an index to a old index that is deleted in the same transaction should succeed",
+			func() []ovsdb.Operation {
+				return []ovsdb.Operation{
+					{
+						Table: "Flow_Sample_Collector_Set",
+						Op:    ovsdb.OperationInsert,
+						Row: ovsdb.Row{
+							"id":     1,
+							"bridge": ovsdb.UUID{GoUUID: bridgeUUID},
+						},
+					},
+					{
+						Table: "Flow_Sample_Collector_Set",
+						Op:    ovsdb.OperationDelete,
+						Where: []ovsdb.Condition{
+							ovsdb.NewCondition("_uuid", ovsdb.ConditionEqual, ovsdb.UUID{GoUUID: fscsUUID}),
+						},
+					},
+				}
+			},
+			"",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			transaction := NewTransaction(dbModel, "Open_vSwitch", db, nil)
+			ops := tt.ops()
+			results, _ := transaction.Transact(ops)
+			var err string
+			for _, result := range results {
+				if result.Error != "" {
+					err = result.Error
+					break
+				}
+			}
+			require.Equal(t, tt.expectedErr, err, "got a different error than expected")
+			if tt.expectedErr != "" {
+				require.Len(t, results, len(ops)+1)
+			} else {
+				require.Len(t, results, len(ops))
+			}
+		})
+	}
+}

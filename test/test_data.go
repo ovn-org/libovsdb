@@ -85,6 +85,46 @@ const schema = `
                     "name"
                 ]
             ]
+        },
+        "Flow_Sample_Collector_Set": {
+            "columns": {
+                "id": {
+                    "type": {
+                        "key": {
+                            "type": "integer",
+                            "minInteger": 0,
+                            "maxInteger": 4294967295
+                        },
+                        "min": 1,
+                        "max": 1
+                    }
+                },
+                "bridge": {
+                    "type": {
+                        "key": {
+                            "type": "uuid",
+                            "refTable": "Bridge"
+                        },
+                        "min": 1,
+                        "max": 1
+                    }
+                },
+                "external_ids": {
+                    "type": {
+                        "key": "string",
+                        "value": "string",
+                        "min": 0,
+                        "max": "unlimited"
+                    }
+                }
+            },
+            "isRoot": true,
+            "indexes": [
+                [
+                    "id",
+                    "bridge"
+                ]
+            ]
         }
     }
 }
@@ -106,6 +146,14 @@ type BridgeType struct {
 type OvsType struct {
 	UUID    string   `ovsdb:"_uuid"`
 	Bridges []string `ovsdb:"bridges"`
+}
+
+type FlowSampleCollectorSetType struct {
+	UUID        string            `ovsdb:"_uuid"`
+	Bridge      string            `ovsdb:"bridge"`
+	ExternalIDs map[string]string `ovsdb:"external_ids"`
+	ID          int               `ovsdb:"id"`
+	IPFIX       *string           // `ovsdb:"ipfix"`
 }
 
 func GetSchema() (ovsdb.DatabaseSchema, error) {
