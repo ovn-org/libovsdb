@@ -694,33 +694,45 @@ func TestMultipleOps(t *testing.T) {
 	require.NoError(t, err)
 	dbModel, errs := model.NewDatabaseModel(schema, defDB)
 	require.Empty(t, errs)
-	m := mapper.NewMapper(schema)
-
-	bridgeUUID := uuid.NewString()
-	bridge := BridgeType{
-		Name: "a_bridge_to_nowhere",
-		Ports: []string{
-			"port1",
-			"port10",
-		},
-	}
-	bridgeInfo, err := dbModel.NewModelInfo(&bridge)
-	require.NoError(t, err)
-	bridgeRow, err := m.NewRow(bridgeInfo)
-	require.Nil(t, err)
-
-	transaction := NewTransaction(dbModel, "Open_vSwitch", db, nil)
-
-	res, updates := transaction.Insert("Bridge", bridgeUUID, bridgeRow)
-	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
-	require.Nil(t, err)
-
-	err = db.Commit("Open_vSwitch", uuid.New(), updates)
-	require.NoError(t, err)
 
 	var ops []ovsdb.Operation
 	var op ovsdb.Operation
 
+	bridgeUUID := uuid.NewString()
+	op = ovsdb.Operation{
+		Op:       ovsdb.OperationInsert,
+		Table:    "Bridge",
+		UUIDName: bridgeUUID,
+		Row: ovsdb.Row{
+			"name": "a_bridge_to_nowhere",
+		},
+	}
+	ops = append(ops, op)
+
+	op = ovsdb.Operation{
+		Op:    ovsdb.OperationUpdate,
+		Table: "Bridge",
+		Where: []ovsdb.Condition{
+			ovsdb.NewCondition("_uuid", ovsdb.ConditionEqual, ovsdb.UUID{GoUUID: bridgeUUID}),
+		},
+		Row: ovsdb.Row{
+			"ports": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "port1"}, ovsdb.UUID{GoUUID: "port10"}}},
+		},
+	}
+	ops = append(ops, op)
+
+	transaction := NewTransaction(dbModel, "Open_vSwitch", db, nil)
+	results, _ := transaction.Transact(ops)
+	assert.Len(t, results, len(ops))
+	assert.NotNil(t, results[0])
+	assert.Empty(t, results[0].Error)
+	assert.Equal(t, 0, results[0].Count)
+	assert.Equal(t, bridgeUUID, results[0].UUID.GoUUID)
+	assert.NotNil(t, results[1])
+	assert.Equal(t, 1, results[1].Count)
+	assert.Empty(t, results[1].Error)
+
+	ops = ops[:0]
 	portA, err := ovsdb.NewOvsSet([]ovsdb.UUID{{GoUUID: "portA"}})
 	require.NoError(t, err)
 	op = ovsdb.Operation{
@@ -752,11 +764,9 @@ func TestMultipleOps(t *testing.T) {
 	results, updates := transaction.Transact(ops)
 	require.Len(t, results, len(ops))
 	for _, result := range results {
-		assert.Equal(t, "", result.Error)
+		assert.Empty(t, result.Error)
+		assert.Equal(t, 1, result.Count)
 	}
-
-	err = db.Commit("Open_vSwitch", uuid.New(), updates)
-	require.NoError(t, err)
 
 	modifiedPorts, err := ovsdb.NewOvsSet([]ovsdb.UUID{{GoUUID: "portA"}, {GoUUID: "portB"}, {GoUUID: "portC"}})
 	assert.Nil(t, err)

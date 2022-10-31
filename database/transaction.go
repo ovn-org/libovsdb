@@ -161,13 +161,18 @@ func (t *Transaction) rowsFromTransactionCacheAndDatabase(table string, where []
 	for rowUUID, row := range rows {
 		if txnRow, found := txnRows[rowUUID]; found {
 			rows[rowUUID] = txnRow
+			// delete txnRows so that only inserted rows remain in txnRows
+			delete(txnRows, rowUUID)
 		} else {
 			// warm the transaction cache with the current contents of the row
 			if err := t.Cache.Table(table).Create(rowUUID, row, false); err != nil {
 				return nil, fmt.Errorf("failed warming transaction cache row %s %v for table %s: %v", rowUUID, row, table, err)
 			}
-			txnRows[rowUUID] = row
 		}
+	}
+	// add rows that have been inserted in this transaction
+	for rowUUID, row := range txnRows {
+		rows[rowUUID] = row
 	}
 	// exclude deleted rows
 	for rowUUID := range t.DeletedRows {
