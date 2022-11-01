@@ -57,6 +57,8 @@ func TestNewTableTemplate(t *testing.T) {
 
 package test
 
+const AtomicTableTable = "atomicTable"
+
 type (
 	AtomicTableEventType = string
 	AtomicTableProtocol  = string
@@ -90,6 +92,8 @@ type AtomicTable struct {
 
 package test
 
+const AtomicTableTable = "atomicTable"
+
 // AtomicTable defines an object in atomicTable table
 type AtomicTable struct {
 	UUID      string  ` + "`" + `ovsdb:"_uuid"` + "`" + `
@@ -116,6 +120,8 @@ type AtomicTable struct {
 // DO NOT EDIT.
 
 package test
+
+const AtomicTableTable = "atomicTable"
 
 type (
 	AtomicTableEventType = string
@@ -158,6 +164,8 @@ type AtomicTable struct {
 package test
 
 import "github.com/ovn-org/libovsdb/model"
+
+const AtomicTableTable = "atomicTable"
 
 type (
 	AtomicTableEventType = string
@@ -291,6 +299,8 @@ import "github.com/ovn-org/libovsdb/model"
 
 import "fmt"
 
+const AtomicTableTable = "atomicTable"
+
 type (
 	AtomicTableEventType = string
 	AtomicTableProtocol  = string
@@ -413,6 +423,8 @@ package test
 
 import "github.com/ovn-org/libovsdb/model"
 
+const AtomicTableTable = "atomicTable"
+
 // AtomicTable defines an object in atomicTable table
 type AtomicTable struct {
 	UUID      string  ` + "`" + `ovsdb:"_uuid"` + "`" + `
@@ -497,6 +509,8 @@ func {{ index . "TestName" }} () string {
 // DO NOT EDIT.
 
 package test
+
+const AtomicTableTable = "atomicTable"
 
 type (
 	AtomicTableEventType = string
