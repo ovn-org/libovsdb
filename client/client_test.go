@@ -16,6 +16,7 @@ import (
 	"github.com/cenkalti/rpc2"
 	"github.com/google/uuid"
 	"github.com/ovn-org/libovsdb/cache"
+	db "github.com/ovn-org/libovsdb/database"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/ovn-org/libovsdb/ovsdb/serverdb"
@@ -870,7 +871,7 @@ func newOVSDBServer(t *testing.T, dbModel model.ClientDBModel, schema ovsdb.Data
 	require.NoError(t, err)
 	serverSchema := serverdb.Schema()
 
-	db := server.NewInMemoryDatabase(map[string]model.ClientDBModel{
+	db := db.NewInMemoryDatabase(map[string]model.ClientDBModel{
 		schema.Name:       dbModel,
 		serverSchema.Name: serverDBModel,
 	})
