@@ -131,7 +131,7 @@ This package is divided into several sub-packages. Documentation for each sub-pa
 * **cache**: model-based cache [![godoc for libovsdb/cache][cachebadge]][cachedoc]
 * **modelgen**: common code-generator functions  [![godoc for libovsdb/modelgen][genbadge]][gendoc]
 * **server**: ovsdb test server [![godoc for libovsdb/server][serverbadge]][serverdoc]
-* **database**: in-memory database for the server [![godoc for libovsdb/database][dbbadge]][dbdoc]
+* **database**: database related types, interfaces and implementations [![godoc for libovsdb/database][dbbadge]][dbdoc]
 * **updates**: common code to handle model updates [![godoc for libovsdb/updates][updatesbadge]][updatesdoc]
 
 [doc]: https://pkg.go.dev/

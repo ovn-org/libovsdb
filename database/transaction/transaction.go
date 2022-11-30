@@ -1,4 +1,4 @@
-package database
+package transaction
 
 import (
 	"fmt"
@@ -8,6 +8,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	"github.com/ovn-org/libovsdb/cache"
+	"github.com/ovn-org/libovsdb/database"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/ovn-org/libovsdb/updates"
@@ -19,11 +20,11 @@ type Transaction struct {
 	DeletedRows map[string]struct{}
 	Model       model.DatabaseModel
 	DbName      string
-	Database    Database
+	Database    database.Database
 	logger      *logr.Logger
 }
 
-func NewTransaction(model model.DatabaseModel, dbName string, database Database, logger *logr.Logger) Transaction {
+func NewTransaction(model model.DatabaseModel, dbName string, database database.Database, logger *logr.Logger) Transaction {
 	if logger != nil {
 		l := logger.WithName("transaction")
 		logger = &l
@@ -39,7 +40,7 @@ func NewTransaction(model model.DatabaseModel, dbName string, database Database,
 	}
 }
 
-func (t *Transaction) Transact(operations []ovsdb.Operation) ([]*ovsdb.OperationResult, Update) {
+func (t *Transaction) Transact(operations ...ovsdb.Operation) ([]*ovsdb.OperationResult, database.Update) {
 	results := make([]*ovsdb.OperationResult, len(operations), len(operations)+1)
 	update := updates.ModelUpdates{}
 

@@ -12,7 +12,7 @@ import (
 
 	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/client"
-	"github.com/ovn-org/libovsdb/database"
+	"github.com/ovn-org/libovsdb/database/inmemory"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +24,7 @@ import (
 func buildTestServerAndClient(t *testing.T) (client.Client, func()) {
 	dbModel, err := GetModel()
 	require.NoError(t, err)
-	ovsDB := database.NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": dbModel.Client()})
+	ovsDB := inmemory.NewDatabase(map[string]model.ClientDBModel{"Open_vSwitch": dbModel.Client()})
 	schema := dbModel.Schema
 	defDB := dbModel.Client()
 
