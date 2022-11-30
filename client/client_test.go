@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ovn-org/libovsdb/cache"
 	db "github.com/ovn-org/libovsdb/database"
+	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/ovn-org/libovsdb/ovsdb/serverdb"
@@ -1013,4 +1014,70 @@ func TestClientReconnectLeaderOnly(t *testing.T) {
 	require.Never(t, func() bool {
 		return atomic.LoadInt32(&connected2) > 2
 	}, 2*time.Second, 10*time.Millisecond)
+}
+
+func TestNewMonitorRequest(t *testing.T) {
+	var testSchema = []byte(`{
+  "cksum": "223619766 22548",
+  "name": "TestSchema",
+  "tables": {
+    "TestTable": {
+      "indexes": [["name"],["composed_1","composed_2"]],
+      "columns": {
+        "name": {
+          "type": "string"
+        },
+        "composed_1": {
+          "type": {
+            "key": "string"
+          }
+        },
+        "composed_2": {
+          "type": {
+            "key": "string"
+          }
+        },
+        "int1": {
+          "type": {
+            "key": "integer"
+          }
+        },
+        "int2": {
+          "type": {
+            "key": "integer"
+          }
+        },
+        "config": {
+          "type": {
+            "key": "string",
+            "max": "unlimited",
+            "min": 0,
+            "value": "string"
+          }
+	}
+      }
+    }
+  }
+}`)
+	type testType struct {
+		ID     string            `ovsdb:"_uuid"`
+		MyName string            `ovsdb:"name"`
+		Config map[string]string `ovsdb:"config"`
+		Comp1  string            `ovsdb:"composed_1"`
+		Comp2  string            `ovsdb:"composed_2"`
+		Int1   int               `ovsdb:"int1"`
+		Int2   int               `ovsdb:"int2"`
+	}
+	var schema ovsdb.DatabaseSchema
+	err := json.Unmarshal(testSchema, &schema)
+	require.NoError(t, err)
+	testTable := &testType{}
+	info, err := mapper.NewInfo("TestTable", schema.Table("TestTable"), testTable)
+	assert.NoError(t, err)
+	mr, err := newMonitorRequest(info, nil)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, mr.Columns, []string{"name", "config", "composed_1", "composed_2", "int1", "int2"})
+	mr2, err := newMonitorRequest(info, []string{"int1", "name"})
+	require.NoError(t, err)
+	assert.ElementsMatch(t, mr2.Columns, []string{"int1", "name"})
 }
