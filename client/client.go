@@ -842,7 +842,7 @@ func (o *ovsdbClient) Monitor(ctx context.Context, monitor *Monitor) (MonitorCoo
 
 // If fields is provided, the request will be constrained to the provided columns
 // If no fields are provided, all columns will be used
-func newMonitorRequest(data *mapper.Info, fields []string) (*ovsdb.MonitorRequest, error) {
+func newMonitorRequest(data *mapper.Info, fields []string, conditions []ovsdb.Condition) (*ovsdb.MonitorRequest, error) {
 	var columns []string
 	if len(fields) > 0 {
 		columns = append(columns, fields...)
@@ -851,7 +851,7 @@ func newMonitorRequest(data *mapper.Info, fields []string) (*ovsdb.MonitorReques
 			columns = append(columns, c)
 		}
 	}
-	return &ovsdb.MonitorRequest{Columns: columns, Select: ovsdb.NewDefaultMonitorSelect()}, nil
+	return &ovsdb.MonitorRequest{Columns: columns, Where: conditions, Select: ovsdb.NewDefaultMonitorSelect()}, nil
 }
 
 //gocyclo:ignore
@@ -865,15 +865,15 @@ func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconne
 	if o.rpcClient == nil {
 		return ErrNotConnected
 	}
-	if len(monitor.Tables) == 0 {
-		return fmt.Errorf("at least one table should be monitored")
-	}
 	if len(monitor.Errors) != 0 {
 		var errString []string
 		for _, err := range monitor.Errors {
 			errString = append(errString, err.Error())
 		}
 		return fmt.Errorf(strings.Join(errString, ". "))
+	}
+	if len(monitor.Tables) == 0 {
+		return fmt.Errorf("at least one table should be monitored")
 	}
 	dbName := cookie.DatabaseName
 	db := o.databases[dbName]
@@ -893,7 +893,7 @@ func (o *ovsdbClient) monitor(ctx context.Context, cookie MonitorCookie, reconne
 		if err != nil {
 			return err
 		}
-		request, err := newMonitorRequest(info, o.Fields)
+		request, err := newMonitorRequest(info, o.Fields, o.Conditions)
 		if err != nil {
 			return err
 		}

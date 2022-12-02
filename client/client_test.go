@@ -1074,10 +1074,10 @@ func TestNewMonitorRequest(t *testing.T) {
 	testTable := &testType{}
 	info, err := mapper.NewInfo("TestTable", schema.Table("TestTable"), testTable)
 	assert.NoError(t, err)
-	mr, err := newMonitorRequest(info, nil)
+	mr, err := newMonitorRequest(info, nil, nil)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, mr.Columns, []string{"name", "config", "composed_1", "composed_2", "int1", "int2"})
-	mr2, err := newMonitorRequest(info, []string{"int1", "name"})
+	mr2, err := newMonitorRequest(info, []string{"int1", "name"}, nil)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, mr2.Columns, []string{"int1", "name"})
 }
