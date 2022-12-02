@@ -287,6 +287,7 @@ func TestMutateOp(t *testing.T) {
 			"baz":   "quux",
 			"waldo": "fred",
 		},
+		FloodVLANs: []int{1, 2, 3},
 	}
 	bridgeInfo, err := dbModel.NewModelInfo(&bridge)
 	require.NoError(t, err)
@@ -383,6 +384,21 @@ func TestMutateOp(t *testing.T) {
 	assert.Equal(t, diffExternalIds, gotModify["external_ids"])
 	assert.Equal(t, oldExternalIds, gotOld["external_ids"])
 	assert.Equal(t, newExternalIds, gotNew["external_ids"])
+
+	// Test that attempting to mutate a set to exceed its allowed size results in an error
+	floodVLANsSchema := bridgeInfo.Metadata.TableSchema.Column("flood_vlans")
+	keyInsert, err := ovsdb.NewOvsSet(floodVLANsSchema.TypeObj.Key.Type, []int{33})
+	assert.Nil(t, err)
+	gotResult, gotUpdate, err = transaction.Mutate(
+		"Bridge",
+		[]ovsdb.Condition{
+			ovsdb.NewCondition("_uuid", ovsdb.ConditionEqual, ovsdb.UUID{GoUUID: bridgeUUID}),
+		},
+		[]ovsdb.Mutation{
+			*ovsdb.NewMutation("flood_vlans", ovsdb.MutateOperationInsert, keyInsert),
+		},
+	)
+	assert.Error(t, err)
 }
 
 func TestOvsdbServerInsert(t *testing.T) {
@@ -481,10 +497,12 @@ func TestOvsdbServerUpdate(t *testing.T) {
 
 	halloween := testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{"halloween"})
 	emptySet := testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{})
+	floodVlanSet := testhelpers.MakeOvsSet(t, ovsdb.TypeInteger, []int{1, 2, 3, 4, 5, 6, 7})
 	tests := []struct {
-		name     string
-		row      ovsdb.Row
-		expected *ovsdb.RowUpdate2
+		name      string
+		row       ovsdb.Row
+		expected  *ovsdb.RowUpdate2
+		expectErr bool
 	}{
 		{
 			"update single field",
@@ -494,6 +512,13 @@ func TestOvsdbServerUpdate(t *testing.T) {
 					"datapath_type": "waldo",
 				},
 			},
+			false,
+		},
+		{
+			"update single field with too-large array",
+			ovsdb.Row{"flood_vlans": floodVlanSet},
+			nil,
+			true,
 		},
 		{
 			"update single optional field, with direct value",
@@ -503,6 +528,7 @@ func TestOvsdbServerUpdate(t *testing.T) {
 					"datapath_id": halloween,
 				},
 			},
+			false,
 		},
 		{
 			"update single optional field, with set",
@@ -512,6 +538,7 @@ func TestOvsdbServerUpdate(t *testing.T) {
 					"datapath_id": halloween,
 				},
 			},
+			false,
 		},
 		{
 			"unset single optional field",
@@ -521,6 +548,7 @@ func TestOvsdbServerUpdate(t *testing.T) {
 					"datapath_id": emptySet,
 				},
 			},
+			false,
 		},
 	}
 	for _, tt := range tests {
@@ -535,14 +563,18 @@ func TestOvsdbServerUpdate(t *testing.T) {
 			}
 			res, updates := transaction.Update(&op)
 			errs, err := ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "update"}})
-			require.NoErrorf(t, err, "%+v", errs)
+			if tt.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoErrorf(t, err, "%+v", errs)
 
-			bridge.UUID = bridgeUUID
-			row, err := db.Get("Open_vSwitch", "Bridge", bridgeUUID)
-			assert.NoError(t, err)
-			br := row.(*BridgeType)
-			assert.NotEqual(t, br, bridgeRow)
-			assert.Equal(t, tt.expected.Modify, getTableUpdates(*updates)["Bridge"][bridgeUUID].Modify)
+				bridge.UUID = bridgeUUID
+				row, err := db.Get("Open_vSwitch", "Bridge", bridgeUUID)
+				assert.NoError(t, err)
+				br := row.(*BridgeType)
+				assert.NotEqual(t, br, bridgeRow)
+				assert.Equal(t, tt.expected.Modify, getTableUpdates(*updates)["Bridge"][bridgeUUID].Modify)
+			}
 		})
 	}
 }

@@ -118,6 +118,9 @@ func (m Mapper) NewRow(data *Info, fields ...interface{}) (ovsdb.Row, error) {
 		if len(fields) == 0 && ovsdb.IsDefaultValue(column, nativeElem) {
 			continue
 		}
+		if err := ovsdb.ValidateColumnConstraints(column, nativeElem); err != nil {
+			return nil, fmt.Errorf("column %s assignment failed: %w", column, err)
+		}
 		ovsElem, err := ovsdb.NativeToOvs(column, nativeElem)
 		if err != nil {
 			return nil, fmt.Errorf("table %s, column %s: failed to generate ovs element. %s", data.Metadata.TableName, name, err.Error())

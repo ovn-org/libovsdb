@@ -400,3 +400,21 @@ func isDefaultBaseValue(elem interface{}, etype ExtendedType) bool {
 		return false
 	}
 }
+
+// ValidateColumnConstraints validates the native value against any constraints
+// of a given column.
+func ValidateColumnConstraints(column *ColumnSchema, nativeValue interface{}) error {
+	switch column.Type {
+	case TypeSet, TypeEnum:
+		// Validate set length requirements
+		newVal := reflect.ValueOf(nativeValue)
+		maxVal := column.TypeObj.Max()
+		minVal := column.TypeObj.Min()
+		if maxVal > 1 && newVal.Len() > maxVal {
+			return fmt.Errorf("slice would overflow (%d elements but %d allowed)", newVal.Len(), maxVal)
+		} else if minVal > 0 && newVal.Len() < minVal {
+			return fmt.Errorf("slice would underflow (%d elements but %d required)", newVal.Len(), minVal)
+		}
+	}
+	return nil
+}

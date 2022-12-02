@@ -80,6 +80,17 @@ const schema = `
                         "min": 0,
                         "max": "unlimited"
                     }
+                },
+                "flood_vlans": {
+                    "type": {
+                        "key": {
+                            "type": "integer",
+                            "minInteger": 0,
+                            "maxInteger": 4095
+                        },
+                        "min": 0,
+                        "max": 3
+                    }
                 }
             },
             "indexes": [
@@ -142,6 +153,7 @@ type BridgeType struct {
 	ExternalIds  map[string]string `ovsdb:"external_ids"`
 	Ports        []string          `ovsdb:"ports"`
 	Status       map[string]string `ovsdb:"status"`
+	FloodVLANs   []int             `ovsdb:"flood_vlans"`
 }
 
 // OvsType is the simplified ORM model of the Bridge table

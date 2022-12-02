@@ -39,6 +39,8 @@ var (
 		42.0,
 	}
 
+	aFloatSetTooBig = []float64{1.0, 2.0, 3.0, 4.0, 5.0, 6.0}
+
 	aMap = map[string]string{
 		"key1": "value1",
 		"key2": "value2",
@@ -114,7 +116,7 @@ var testSchema = []byte(`{
               "type": "real"
             },
             "min": 0,
-            "max": 10
+            "max": 5
           }
         },
         "aEmptySet": {
@@ -215,28 +217,49 @@ func TestMapperGetData(t *testing.T) {
 		NonTagged:           "something",
 	}
 
-	ovsRow := getOvsTestRow(t)
 	/* Code under test */
 	var schema ovsdb.DatabaseSchema
 	if err := json.Unmarshal(testSchema, &schema); err != nil {
 		t.Error(err)
 	}
 
-	mapper := NewMapper(schema)
-	test := ormTestType{
-		NonTagged: "something",
-	}
-	testInfo, err := NewInfo("TestTable", schema.Table("TestTable"), &test)
-	assert.NoError(t, err)
+	tests := []struct {
+		name        string
+		setup       func() ovsdb.Row
+		expectErr   bool
+	}{{
+		name:  "basic",
+		setup: func() ovsdb.Row {
+			return getOvsTestRow(t)
+		},
+	}, {
+		name:  "too big array",
+		setup: func() ovsdb.Row {
+			testRow := getOvsTestRow(t)
+			testRow["aFloatSet"] = test.MakeOvsSet(t, ovsdb.TypeReal, aFloatSetTooBig)
+			return testRow
+		},
+		expectErr: true,
+	}}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("GetData: %s", test.name), func(t *testing.T) {
+			mapper := NewMapper(schema)
+			tt := ormTestType{
+				NonTagged: "something",
+			}
+			testInfo, err := NewInfo("TestTable", schema.Table("TestTable"), &tt)
+			assert.NoError(t, err)
 
-	err = mapper.GetRowData(&ovsRow, testInfo)
-	assert.NoError(t, err)
-	/*End code under test*/
-
-	if err != nil {
-		t.Error(err)
+			ovsRow := test.setup()
+			err = mapper.GetRowData(&ovsRow, testInfo)
+			if test.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, expected, tt)
+			}
+		})
 	}
-	assert.Equal(t, expected, test)
 }
 
 func TestMapperNewRow(t *testing.T) {
@@ -314,6 +337,14 @@ func TestMapperNewRow(t *testing.T) {
 			MyFloatSet: aFloatSet,
 		},
 		expectedRow: ovsdb.Row(map[string]interface{}{"aFloatSet": testhelpers.MakeOvsSet(t, ovsdb.TypeReal, aFloatSet)}),
+	}, {
+		name: "aFloatSet too big",
+		objInput: &struct {
+			MyFloatSet []float64 `ovsdb:"aFloatSet"`
+		}{
+			MyFloatSet: aFloatSetTooBig,
+		},
+		shoulderr: true,
 	}, {
 		name: "Enum",
 		objInput: &struct {

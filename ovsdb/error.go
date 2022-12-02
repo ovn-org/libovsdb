@@ -153,7 +153,7 @@ func NewConstraintViolation(details string) *ConstraintViolation {
 }
 
 // Error implements the error interface
-func (e *ConstraintViolation) Error() string {
+func (e ConstraintViolation) Error() string {
 	msg := constraintViolation
 	if e.details != "" {
 		msg += ": " + e.details
