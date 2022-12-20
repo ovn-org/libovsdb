@@ -50,3 +50,34 @@ func TestWithTableAndFields(t *testing.T) {
 	assert.Equal(t, 1, len(m.Tables))
 	assert.ElementsMatch(t, []string{"bridges", "cur_cfg"}, m.Tables[0].Fields)
 }
+
+func TestWithTableAndFieldsAndConditions(t *testing.T) {
+	client, err := newOVSDBClient(defDB)
+	assert.NoError(t, err)
+	populateClientModel(t, client)
+
+	m := newMonitor()
+	bridge := Bridge{}
+
+	conditions := []model.Condition{
+		{
+			Field:    &bridge.Name,
+			Function: ovsdb.ConditionEqual,
+			Value:    "foo",
+		},
+	}
+
+	opt := WithConditionalTable(&bridge, conditions, &bridge.Name, &bridge.DatapathType)
+	err = opt(client, m)
+	assert.NoError(t, err)
+
+	assert.Equal(t, 1, len(m.Tables))
+	assert.ElementsMatch(t, []string{"name", "datapath_type"}, m.Tables[0].Fields)
+	assert.ElementsMatch(t, []ovsdb.Condition{
+		{
+			Column:   "name",
+			Function: ovsdb.ConditionEqual,
+			Value:    "foo",
+		},
+	}, m.Tables[0].Conditions)
+}

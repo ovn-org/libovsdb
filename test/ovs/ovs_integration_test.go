@@ -591,6 +591,57 @@ func (suite *OVSIntegrationSuite) TestMonitorCancelIntegration() {
 	}, 2*time.Second, 500*time.Millisecond)
 }
 
+func (suite *OVSIntegrationSuite) TestMonitorConditionIntegration() {
+	// Monitor table Queue rows with dscp == 1 or 2.
+	queue := queueType{}
+	dscp1 := 1
+	dscp2 := 2
+	conditions := []model.Condition{
+		{
+			Field:    &queue.DSCP,
+			Function: ovsdb.ConditionEqual,
+			Value:    &dscp1,
+		},
+		{
+			Field:    &queue.DSCP,
+			Function: ovsdb.ConditionEqual,
+			Value:    &dscp2,
+		},
+	}
+
+	_, err := suite.client.Monitor(
+		context.TODO(),
+		suite.client.NewMonitor(
+			client.WithConditionalTable(&queue, conditions),
+		),
+	)
+	require.NoError(suite.T(), err)
+
+	uuid, err := suite.createQueue("test1", 1)
+	require.NoError(suite.T(), err)
+	require.Eventually(suite.T(), func() bool {
+		q := &queueType{UUID: uuid}
+		err = suite.client.Get(context.Background(), q)
+		return err == nil
+	}, 2*time.Second, 500*time.Millisecond)
+
+	uuid, err = suite.createQueue("test2", 3)
+	require.NoError(suite.T(), err)
+	assert.Never(suite.T(), func() bool {
+		q := &queueType{UUID: uuid}
+		err = suite.client.Get(context.Background(), q)
+		return err == nil
+	}, 2*time.Second, 500*time.Millisecond)
+
+	uuid, err = suite.createQueue("test3", 2)
+	require.NoError(suite.T(), err)
+	require.Eventually(suite.T(), func() bool {
+		q := &queueType{UUID: uuid}
+		err = suite.client.Get(context.Background(), q)
+		return err == nil
+	}, 2*time.Second, 500*time.Millisecond)
+}
+
 func (suite *OVSIntegrationSuite) TestInsertDuplicateTransactIntegration() {
 	uuid, err := suite.createBridge("br-dup")
 	require.NoError(suite.T(), err)
