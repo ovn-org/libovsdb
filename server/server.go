@@ -78,6 +78,11 @@ func (o *OvsdbServer) OnConnect(f func(*rpc2.Client)) {
 	o.srv.OnConnect(f)
 }
 
+// OnDisConnect registers a function to run when a client disconnects.
+func (o *OvsdbServer) OnDisConnect(f func(*rpc2.Client)) {
+	o.srv.OnDisconnect(f)
+}
+
 // Serve starts the OVSDB server on the given path and protocol
 func (o *OvsdbServer) Serve(protocol string, path string) error {
 	var err error
