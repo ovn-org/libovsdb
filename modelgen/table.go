@@ -34,7 +34,12 @@ import "github.com/ovn-org/libovsdb/model"
 {{- else }}
 {{- $type = FieldType $tableName $field.Column $field.Schema }}
 {{- end }}
-{{- if or (eq (index $type 0) '*') (eq (slice $type 0 2) "[]") (eq (slice $type 0 3) "map") }}
+
+func (a *{{ $structName }}) Get{{ $fieldName }}() {{ $type }} {
+	return a.{{ $fieldName }}
+}
+
+{{ if or (eq (index $type 0) '*') (eq (slice $type 0 2) "[]") (eq (slice $type 0 3) "map") }}
 func copy{{ $structName }}{{ $fieldName }}(a {{ $type }}) {{ $type }} {
 	if a == nil {
 		return nil
@@ -88,7 +93,7 @@ func equal{{ $structName }}{{ $fieldName }}(a, b {{ $type }}) bool {
 }
 
 {{ end }}
-{{- end }}
+{{ end }}
 
 func (a *{{ $structName }}) DeepCopyInto(b *{{ $structName }}) {
 	*b = *a
