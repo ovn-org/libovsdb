@@ -189,6 +189,26 @@ type AtomicTable struct {
 	Str       string               ` + "`" + `ovsdb:"str"` + "`" + `
 }
 
+func (a *AtomicTable) GetUUID() string {
+	return a.UUID
+}
+
+func (a *AtomicTable) GetEventType() AtomicTableEventType {
+	return a.EventType
+}
+
+func (a *AtomicTable) GetFloat() float64 {
+	return a.Float
+}
+
+func (a *AtomicTable) GetInt() int {
+	return a.Int
+}
+
+func (a *AtomicTable) GetProtocol() *AtomicTableProtocol {
+	return a.Protocol
+}
+
 func copyAtomicTableProtocol(a *AtomicTableProtocol) *AtomicTableProtocol {
 	if a == nil {
 		return nil
@@ -205,6 +225,10 @@ func equalAtomicTableProtocol(a, b *AtomicTableProtocol) bool {
 		return true
 	}
 	return *a == *b
+}
+
+func (a *AtomicTable) GetStr() string {
+	return a.Str
 }
 
 func (a *AtomicTable) DeepCopyInto(b *AtomicTable) {
@@ -352,6 +376,26 @@ func (a *AtomicTable) PrintAtomicTableOtherProtocol() bool {
 	fmt.Printf(a.OtherProtocol)
 }
 
+func (a *AtomicTable) GetUUID() string {
+	return a.UUID
+}
+
+func (a *AtomicTable) GetEventType() AtomicTableEventType {
+	return a.EventType
+}
+
+func (a *AtomicTable) GetFloat() float64 {
+	return a.Float
+}
+
+func (a *AtomicTable) GetInt() int {
+	return a.Int
+}
+
+func (a *AtomicTable) GetProtocol() *AtomicTableProtocol {
+	return a.Protocol
+}
+
 func copyAtomicTableProtocol(a *AtomicTableProtocol) *AtomicTableProtocol {
 	if a == nil {
 		return nil
@@ -368,6 +412,10 @@ func equalAtomicTableProtocol(a, b *AtomicTableProtocol) bool {
 		return true
 	}
 	return *a == *b
+}
+
+func (a *AtomicTable) GetStr() string {
+	return a.Str
 }
 
 func (a *AtomicTable) DeepCopyInto(b *AtomicTable) {
@@ -435,6 +483,26 @@ type AtomicTable struct {
 	Str       string  ` + "`" + `ovsdb:"str"` + "`" + `
 }
 
+func (a *AtomicTable) GetUUID() string {
+	return a.UUID
+}
+
+func (a *AtomicTable) GetEventType() string {
+	return a.EventType
+}
+
+func (a *AtomicTable) GetFloat() float64 {
+	return a.Float
+}
+
+func (a *AtomicTable) GetInt() int {
+	return a.Int
+}
+
+func (a *AtomicTable) GetProtocol() *string {
+	return a.Protocol
+}
+
 func copyAtomicTableProtocol(a *string) *string {
 	if a == nil {
 		return nil
@@ -451,6 +519,10 @@ func equalAtomicTableProtocol(a, b *string) bool {
 		return true
 	}
 	return *a == *b
+}
+
+func (a *AtomicTable) GetStr() string {
+	return a.Str
 }
 
 func (a *AtomicTable) DeepCopyInto(b *AtomicTable) {
