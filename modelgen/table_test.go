@@ -686,19 +686,48 @@ func TestStructName(t *testing.T) {
 	}
 }
 
-/*
-TODO: Write Test
 func TestFieldType(t *testing.T) {
+	singleValueSet := `{
+		"type": {
+			"key": {
+				"type": "string"
+			},
+			"min": 0
+		}
+	}`
+	singleValueSetSchema := ovsdb.ColumnSchema{}
+	err := json.Unmarshal([]byte(singleValueSet), &singleValueSetSchema)
+	require.NoError(t, err)
+
+	multipleValueSet := `{
+		"type": {
+			"key": {
+				"type": "string"
+			},
+			"min": 0,
+			"max": 2
+		}
+	}`
+	multipleValueSetSchema := ovsdb.ColumnSchema{}
+	err = json.Unmarshal([]byte(multipleValueSet), &multipleValueSetSchema)
+	require.NoError(t, err)
+
 	tests := []struct {
-		name string
-		in   *ovsdb.ColumnSchema
-		out  string
+		tableName  string
+		columnName string
+		in         *ovsdb.ColumnSchema
+		out        string
+	}{
+		{"t1", "c1", &singleValueSetSchema, "*string"},
+		{"t1", "c2", &multipleValueSetSchema, "[2]string"},
 	}
-	if got := FieldType(tt.args.column); got != tt.want {
-		t.Errorf("FieldType() = %v, want %v", got, tt.want)
+
+	for _, tt := range tests {
+		if got := FieldType(tt.tableName, tt.columnName, tt.in); got != tt.out {
+			t.Errorf("FieldType() = %v, want %v", got, tt.out)
+		}
 	}
 }
-*/
 
 func TestAtomicType(t *testing.T) {
 	tests := []struct {
