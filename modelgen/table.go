@@ -343,7 +343,7 @@ func fieldType(tableName, columnName string, column *ovsdb.ColumnSchema, enumTyp
 			AtomicType(column.TypeObj.Value.Type))
 	case ovsdb.TypeSet:
 		// optional with max 1 element
-		if column.TypeObj.Min() == 0 && column.TypeObj.Max() == 1 {
+		if column.TypeObj.Min() == 0 && (column.TypeObj.Max() == 0 || column.TypeObj.Max() == 1) {
 			if enumTypes && FieldEnum(tableName, columnName, column) != nil {
 				return fmt.Sprintf("*%s", enumName(tableName, columnName))
 			}

@@ -71,7 +71,7 @@ func NativeType(column *ColumnSchema) reflect.Type {
 	case TypeSet:
 		keyType := NativeTypeFromAtomic(column.TypeObj.Key.Type)
 		// optional type
-		if column.TypeObj.Min() == 0 && column.TypeObj.Max() == 1 {
+		if column.TypeObj.Min() == 0 && (column.TypeObj.Max() == 0 || column.TypeObj.Max() == 1) {
 			return reflect.PtrTo(keyType)
 		}
 		// non-optional type with max 1
