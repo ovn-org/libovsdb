@@ -15,11 +15,12 @@ import (
 )
 
 type testModel struct {
-	UUID  string   `ovsdb:"_uuid"`
-	Foo   string   `ovsdb:"foo"`
-	Bar   string   `ovsdb:"bar"`
-	Baz   int      `ovsdb:"baz"`
-	Array []string `ovsdb:"array"`
+	UUID     string   `ovsdb:"_uuid"`
+	Foo      string   `ovsdb:"foo"`
+	Bar      string   `ovsdb:"bar"`
+	Baz      int      `ovsdb:"baz"`
+	Array    []string `ovsdb:"array"`
+	Datapath *string  `ovsdb:"datapath"`
 }
 
 const testSchemaFmt string = `{
@@ -46,6 +47,15 @@ const testSchemaFmt2 string = `
             },
             "min": 0,
             "max": "unlimited"
+          }
+        },
+        "datapath": {
+          "type": {
+            "key": {
+              "type": "string"
+            },
+            "min": 0,
+            "max": 1
           }
         }
       }
@@ -273,9 +283,10 @@ func TestRowCacheCreateMultiIndex(t *testing.T) {
 	var schema ovsdb.DatabaseSchema
 	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
 	require.Nil(t, err)
-	err = json.Unmarshal(getTestSchema(`["foo", "bar"]`), &schema)
+	err = json.Unmarshal(getTestSchema(`["foo", "bar",  "datapath"]`), &schema)
 	require.Nil(t, err)
-	index := newIndexFromColumns("foo", "bar")
+	index := newIndexFromColumns("foo", "bar", "datapath")
+	// Note datapath purposely left empty for initial data to exercise handling of nil pointer
 	testData := Data{
 		"Open_vSwitch": map[string]model.Model{"bar": &testModel{Foo: "bar", Bar: "bar"}},
 	}
@@ -283,6 +294,7 @@ func TestRowCacheCreateMultiIndex(t *testing.T) {
 	require.Empty(t, errs)
 	tc, err := NewTableCache(dbModel, testData, nil)
 	require.Nil(t, err)
+	fakeDatapath := "fakePath"
 	tests := []struct {
 		name               string
 		uuid               string
@@ -325,6 +337,13 @@ func TestRowCacheCreateMultiIndex(t *testing.T) {
 			false,
 			false,
 		},
+		{
+			"new row with non nil pointer value, but other column indexes overlap",
+			"quux2",
+			&testModel{Foo: "bar", Bar: "baz", Datapath: &fakeDatapath},
+			false,
+			false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -340,7 +359,7 @@ func TestRowCacheCreateMultiIndex(t *testing.T) {
 				assert.Nil(t, err)
 				mapperInfo, err := dbModel.NewModelInfo(tt.model)
 				require.Nil(t, err)
-				h, err := valueFromIndex(mapperInfo, newColumnKeysFromColumns("foo", "bar"))
+				h, err := valueFromIndex(mapperInfo, newColumnKeysFromColumns("foo", "bar", "datapath"))
 				require.Nil(t, err)
 				assert.Len(t, rc.indexes[index][h], 1)
 				assert.Equal(t, tt.uuid, rc.indexes[index][h].getAny())
@@ -693,20 +712,21 @@ func TestRowCacheUpdateMultiIndex(t *testing.T) {
 	var schema ovsdb.DatabaseSchema
 	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
 	require.Nil(t, err)
-	err = json.Unmarshal(getTestSchema(`["foo", "bar"]`), &schema)
+	err = json.Unmarshal(getTestSchema(`["foo", "bar", "datapath"]`), &schema)
 	require.Nil(t, err)
-	index := newIndexFromColumns("foo", "bar")
+	index := newIndexFromColumns("foo", "bar", "datapath")
 	testData := Data{
 		"Open_vSwitch": map[string]model.Model{
 			"bar":    &testModel{Foo: "bar", Bar: "bar"},
 			"foobar": &testModel{Foo: "foobar", Bar: "foobar"},
+			"baz":    &testModel{Foo: "blah", Bar: "blah"},
 		},
 	}
 	dbModel, errs := model.NewDatabaseModel(schema, db)
 	assert.Empty(t, errs)
 	tc, err := NewTableCache(dbModel, testData, nil)
 	require.Nil(t, err)
-
+	fakeDatapath := "fakePath"
 	tests := []struct {
 		name    string
 		uuid    string
@@ -732,10 +752,22 @@ func TestRowCacheUpdateMultiIndex(t *testing.T) {
 			false,
 		},
 		{
-			"error new index would cause duplicate",
+			"error updating index would cause duplicate, even with nil pointer index value",
 			"baz",
 			&testModel{Foo: "foobar", Bar: "foobar"},
 			true,
+		},
+		{
+			"update from nil ptr value to non-nil value for index",
+			"baz",
+			&testModel{Foo: "blah", Bar: "blah", Datapath: &fakeDatapath},
+			false,
+		},
+		{
+			"updating overlapping keys with different pointer index value causes no error",
+			"baz",
+			&testModel{Foo: "foobar", Bar: "foobar", Datapath: &fakeDatapath},
+			false,
 		},
 	}
 	for _, tt := range tests {
@@ -749,7 +781,7 @@ func TestRowCacheUpdateMultiIndex(t *testing.T) {
 				assert.Nil(t, err)
 				mapperInfo, err := dbModel.NewModelInfo(tt.model)
 				require.Nil(t, err)
-				h, err := valueFromIndex(mapperInfo, newColumnKeysFromColumns("foo", "bar"))
+				h, err := valueFromIndex(mapperInfo, newColumnKeysFromColumns("foo", "bar", "datapath"))
 				require.Nil(t, err)
 				assert.Len(t, rc.indexes[index][h], 1)
 				assert.Equal(t, tt.uuid, rc.indexes[index][h].getAny())
@@ -1336,7 +1368,16 @@ func TestTableCacheTables(t *testing.T) {
 			    "min": 0,
 			    "max": "unlimited"
 			  }
-			}
+            },
+            "datapath": {
+              "type": {
+                "key": {
+                  "type": "string"
+                },
+                "min": 0,
+                "max": 1
+              }
+            }
 		      }
 		    },
 		    "test2": {
@@ -1358,7 +1399,16 @@ func TestTableCacheTables(t *testing.T) {
 			    "min": 0,
 			    "max": "unlimited"
 			  }
-			}
+            },
+            "datapath": {
+              "type": {
+                "key": {
+                  "type": "string"
+                },
+                "min": 0,
+                "max": 1
+              }
+            }
 		      }
 		    },
 		    "test3": {
@@ -1380,7 +1430,16 @@ func TestTableCacheTables(t *testing.T) {
 			    "min": 0,
 			    "max": "unlimited"
 			  }
-			}
+            },
+            "datapath": {
+              "type": {
+                "key": {
+                  "type": "string"
+                },
+                "min": 0,
+                "max": 1
+              }
+            }
 		      }
 		    }
 		 }
