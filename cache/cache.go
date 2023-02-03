@@ -1462,6 +1462,15 @@ func valueFromIndex(info *mapper.Info, columnKeys []model.ColumnKey) (interface{
 			if err != nil {
 				return "", err
 			}
+			// if object is nil dont try to encode it
+			value := reflect.ValueOf(val)
+			if value.Kind() == reflect.Invalid {
+				continue
+			}
+			// if object is a nil pointer dont try to encode it
+			if value.Kind() == reflect.Pointer && value.IsNil() {
+				continue
+			}
 			err = enc.Encode(val)
 			if err != nil {
 				return "", err
