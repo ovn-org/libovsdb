@@ -11,7 +11,7 @@ require (
 	github.com/ory/dockertest/v3 v3.9.1
 	github.com/prometheus/client_golang v1.12.1
 	github.com/stretchr/testify v1.8.0
-	golang.org/x/text v0.3.6
+	golang.org/x/text v0.3.8
 )
 
 require (
