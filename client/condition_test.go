@@ -7,6 +7,7 @@ import (
 	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
+	"github.com/ovn-org/libovsdb/test/helpers"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -330,7 +331,7 @@ func TestExplicitConditionalWithNoCache(t *testing.T) {
 					{
 						Column:   "external_ids",
 						Function: ovsdb.ConditionIncludes,
-						Value:    testOvsMap(t, map[string]string{"foo": "baz"}),
+						Value:    testhelpers.MakeOvsMap(t, map[string]string{"foo": "baz"}),
 					}}},
 		},
 		{
@@ -347,7 +348,7 @@ func TestExplicitConditionalWithNoCache(t *testing.T) {
 					{
 						Column:   "enabled",
 						Function: ovsdb.ConditionEqual,
-						Value:    testOvsSet(t, &trueVal),
+						Value:    testhelpers.MakeOvsSet(t, &trueVal),
 					}}},
 		},
 		{
@@ -369,7 +370,7 @@ func TestExplicitConditionalWithNoCache(t *testing.T) {
 					{
 						Column:   "enabled",
 						Function: ovsdb.ConditionEqual,
-						Value:    testOvsSet(t, &trueVal),
+						Value:    testhelpers.MakeOvsSet(t, &trueVal),
 					}},
 				{
 					{
@@ -396,7 +397,7 @@ func TestExplicitConditionalWithNoCache(t *testing.T) {
 				{
 					Column:   "enabled",
 					Function: ovsdb.ConditionEqual,
-					Value:    testOvsSet(t, &trueVal),
+					Value:    testhelpers.MakeOvsSet(t, &trueVal),
 				},
 				{
 					Column:   "name",
