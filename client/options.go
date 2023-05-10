@@ -28,6 +28,8 @@ type options struct {
 	shouldRegisterMetrics bool   // in case metrics are changed after-the-fact
 	metricNamespace       string // prometheus metric namespace
 	metricSubsystem       string // prometheus metric subsystem
+	inactiveCheck         bool
+	interval              time.Duration
 }
 
 type Option func(o *options) error
@@ -107,6 +109,22 @@ func WithReconnect(timeout time.Duration, backoff backoff.BackOff) Option {
 		o.reconnect = true
 		o.timeout = timeout
 		o.backoff = backoff
+		return nil
+	}
+}
+
+// WithInactivityCheck tells the client to send Echo request to ovsdb
+// server periodically at specified interval. When echo request fails
+// consecutively 2 * interval, then attempts to reconnect with server.
+// Once reconnect is successful, then aliveness check would go on until
+// connection to the server is shutdown. The timeout argument is used
+// for constructing the context for sending each Echo and Reconnect
+// requests.
+func WithInactivityCheck(timeout, interval time.Duration) Option {
+	return func(o *options) error {
+		o.inactiveCheck = true
+		o.timeout = timeout
+		o.interval = interval
 		return nil
 	}
 }

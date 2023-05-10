@@ -213,6 +213,9 @@ func (o *ovsdbClient) Connect(ctx context.Context) error {
 			return err
 		}
 	}
+	if o.options.inactiveCheck {
+		go o.handleInactivityCheck()
+	}
 	return nil
 }
 
@@ -1171,6 +1174,62 @@ func (o *ovsdbClient) handleClientErrors(stopCh <-chan struct{}) {
 				o.logger.V(3).Error(err, "error updating cache")
 			}
 		}
+	}
+}
+
+func (o *ovsdbClient) handleInactivityCheck() {
+	failCount := 0
+	isInActive := false
+	for {
+		o.shutdownMutex.Lock()
+		o.rpcMutex.Lock()
+		if o.rpcClient == nil || o.shutdown {
+			o.rpcMutex.Unlock()
+			o.shutdownMutex.Unlock()
+			return
+		}
+		o.rpcMutex.Unlock()
+		ctx, cancel := context.WithTimeout(context.Background(), o.options.timeout)
+		if !isInActive {
+			err := o.Echo(ctx)
+			if err != nil {
+				failCount++
+				// When echo fails consecutively 2 times, then consider ovndb connection as inactive.
+				if failCount == 2 {
+					isInActive = true
+				}
+			} else {
+				failCount = 0
+			}
+		} else if isInActive {
+			// Since connection to ovsdb server is inactive for 2 * interval, try to reconnect with it.
+			o.rpcMutex.Lock()
+			if o.rpcClient != nil {
+				// close the stopCh, which will stop the cache event processor
+				close(o.stopCh)
+				// wait for client related handlers to shutdown
+				o.handlerShutdown.Wait()
+			}
+			o.rpcClient = nil
+			o.rpcMutex.Unlock()
+			// need to ensure deferredUpdates is cleared on every reconnect attempt
+			for _, db := range o.databases {
+				db.cacheMutex.Lock()
+				db.deferredUpdates = make([]*bufferedUpdate, 0)
+				db.deferUpdates = true
+				db.cacheMutex.Unlock()
+			}
+			err := o.connect(ctx, true)
+			if err == nil || err == ErrAlreadyConnected {
+				isInActive = false
+				failCount = 0
+			} else {
+				o.resetRPCClient()
+			}
+		}
+		o.shutdownMutex.Unlock()
+		cancel()
+		time.Sleep(o.options.interval)
 	}
 }
 
