@@ -59,7 +59,7 @@ type Bridge struct {
 	DatapathVersion     string            `ovsdb:"datapath_version"`
 	ExternalIDs         map[string]string `ovsdb:"external_ids"`
 	FailMode            *BridgeFailMode   `ovsdb:"fail_mode"`
-	FloodVLANs          [4096]int         `ovsdb:"flood_vlans"`
+	FloodVLANs          []int             `ovsdb:"flood_vlans"`
 	FlowTables          map[int]string    `ovsdb:"flow_tables"`
 	IPFIX               *string           `ovsdb:"ipfix"`
 	McastSnoopingEnable bool              `ovsdb:"mcast_snooping_enable"`
@@ -487,18 +487,6 @@ var schema = `{
 	  }
 	}
   }`
-
-func testOvsSet(t *testing.T, set interface{}) ovsdb.OvsSet {
-	oSet, err := ovsdb.NewOvsSet(set)
-	assert.Nil(t, err)
-	return oSet
-}
-
-func testOvsMap(t *testing.T, set interface{}) ovsdb.OvsMap {
-	oMap, err := ovsdb.NewOvsMap(set)
-	assert.Nil(t, err)
-	return oMap
-}
 
 func updateBenchmark(ovs *ovsdbClient, updates []byte, b *testing.B) {
 	for n := 0; n < b.N; n++ {

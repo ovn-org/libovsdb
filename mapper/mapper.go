@@ -118,6 +118,9 @@ func (m Mapper) NewRow(data *Info, fields ...interface{}) (ovsdb.Row, error) {
 		if len(fields) == 0 && ovsdb.IsDefaultValue(column, nativeElem) {
 			continue
 		}
+		if err := ovsdb.ValidateColumnConstraints(column, nativeElem); err != nil {
+			return nil, fmt.Errorf("column %s assignment failed: %w", column, err)
+		}
 		ovsElem, err := ovsdb.NativeToOvs(column, nativeElem)
 		if err != nil {
 			return nil, fmt.Errorf("table %s, column %s: failed to generate ovs element. %s", data.Metadata.TableName, name, err.Error())
@@ -247,7 +250,7 @@ func (m Mapper) NewMutation(data *Info, column string, mutator ovsdb.Mutator, va
 	// keys (rfc7047 5.1). Handle this special case here.
 	if mutator == "delete" && columnSchema.Type == ovsdb.TypeMap && reflect.TypeOf(value).Kind() != reflect.Map {
 		// It's OK to cast the value to a list of elements because validation has passed
-		ovsSet, err := ovsdb.NewOvsSet(value)
+		ovsSet, err := ovsdb.NewOvsSet(columnSchema.TypeObj.Key.Type, value)
 		if err != nil {
 			return nil, err
 		}

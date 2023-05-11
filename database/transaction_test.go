@@ -11,6 +11,7 @@ import (
 	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
+	"github.com/ovn-org/libovsdb/test/helpers"
 
 	. "github.com/ovn-org/libovsdb/test"
 )
@@ -286,6 +287,7 @@ func TestMutateOp(t *testing.T) {
 			"baz":   "quux",
 			"waldo": "fred",
 		},
+		FloodVLANs: []int{1, 2, 3},
 	}
 	bridgeInfo, err := dbModel.NewModelInfo(&bridge)
 	require.NoError(t, err)
@@ -330,7 +332,8 @@ func TestMutateOp(t *testing.T) {
 	err = db.Commit("Open_vSwitch", uuid.New(), *gotUpdate)
 	require.NoError(t, err)
 
-	bridgeSet, err := ovsdb.NewOvsSet([]ovsdb.UUID{{GoUUID: bridgeUUID}})
+	bridgesSchema := info.Metadata.TableSchema.Column("bridges")
+	bridgeSet, err := ovsdb.NewOvsSet(bridgesSchema.TypeObj.Key.Type, []ovsdb.UUID{{GoUUID: bridgeUUID}})
 	assert.Nil(t, err)
 	assert.Equal(t, ovsdb.TableUpdates2{
 		"Open_vSwitch": ovsdb.TableUpdate2{
@@ -351,7 +354,8 @@ func TestMutateOp(t *testing.T) {
 		},
 	}, getTableUpdates(*gotUpdate))
 
-	keyDelete, err := ovsdb.NewOvsSet([]string{"foo"})
+	extIDSchema := bridgeInfo.Metadata.TableSchema.Column("external_ids")
+	keyDelete, err := ovsdb.NewOvsSet(extIDSchema.TypeObj.Key.Type, []string{"foo"})
 	assert.Nil(t, err)
 	keyValueDelete, err := ovsdb.NewOvsMap(map[string]string{"baz": "quux"})
 	assert.Nil(t, err)
@@ -380,6 +384,21 @@ func TestMutateOp(t *testing.T) {
 	assert.Equal(t, diffExternalIds, gotModify["external_ids"])
 	assert.Equal(t, oldExternalIds, gotOld["external_ids"])
 	assert.Equal(t, newExternalIds, gotNew["external_ids"])
+
+	// Test that attempting to mutate a set to exceed its allowed size results in an error
+	floodVLANsSchema := bridgeInfo.Metadata.TableSchema.Column("flood_vlans")
+	keyInsert, err := ovsdb.NewOvsSet(floodVLANsSchema.TypeObj.Key.Type, []int{33})
+	assert.Nil(t, err)
+	gotResult, gotUpdate, err = transaction.Mutate(
+		"Bridge",
+		[]ovsdb.Condition{
+			ovsdb.NewCondition("_uuid", ovsdb.ConditionEqual, ovsdb.UUID{GoUUID: bridgeUUID}),
+		},
+		[]ovsdb.Mutation{
+			*ovsdb.NewMutation("flood_vlans", ovsdb.MutateOperationInsert, keyInsert),
+		},
+	)
+	assert.Error(t, err)
 }
 
 func TestOvsdbServerInsert(t *testing.T) {
@@ -476,12 +495,14 @@ func TestOvsdbServerUpdate(t *testing.T) {
 	err = db.Commit("Open_vSwitch", uuid.New(), *updates)
 	assert.NoError(t, err)
 
-	halloween, _ := ovsdb.NewOvsSet([]string{"halloween"})
-	emptySet, _ := ovsdb.NewOvsSet([]string{})
+	halloween := testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{"halloween"})
+	emptySet := testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{})
+	floodVlanSet := testhelpers.MakeOvsSet(t, ovsdb.TypeInteger, []int{1, 2, 3, 4, 5, 6, 7})
 	tests := []struct {
-		name     string
-		row      ovsdb.Row
-		expected *ovsdb.RowUpdate2
+		name      string
+		row       ovsdb.Row
+		expected  *ovsdb.RowUpdate2
+		expectErr bool
 	}{
 		{
 			"update single field",
@@ -491,6 +512,13 @@ func TestOvsdbServerUpdate(t *testing.T) {
 					"datapath_type": "waldo",
 				},
 			},
+			false,
+		},
+		{
+			"update single field with too-large array",
+			ovsdb.Row{"flood_vlans": floodVlanSet},
+			nil,
+			true,
 		},
 		{
 			"update single optional field, with direct value",
@@ -500,6 +528,7 @@ func TestOvsdbServerUpdate(t *testing.T) {
 					"datapath_id": halloween,
 				},
 			},
+			false,
 		},
 		{
 			"update single optional field, with set",
@@ -509,6 +538,7 @@ func TestOvsdbServerUpdate(t *testing.T) {
 					"datapath_id": halloween,
 				},
 			},
+			false,
 		},
 		{
 			"unset single optional field",
@@ -518,6 +548,7 @@ func TestOvsdbServerUpdate(t *testing.T) {
 					"datapath_id": emptySet,
 				},
 			},
+			false,
 		},
 	}
 	for _, tt := range tests {
@@ -532,14 +563,18 @@ func TestOvsdbServerUpdate(t *testing.T) {
 			}
 			res, updates := transaction.Update(&op)
 			errs, err := ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "update"}})
-			require.NoErrorf(t, err, "%+v", errs)
+			if tt.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoErrorf(t, err, "%+v", errs)
 
-			bridge.UUID = bridgeUUID
-			row, err := db.Get("Open_vSwitch", "Bridge", bridgeUUID)
-			assert.NoError(t, err)
-			br := row.(*BridgeType)
-			assert.NotEqual(t, br, bridgeRow)
-			assert.Equal(t, tt.expected.Modify, getTableUpdates(*updates)["Bridge"][bridgeUUID].Modify)
+				bridge.UUID = bridgeUUID
+				row, err := db.Get("Open_vSwitch", "Bridge", bridgeUUID)
+				assert.NoError(t, err)
+				br := row.(*BridgeType)
+				assert.NotEqual(t, br, bridgeRow)
+				assert.Equal(t, tt.expected.Modify, getTableUpdates(*updates)["Bridge"][bridgeUUID].Modify)
+			}
 		})
 	}
 }
@@ -572,7 +607,7 @@ func TestMultipleOps(t *testing.T) {
 			ovsdb.NewCondition("_uuid", ovsdb.ConditionEqual, ovsdb.UUID{GoUUID: bridgeUUID}),
 		},
 		Row: ovsdb.Row{
-			"ports":        ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "port1"}, ovsdb.UUID{GoUUID: "port10"}}},
+			"ports":        testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "port1"}, {GoUUID: "port10"}}),
 			"external_ids": ovsdb.OvsMap{GoMap: map[interface{}]interface{}{"key1": "value1", "key10": "value10"}},
 		},
 	}
@@ -598,7 +633,7 @@ func TestMultipleOps(t *testing.T) {
 		Op: ovsdb.OperationMutate,
 		Mutations: []ovsdb.Mutation{
 			*ovsdb.NewMutation("external_ids", ovsdb.MutateOperationInsert, ovsdb.OvsMap{GoMap: map[interface{}]interface{}{"keyA": "valueA"}}),
-			*ovsdb.NewMutation("ports", ovsdb.MutateOperationDelete, ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "port1"}, ovsdb.UUID{GoUUID: "port10"}}}),
+			*ovsdb.NewMutation("ports", ovsdb.MutateOperationDelete, testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "port1"}, {GoUUID: "port10"}})),
 		},
 	}
 	ops = append(ops, op)
@@ -611,7 +646,7 @@ func TestMultipleOps(t *testing.T) {
 		Op: ovsdb.OperationMutate,
 		Mutations: []ovsdb.Mutation{
 			*ovsdb.NewMutation("external_ids", ovsdb.MutateOperationDelete, ovsdb.OvsMap{GoMap: map[interface{}]interface{}{"key10": "value10"}}),
-			*ovsdb.NewMutation("ports", ovsdb.MutateOperationInsert, ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "port1"}}}),
+			*ovsdb.NewMutation("ports", ovsdb.MutateOperationInsert, testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "port1"}})),
 		},
 	}
 	ops = append(ops, op2)
@@ -628,19 +663,19 @@ func TestMultipleOps(t *testing.T) {
 			bridgeUUID: &ovsdb.RowUpdate2{
 				Modify: &ovsdb.Row{
 					"external_ids": ovsdb.OvsMap{GoMap: map[interface{}]interface{}{"keyA": "valueA", "key10": "value10"}},
-					"ports":        ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "port10"}}},
+					"ports":        testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "port10"}}),
 				},
 				Old: &ovsdb.Row{
 					"_uuid":        ovsdb.UUID{GoUUID: bridgeUUID},
 					"name":         "a_bridge_to_nowhere",
 					"external_ids": ovsdb.OvsMap{GoMap: map[interface{}]interface{}{"key1": "value1", "key10": "value10"}},
-					"ports":        ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "port1"}, ovsdb.UUID{GoUUID: "port10"}}},
+					"ports":        testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "port1"}, {GoUUID: "port10"}}),
 				},
 				New: &ovsdb.Row{
 					"_uuid":        ovsdb.UUID{GoUUID: bridgeUUID},
 					"name":         "a_bridge_to_nowhere",
 					"external_ids": ovsdb.OvsMap{GoMap: map[interface{}]interface{}{"key1": "value1", "keyA": "valueA"}},
-					"ports":        ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "port1"}}},
+					"ports":        testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: "port1"}}),
 				},
 			},
 		},

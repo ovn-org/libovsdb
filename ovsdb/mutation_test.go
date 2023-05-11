@@ -9,6 +9,11 @@ import (
 )
 
 func TestMutationMarshalUnmarshalJSON(t *testing.T) {
+	stringSet, err := NewOvsSet(TypeString, []interface{}{"foo", "bar", "baz"})
+	assert.NoError(t, err)
+	uuidSet, err := NewOvsSet(TypeUUID, []interface{}{UUID{GoUUID: "foo"}, UUID{GoUUID: "bar"}})
+	assert.NoError(t, err)
+
 	tests := []struct {
 		name     string
 		mutation Mutation
@@ -65,7 +70,7 @@ func TestMutationMarshalUnmarshalJSON(t *testing.T) {
 		},
 		{
 			"test set",
-			Mutation{"foo", MutateOperationInsert, OvsSet{GoSet: []interface{}{"foo", "bar", "baz"}}},
+			Mutation{"foo", MutateOperationInsert, stringSet},
 			`[ "foo", "insert", ["set",["foo", "bar", "baz"]] ]`,
 			false,
 		},
@@ -77,7 +82,7 @@ func TestMutationMarshalUnmarshalJSON(t *testing.T) {
 		},
 		{
 			"test uuid set",
-			Mutation{"foo", MutateOperationInsert, OvsSet{GoSet: []interface{}{UUID{GoUUID: "foo"}, UUID{GoUUID: "bar"}}}},
+			Mutation{"foo", MutateOperationInsert, uuidSet},
 			`[ "foo", "insert", ["set",[["named-uuid", "foo"], ["named-uuid", "bar"]]] ]`,
 			false,
 		},

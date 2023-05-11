@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ovn-org/libovsdb/ovsdb"
+	"github.com/ovn-org/libovsdb/test/helpers"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -32,11 +33,13 @@ var (
 	}
 	aFloat = 42.00
 
-	aFloatSet = [10]float64{
+	aFloatSet = []float64{
 		3.0,
 		2.0,
 		42.0,
 	}
+
+	aFloatSetTooBig = []float64{1.0, 2.0, 3.0, 4.0, 5.0, 6.0}
 
 	aMap = map[string]string{
 		"key1": "value1",
@@ -113,7 +116,7 @@ var testSchema = []byte(`{
               "type": "real"
             },
             "min": 0,
-            "max": 10
+            "max": 5
           }
         },
         "aEmptySet": {
@@ -156,7 +159,7 @@ var testSchema = []byte(`{
 func getOvsTestRow(t *testing.T) ovsdb.Row {
 	ovsRow := ovsdb.NewRow()
 	ovsRow["aString"] = aString
-	ovsRow["aSet"] = testOvsSet(t, aSet)
+	ovsRow["aSet"] = testhelpers.MakeOvsSet(t, ovsdb.TypeString, aSet)
 	// Set's can hold the value if they have len == 1
 	ovsRow["aSingleSet"] = aString
 
@@ -164,21 +167,21 @@ func getOvsTestRow(t *testing.T) ovsdb.Row {
 	for _, u := range aUUIDSet {
 		us = append(us, ovsdb.UUID{GoUUID: u})
 	}
-	ovsRow["aUUIDSet"] = testOvsSet(t, us)
+	ovsRow["aUUIDSet"] = testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, us)
 
 	ovsRow["aUUID"] = ovsdb.UUID{GoUUID: aUUID0}
 
-	ovsRow["aIntSet"] = testOvsSet(t, aIntSet)
+	ovsRow["aIntSet"] = testhelpers.MakeOvsSet(t, ovsdb.TypeInteger, aIntSet)
 
 	ovsRow["aFloat"] = aFloat
 
-	ovsRow["aFloatSet"] = testOvsSet(t, aFloatSet)
+	ovsRow["aFloatSet"] = testhelpers.MakeOvsSet(t, ovsdb.TypeReal, aFloatSet)
 
-	ovsRow["aEmptySet"] = testOvsSet(t, []string{})
+	ovsRow["aEmptySet"] = testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{})
 
 	ovsRow["aEnum"] = aEnum
 
-	ovsRow["aMap"] = testOvsMap(t, aMap)
+	ovsRow["aMap"] = testhelpers.MakeOvsMap(t, aMap)
 
 	return ovsRow
 }
@@ -192,7 +195,7 @@ func TestMapperGetData(t *testing.T) {
 		AUUID               string            `ovsdb:"aUUID"`
 		AIntSet             []int             `ovsdb:"aIntSet"`
 		AFloat              float64           `ovsdb:"aFloat"`
-		AFloatSet           [10]float64       `ovsdb:"aFloatSet"`
+		AFloatSet           []float64         `ovsdb:"aFloatSet"`
 		YetAnotherStringSet []string          `ovsdb:"aEmptySet"`
 		AEnum               string            `ovsdb:"aEnum"`
 		AMap                map[string]string `ovsdb:"aMap"`
@@ -214,28 +217,49 @@ func TestMapperGetData(t *testing.T) {
 		NonTagged:           "something",
 	}
 
-	ovsRow := getOvsTestRow(t)
 	/* Code under test */
 	var schema ovsdb.DatabaseSchema
 	if err := json.Unmarshal(testSchema, &schema); err != nil {
 		t.Error(err)
 	}
 
-	mapper := NewMapper(schema)
-	test := ormTestType{
-		NonTagged: "something",
-	}
-	testInfo, err := NewInfo("TestTable", schema.Table("TestTable"), &test)
-	assert.NoError(t, err)
+	tests := []struct {
+		name        string
+		setup       func() ovsdb.Row
+		expectErr   bool
+	}{{
+		name:  "basic",
+		setup: func() ovsdb.Row {
+			return getOvsTestRow(t)
+		},
+	}, {
+		name:  "too big array",
+		setup: func() ovsdb.Row {
+			testRow := getOvsTestRow(t)
+			testRow["aFloatSet"] = test.MakeOvsSet(t, ovsdb.TypeReal, aFloatSetTooBig)
+			return testRow
+		},
+		expectErr: true,
+	}}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("GetData: %s", test.name), func(t *testing.T) {
+			mapper := NewMapper(schema)
+			tt := ormTestType{
+				NonTagged: "something",
+			}
+			testInfo, err := NewInfo("TestTable", schema.Table("TestTable"), &tt)
+			assert.NoError(t, err)
 
-	err = mapper.GetRowData(&ovsRow, testInfo)
-	assert.NoError(t, err)
-	/*End code under test*/
-
-	if err != nil {
-		t.Error(err)
+			ovsRow := test.setup()
+			err = mapper.GetRowData(&ovsRow, testInfo)
+			if test.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, expected, tt)
+			}
+		})
 	}
-	assert.Equal(t, expected, test)
 }
 
 func TestMapperNewRow(t *testing.T) {
@@ -264,7 +288,7 @@ func TestMapperNewRow(t *testing.T) {
 		}{
 			SomeSet: aSet,
 		},
-		expectedRow: ovsdb.Row(map[string]interface{}{"aSet": testOvsSet(t, aSet)}),
+		expectedRow: ovsdb.Row(map[string]interface{}{"aSet": testhelpers.MakeOvsSet(t, ovsdb.TypeString, aSet)}),
 	}, {
 		name: "emptySet with no column specification",
 		objInput: &struct {
@@ -288,7 +312,7 @@ func TestMapperNewRow(t *testing.T) {
 		}{
 			MyUUIDSet: []string{aUUID0, aUUID1},
 		},
-		expectedRow: ovsdb.Row(map[string]interface{}{"aUUIDSet": testOvsSet(t, []ovsdb.UUID{{GoUUID: aUUID0}, {GoUUID: aUUID1}})}),
+		expectedRow: ovsdb.Row(map[string]interface{}{"aUUIDSet": testhelpers.MakeOvsSet(t, ovsdb.TypeUUID, []ovsdb.UUID{{GoUUID: aUUID0}, {GoUUID: aUUID1}})}),
 	}, {
 		name: "aIntSet",
 		objInput: &struct {
@@ -296,7 +320,7 @@ func TestMapperNewRow(t *testing.T) {
 		}{
 			MyIntSet: []int{0, 42},
 		},
-		expectedRow: ovsdb.Row(map[string]interface{}{"aIntSet": testOvsSet(t, []int{0, 42})}),
+		expectedRow: ovsdb.Row(map[string]interface{}{"aIntSet": testhelpers.MakeOvsSet(t, ovsdb.TypeInteger, []int{0, 42})}),
 	}, {
 		name: "aFloat",
 		objInput: &struct {
@@ -308,11 +332,19 @@ func TestMapperNewRow(t *testing.T) {
 	}, {
 		name: "aFloatSet",
 		objInput: &struct {
-			MyFloatSet [10]float64 `ovsdb:"aFloatSet"`
+			MyFloatSet []float64 `ovsdb:"aFloatSet"`
 		}{
 			MyFloatSet: aFloatSet,
 		},
-		expectedRow: ovsdb.Row(map[string]interface{}{"aFloatSet": testOvsSet(t, aFloatSet)}),
+		expectedRow: ovsdb.Row(map[string]interface{}{"aFloatSet": testhelpers.MakeOvsSet(t, ovsdb.TypeReal, aFloatSet)}),
+	}, {
+		name: "aFloatSet too big",
+		objInput: &struct {
+			MyFloatSet []float64 `ovsdb:"aFloatSet"`
+		}{
+			MyFloatSet: aFloatSetTooBig,
+		},
+		shoulderr: true,
 	}, {
 		name: "Enum",
 		objInput: &struct {
@@ -338,7 +370,7 @@ func TestMapperNewRow(t *testing.T) {
 		}{
 			MyMap: aMap,
 		},
-		expectedRow: ovsdb.Row(map[string]interface{}{"aMap": testOvsMap(t, aMap)}),
+		expectedRow: ovsdb.Row(map[string]interface{}{"aMap": testhelpers.MakeOvsMap(t, aMap)}),
 	},
 	}
 	for _, test := range tests {
@@ -400,7 +432,7 @@ func TestMapperNewRowFields(t *testing.T) {
 		prepare: func(o *obj) {
 		},
 		fields:      []interface{}{&testObj.MySet},
-		expectedRow: ovsdb.Row(map[string]interface{}{"aSet": testOvsSet(t, []string{})}),
+		expectedRow: ovsdb.Row(map[string]interface{}{"aSet": testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{})}),
 	}, {
 		name: "empty maps",
 		prepare: func(o *obj) {
@@ -413,7 +445,7 @@ func TestMapperNewRowFields(t *testing.T) {
 			o.MyString = "foo"
 		},
 		fields:      []interface{}{&testObj.MyMap},
-		expectedRow: ovsdb.Row(map[string]interface{}{"aMap": testOvsMap(t, map[string]string{})}),
+		expectedRow: ovsdb.Row(map[string]interface{}{"aMap": testhelpers.MakeOvsMap(t, map[string]string{})}),
 	}, {
 		name: "Complex object with field selection",
 		prepare: func(o *obj) {
@@ -423,7 +455,7 @@ func TestMapperNewRowFields(t *testing.T) {
 			o.MyFloat = aFloat
 		},
 		fields:      []interface{}{&testObj.MyMap, &testObj.MySet},
-		expectedRow: ovsdb.Row(map[string]interface{}{"aMap": testOvsMap(t, aMap), "aSet": testOvsSet(t, aSet)}),
+		expectedRow: ovsdb.Row(map[string]interface{}{"aMap": testhelpers.MakeOvsMap(t, aMap), "aSet": testhelpers.MakeOvsSet(t, ovsdb.TypeString, aSet)}),
 	},
 	}
 
@@ -988,7 +1020,7 @@ func TestMapperMutation(t *testing.T) {
 			obj:      testType{},
 			mutator:  ovsdb.MutateOperationInsert,
 			value:    []string{"foo"},
-			expected: ovsdb.NewMutation("set", ovsdb.MutateOperationInsert, testOvsSet(t, []string{"foo"})),
+			expected: ovsdb.NewMutation("set", ovsdb.MutateOperationInsert, testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{"foo"})),
 			err:      false,
 		},
 		{
@@ -997,7 +1029,7 @@ func TestMapperMutation(t *testing.T) {
 			obj:      testType{},
 			mutator:  ovsdb.MutateOperationDelete,
 			value:    []string{"foo"},
-			expected: ovsdb.NewMutation("set", ovsdb.MutateOperationDelete, testOvsSet(t, []string{"foo"})),
+			expected: ovsdb.NewMutation("set", ovsdb.MutateOperationDelete, testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{"foo"})),
 			err:      false,
 		},
 		{
@@ -1006,7 +1038,7 @@ func TestMapperMutation(t *testing.T) {
 			obj:      testType{},
 			mutator:  ovsdb.MutateOperationDelete,
 			value:    []string{"foo", "bar"},
-			expected: ovsdb.NewMutation("map", ovsdb.MutateOperationDelete, testOvsSet(t, []string{"foo", "bar"})),
+			expected: ovsdb.NewMutation("map", ovsdb.MutateOperationDelete, testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{"foo", "bar"})),
 			err:      false,
 		},
 		{
@@ -1015,7 +1047,7 @@ func TestMapperMutation(t *testing.T) {
 			obj:      testType{},
 			mutator:  ovsdb.MutateOperationDelete,
 			value:    map[string]string{"foo": "bar"},
-			expected: ovsdb.NewMutation("map", ovsdb.MutateOperationDelete, testOvsMap(t, map[string]string{"foo": "bar"})),
+			expected: ovsdb.NewMutation("map", ovsdb.MutateOperationDelete, testhelpers.MakeOvsMap(t, map[string]string{"foo": "bar"})),
 			err:      false,
 		},
 		{
@@ -1024,7 +1056,7 @@ func TestMapperMutation(t *testing.T) {
 			obj:      testType{},
 			mutator:  ovsdb.MutateOperationInsert,
 			value:    map[string]string{"foo": "bar"},
-			expected: ovsdb.NewMutation("map", ovsdb.MutateOperationInsert, testOvsMap(t, map[string]string{"foo": "bar"})),
+			expected: ovsdb.NewMutation("map", ovsdb.MutateOperationInsert, testhelpers.MakeOvsMap(t, map[string]string{"foo": "bar"})),
 			err:      false,
 		},
 	}
@@ -1047,16 +1079,4 @@ func TestMapperMutation(t *testing.T) {
 			assert.Equalf(t, test.expected, mutation, "Mutation must match expected")
 		})
 	}
-}
-
-func testOvsSet(t *testing.T, set interface{}) ovsdb.OvsSet {
-	oSet, err := ovsdb.NewOvsSet(set)
-	assert.Nil(t, err)
-	return oSet
-}
-
-func testOvsMap(t *testing.T, set interface{}) ovsdb.OvsMap {
-	oMap, err := ovsdb.NewOvsMap(set)
-	assert.Nil(t, err)
-	return oMap
 }

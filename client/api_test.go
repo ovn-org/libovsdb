@@ -12,6 +12,7 @@ import (
 	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
+	"github.com/ovn-org/libovsdb/test/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -914,7 +915,7 @@ func TestAPIMutate(t *testing.T) {
 				{
 					Op:        ovsdb.OperationMutate,
 					Table:     "Logical_Switch_Port",
-					Mutations: []ovsdb.Mutation{{Column: "addresses", Mutator: ovsdb.MutateOperationInsert, Value: testOvsSet(t, []string{"1.1.1.1"})}},
+					Mutations: []ovsdb.Mutation{{Column: "addresses", Mutator: ovsdb.MutateOperationInsert, Value: testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{"1.1.1.1"})}},
 					Where:     []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID0}}},
 				},
 			},
@@ -940,19 +941,19 @@ func TestAPIMutate(t *testing.T) {
 				{
 					Op:        ovsdb.OperationMutate,
 					Table:     "Logical_Switch_Port",
-					Mutations: []ovsdb.Mutation{{Column: "addresses", Mutator: ovsdb.MutateOperationInsert, Value: testOvsSet(t, []string{"2.2.2.2"})}},
+					Mutations: []ovsdb.Mutation{{Column: "addresses", Mutator: ovsdb.MutateOperationInsert, Value: testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{"2.2.2.2"})}},
 					Where:     []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID0}}},
 				},
 				{
 					Op:        ovsdb.OperationMutate,
 					Table:     "Logical_Switch_Port",
-					Mutations: []ovsdb.Mutation{{Column: "addresses", Mutator: ovsdb.MutateOperationInsert, Value: testOvsSet(t, []string{"2.2.2.2"})}},
+					Mutations: []ovsdb.Mutation{{Column: "addresses", Mutator: ovsdb.MutateOperationInsert, Value: testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{"2.2.2.2"})}},
 					Where:     []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID1}}},
 				},
 				{
 					Op:        ovsdb.OperationMutate,
 					Table:     "Logical_Switch_Port",
-					Mutations: []ovsdb.Mutation{{Column: "addresses", Mutator: ovsdb.MutateOperationInsert, Value: testOvsSet(t, []string{"2.2.2.2"})}},
+					Mutations: []ovsdb.Mutation{{Column: "addresses", Mutator: ovsdb.MutateOperationInsert, Value: testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{"2.2.2.2"})}},
 					Where:     []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID2}}},
 				},
 			},
@@ -976,7 +977,7 @@ func TestAPIMutate(t *testing.T) {
 				{
 					Op:        ovsdb.OperationMutate,
 					Table:     "Logical_Switch_Port",
-					Mutations: []ovsdb.Mutation{{Column: "external_ids", Mutator: ovsdb.MutateOperationDelete, Value: testOvsSet(t, []string{"foo"})}},
+					Mutations: []ovsdb.Mutation{{Column: "external_ids", Mutator: ovsdb.MutateOperationDelete, Value: testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{"foo"})}},
 					Where:     []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID2}}},
 				},
 			},
@@ -1000,7 +1001,7 @@ func TestAPIMutate(t *testing.T) {
 				{
 					Op:        ovsdb.OperationMutate,
 					Table:     "Logical_Switch_Port",
-					Mutations: []ovsdb.Mutation{{Column: "external_ids", Mutator: ovsdb.MutateOperationDelete, Value: testOvsSet(t, []string{"foo"})}},
+					Mutations: []ovsdb.Mutation{{Column: "external_ids", Mutator: ovsdb.MutateOperationDelete, Value: testhelpers.MakeOvsSet(t, ovsdb.TypeString, []string{"foo"})}},
 					Where:     []ovsdb.Condition{{Column: "name", Function: ovsdb.ConditionEqual, Value: "foo"}},
 				},
 			},
@@ -1024,7 +1025,7 @@ func TestAPIMutate(t *testing.T) {
 				{
 					Op:        ovsdb.OperationMutate,
 					Table:     "Logical_Switch_Port",
-					Mutations: []ovsdb.Mutation{{Column: "external_ids", Mutator: ovsdb.MutateOperationInsert, Value: testOvsMap(t, map[string]string{"bar": "baz"})}},
+					Mutations: []ovsdb.Mutation{{Column: "external_ids", Mutator: ovsdb.MutateOperationInsert, Value: testhelpers.MakeOvsMap(t, map[string]string{"bar": "baz"})}},
 					Where:     []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID2}}},
 				},
 			},
@@ -1048,13 +1049,13 @@ func TestAPIMutate(t *testing.T) {
 				{
 					Op:        ovsdb.OperationMutate,
 					Table:     "Logical_Switch_Port",
-					Mutations: []ovsdb.Mutation{{Column: "external_ids", Mutator: ovsdb.MutateOperationInsert, Value: testOvsMap(t, map[string]string{"bar": "baz"})}},
+					Mutations: []ovsdb.Mutation{{Column: "external_ids", Mutator: ovsdb.MutateOperationInsert, Value: testhelpers.MakeOvsMap(t, map[string]string{"bar": "baz"})}},
 					Where:     []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID0}}},
 				},
 				{
 					Op:        ovsdb.OperationMutate,
 					Table:     "Logical_Switch_Port",
-					Mutations: []ovsdb.Mutation{{Column: "external_ids", Mutator: ovsdb.MutateOperationInsert, Value: testOvsMap(t, map[string]string{"bar": "baz"})}},
+					Mutations: []ovsdb.Mutation{{Column: "external_ids", Mutator: ovsdb.MutateOperationInsert, Value: testhelpers.MakeOvsMap(t, map[string]string{"bar": "baz"})}},
 					Where:     []ovsdb.Condition{{Column: "_uuid", Function: ovsdb.ConditionEqual, Value: ovsdb.UUID{GoUUID: aUUID1}}},
 				},
 			},
@@ -1136,10 +1137,10 @@ func TestAPIUpdate(t *testing.T) {
 	tcache := apiTestCache(t, testData)
 
 	testObj := testLogicalSwitchPort{}
-	testRow := ovsdb.Row(map[string]interface{}{"type": "somethingElse", "tag": testOvsSet(t, []int{6})})
-	tagRow := ovsdb.Row(map[string]interface{}{"tag": testOvsSet(t, []int{6})})
+	testRow := ovsdb.Row(map[string]interface{}{"type": "somethingElse", "tag": testhelpers.MakeOvsSet(t, ovsdb.TypeInteger, []int{6})})
+	tagRow := ovsdb.Row(map[string]interface{}{"tag": testhelpers.MakeOvsSet(t, ovsdb.TypeInteger, []int{6})})
 	var nilInt *int
-	testNilRow := ovsdb.Row(map[string]interface{}{"type": "somethingElse", "tag": testOvsSet(t, nilInt)})
+	testNilRow := ovsdb.Row(map[string]interface{}{"type": "somethingElse", "tag": testhelpers.MakeOvsSet(t, ovsdb.TypeInteger, nilInt)})
 	typeRow := ovsdb.Row(map[string]interface{}{"type": "somethingElse"})
 	fields := []interface{}{&testObj.Tag, &testObj.Type}
 
@@ -1350,7 +1351,7 @@ func TestAPIUpdate(t *testing.T) {
 					Row:   tagRow,
 					Where: []ovsdb.Condition{
 						{Column: "type", Function: ovsdb.ConditionEqual, Value: "sometype"},
-						{Column: "enabled", Function: ovsdb.ConditionIncludes, Value: testOvsSet(t, &trueVal)},
+						{Column: "enabled", Function: ovsdb.ConditionIncludes, Value: testhelpers.MakeOvsSet(t, ovsdb.TypeBoolean, &trueVal)},
 					},
 				},
 			},
@@ -1403,7 +1404,7 @@ func TestAPIUpdate(t *testing.T) {
 					Op:    ovsdb.OperationUpdate,
 					Table: "Logical_Switch_Port",
 					Row:   tagRow,
-					Where: []ovsdb.Condition{{Column: "tag", Function: ovsdb.ConditionNotEqual, Value: testOvsSet(t, &one)}},
+					Where: []ovsdb.Condition{{Column: "tag", Function: ovsdb.ConditionNotEqual, Value: testhelpers.MakeOvsSet(t, ovsdb.TypeInteger, &one)}},
 				},
 			},
 			err: false,
@@ -1944,7 +1945,7 @@ func TestAPIWait(t *testing.T) {
 						{
 							Column:   "up",
 							Function: ovsdb.ConditionNotEqual,
-							Value:    ovsdb.OvsSet{GoSet: []interface{}{true}},
+							Value:    testhelpers.MakeOvsSet(t, ovsdb.TypeBoolean, []interface{}{true}),
 						},
 					},
 					Until:   string(ovsdb.WaitConditionNotEqual),

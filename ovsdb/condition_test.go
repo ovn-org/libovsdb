@@ -9,6 +9,11 @@ import (
 )
 
 func TestConditionMarshalUnmarshalJSON(t *testing.T) {
+	stringSet, err := NewOvsSet(TypeString, []interface{}{"foo", "bar", "baz"})
+	assert.NoError(t, err)
+	uuidSet, err := NewOvsSet(TypeUUID, []interface{}{UUID{GoUUID: "foo"}, UUID{GoUUID: "bar"}})
+	assert.NoError(t, err)
+
 	tests := []struct {
 		name      string
 		condition Condition
@@ -71,7 +76,7 @@ func TestConditionMarshalUnmarshalJSON(t *testing.T) {
 		},
 		{
 			"test set",
-			Condition{"foo", ConditionExcludes, OvsSet{GoSet: []interface{}{"foo", "bar", "baz"}}},
+			Condition{"foo", ConditionExcludes, stringSet},
 			`[ "foo", "excludes", ["set",["foo", "bar", "baz"]] ]`,
 			false,
 		},
@@ -83,7 +88,7 @@ func TestConditionMarshalUnmarshalJSON(t *testing.T) {
 		},
 		{
 			"test uuid set",
-			Condition{"foo", ConditionExcludes, OvsSet{GoSet: []interface{}{UUID{GoUUID: "foo"}, UUID{GoUUID: "bar"}}}},
+			Condition{"foo", ConditionExcludes, uuidSet},
 			`[ "foo", "excludes", ["set",[["named-uuid", "foo"], ["named-uuid", "bar"]]] ]`,
 			false,
 		},

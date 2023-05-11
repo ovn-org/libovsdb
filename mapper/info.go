@@ -66,6 +66,15 @@ func (i *Info) SetField(column string, value interface{}) error {
 		return fmt.Errorf("column %s: native value %v (%s) is not assignable to field %s (%s)",
 			column, value, reflect.TypeOf(value), fieldName, fieldValue.Type())
 	}
+
+	colSchema := i.Metadata.TableSchema.Column(column)
+	if colSchema == nil {
+		return fmt.Errorf("SetField: column %s schema not found", column)
+	}
+	if err := ovsdb.ValidateColumnConstraints(colSchema, value); err != nil {
+		return fmt.Errorf("SetField: column %s failed validation: %v", column, err)
+	}
+
 	fieldValue.Set(reflect.ValueOf(value))
 	return nil
 }

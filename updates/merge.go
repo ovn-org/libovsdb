@@ -105,8 +105,7 @@ func mergeModifyRow(ts *ovsdb.TableSchema, o, a, b *ovsdb.Row) *ovsdb.Row {
 			if ts.Column(k).TypeObj.Max() != 1 {
 				// set difference is a fully transitive operation so we dont
 				// need to do anything special to merge two differences
-				result, changed = setDifference(aSet.GoSet, bSet.GoSet)
-				result = ovsdb.OvsSet{GoSet: result.([]interface{})}
+				result, changed = ovsdb.SetDifference(aSet, bSet)
 			}
 		case ovsdb.OvsMap:
 			aMap := aMod[k].(ovsdb.OvsMap)

@@ -20,8 +20,6 @@ var (
 	aUUID2   = "2f77b348-9768-4866-b761-89d5177ecda2"
 	aUUID3   = "2f77b348-9768-4866-b761-89d5177ecda3"
 
-	aSingleUUIDSet, _ = NewOvsSet(UUID{GoUUID: aUUID0})
-
 	aUUIDSet = []string{
 		aUUID0,
 		aUUID1,
@@ -60,26 +58,27 @@ var (
 )
 
 func TestOvsToNativeAndNativeToOvs(t *testing.T) {
-	s, _ := NewOvsSet(aSet)
-	s1, _ := NewOvsSet([]string{aString})
+	s, _ := NewOvsSet(TypeString, aSet)
+	s1, _ := NewOvsSet(TypeString, []string{aString})
 
 	us := make([]UUID, 0)
 	for _, u := range aUUIDSet {
 		us = append(us, UUID{GoUUID: u})
 	}
-	uss, _ := NewOvsSet(us)
+	uss, _ := NewOvsSet(TypeUUID, us)
 
 	us1 := []UUID{{GoUUID: aUUID0}}
-	uss1, _ := NewOvsSet(us1)
+	uss1, _ := NewOvsSet(TypeUUID, us1)
 
-	is, _ := NewOvsSet(aIntSet)
-	fs, _ := NewOvsSet(aFloatSet)
+	is, _ := NewOvsSet(TypeInteger, aIntSet)
+	fs, _ := NewOvsSet(TypeReal, aFloatSet)
 
-	sis, _ := NewOvsSet([]int{aInt})
-	sfs, _ := NewOvsSet([]float64{aFloat})
+	sis, _ := NewOvsSet(TypeInteger, []int{aInt})
+	sfs, _ := NewOvsSet(TypeReal, []float64{aFloat})
 
-	es, _ := NewOvsSet(aEmptySet)
-	ens, _ := NewOvsSet(aEnumSet)
+	eso, _ := NewOvsSet(TypeString, aEmptySet)
+	esu, _ := NewOvsSet(TypeString, aEmptySet)
+	ens, _ := NewOvsSet(TypeString, aEnumSet)
 
 	m, _ := NewOvsMap(aMap)
 
@@ -89,7 +88,8 @@ func TestOvsToNativeAndNativeToOvs(t *testing.T) {
 		"key3": {GoUUID: aUUID2},
 	})
 
-	singleStringSet, _ := NewOvsSet([]string{"foo"})
+	singleStringSet, _ := NewOvsSet(TypeString, []string{"foo"})
+	singleUUIDSet, _ := NewOvsSet(TypeUUID, UUID{GoUUID: aUUID0})
 
 	tests := []struct {
 		name   string
@@ -284,9 +284,9 @@ func TestOvsToNativeAndNativeToOvs(t *testing.T) {
 					"max": "unlimited"
 				}
 			}`),
-			input:  es,
+			input:  esu,
 			native: aEmptySet,
-			ovs:    es,
+			ovs:    esu,
 		},
 		{
 			// Enum
@@ -390,9 +390,9 @@ func TestOvsToNativeAndNativeToOvs(t *testing.T) {
 				"max": 1
 			}
 			}`),
-			input:  aSingleUUIDSet,
+			input:  singleUUIDSet,
 			native: &aUUID0,
-			ovs:    aSingleUUIDSet,
+			ovs:    singleUUIDSet,
 		},
 		{
 			name: "null UUID set with min 0 max 1",
@@ -407,9 +407,9 @@ func TestOvsToNativeAndNativeToOvs(t *testing.T) {
 				"max": 1
 			}
 			}`),
-			input:  es,
+			input:  eso,
 			native: (*string)(nil),
-			ovs:    es,
+			ovs:    eso,
 		},
 		{
 			name: "A string with min 0 max 1",
@@ -457,7 +457,7 @@ func TestOvsToNativeAndNativeToOvs(t *testing.T) {
 }
 
 func TestOvsToNativeErr(t *testing.T) {
-	as, _ := NewOvsSet([]string{"foo"})
+	as, _ := NewOvsSet(TypeString, []string{"foo"})
 
 	s, _ := NewOvsMap(map[string]string{"foo": "bar"})
 

@@ -52,12 +52,13 @@ func NativeTypeFromAtomic(basicType string) reflect.Type {
 	}
 }
 
-//NativeType returns the reflect.Type that can hold the value of a column
-//OVS Type to Native Type convertions:
-// OVS sets -> go slices, arrays or a go native type depending on the key
-// OVS uuid -> go strings
-// OVS map  -> go map
-// OVS enum -> go native type depending on the type of the enum key
+// NativeType returns the reflect.Type that can hold the value of a column
+// OVS Type to Native Type convertions:
+//
+//	OVS sets -> go slices, arrays or a go native type depending on the key
+//	OVS uuid -> go strings
+//	OVS map  -> go map
+//	OVS enum -> go native type depending on the type of the enum key
 func NativeType(column *ColumnSchema) reflect.Type {
 	switch column.Type {
 	case TypeInteger, TypeReal, TypeBoolean, TypeUUID, TypeString:
@@ -77,10 +78,6 @@ func NativeType(column *ColumnSchema) reflect.Type {
 		// non-optional type with max 1
 		if column.TypeObj.Min() == 1 && column.TypeObj.Max() == 1 {
 			return keyType
-		}
-		// max is > 1, use an array
-		if column.TypeObj.Max() > 1 {
-			return reflect.ArrayOf(column.TypeObj.Max(), keyType)
 		}
 		return reflect.SliceOf(keyType)
 	default:
@@ -120,15 +117,17 @@ func OvsToNativeSlice(baseType string, ovsElem interface{}) (interface{}, error)
 	var nativeSet reflect.Value
 	switch ovsSet := ovsElem.(type) {
 	case OvsSet:
-		nativeSet = reflect.MakeSlice(reflect.SliceOf(naType), 0, len(ovsSet.GoSet))
-		for _, v := range ovsSet.GoSet {
+		nativeSet = reflect.MakeSlice(reflect.SliceOf(naType), 0, ovsSet.Len())
+		if err := ovsSet.Range(func(i int, v interface{}) (bool, error) {
 			nv, err := OvsToNativeAtomic(baseType, v)
 			if err != nil {
-				return nil, err
+				return true, err
 			}
 			nativeSet = reflect.Append(nativeSet, reflect.ValueOf(nv))
+			return false, nil
+		}); err != nil {
+			return nil, err
 		}
-
 	default:
 		nativeSet = reflect.MakeSlice(reflect.SliceOf(naType), 0, 1)
 		nv, err := OvsToNativeAtomic(baseType, ovsElem)
@@ -156,13 +155,12 @@ func OvsToNative(column *ColumnSchema, ovsElem interface{}) (interface{}, error)
 		case reflect.Ptr:
 			switch ovsSet := ovsElem.(type) {
 			case OvsSet:
-				if len(ovsSet.GoSet) > 1 {
-					return nil, fmt.Errorf("expected a slice of len =< 1, but got a slice with %d elements", len(ovsSet.GoSet))
-				}
-				if len(ovsSet.GoSet) == 0 {
+				if ovsSet.Len() > 1 {
+					return nil, fmt.Errorf("expected a slice of len =< 1, but got a slice with %d elements", ovsSet.Len())
+				} else if ovsSet.Len() == 0 {
 					return reflect.Zero(naType).Interface(), nil
 				}
-				native, err := OvsToNativeAtomic(column.TypeObj.Key.Type, ovsSet.GoSet[0])
+				native, err := OvsToNativeAtomic(column.TypeObj.Key.Type, ovsSet.goSet[0])
 				if err != nil {
 					return nil, err
 				}
@@ -178,29 +176,10 @@ func OvsToNative(column *ColumnSchema, ovsElem interface{}) (interface{}, error)
 				pv.Elem().Set(reflect.ValueOf(native))
 				return pv.Interface(), nil
 			}
-		case reflect.Array:
-			array := reflect.New(reflect.ArrayOf(column.TypeObj.Max(), naType.Elem())).Elem()
-			switch ovsSet := ovsElem.(type) {
-			case OvsSet:
-				for i, v := range ovsSet.GoSet {
-					nv, err := OvsToNativeAtomic(column.TypeObj.Key.Type, v)
-					if err != nil {
-						return nil, err
-					}
-					array.Index(i).Set(reflect.ValueOf(nv))
-				}
-			default:
-				nv, err := OvsToNativeAtomic(column.TypeObj.Key.Type, ovsElem)
-				if err != nil {
-					return nil, err
-				}
-				array.Index(0).Set(reflect.ValueOf(nv))
-			}
-			return array.Interface(), nil
 		case reflect.Slice:
 			return OvsToNativeSlice(column.TypeObj.Key.Type, ovsElem)
 		default:
-			return nil, fmt.Errorf("native type was not slice, array or pointer. got %d", naType.Kind())
+			return nil, fmt.Errorf("native type was not slice or pointer. got %d", naType.Kind())
 		}
 	case TypeMap:
 		naType := NativeType(column)
@@ -255,33 +234,7 @@ func NativeToOvs(column *ColumnSchema, rawElem interface{}) (interface{}, error)
 	case TypeUUID:
 		return UUID{GoUUID: rawElem.(string)}, nil
 	case TypeSet:
-		var ovsSet OvsSet
-		if column.TypeObj.Key.Type == TypeUUID {
-			ovsSlice := []interface{}{}
-			if _, ok := rawElem.([]string); ok {
-				for _, v := range rawElem.([]string) {
-					uuid := UUID{GoUUID: v}
-					ovsSlice = append(ovsSlice, uuid)
-				}
-			} else if _, ok := rawElem.(*string); ok {
-				v := rawElem.(*string)
-				if v != nil {
-					uuid := UUID{GoUUID: *v}
-					ovsSlice = append(ovsSlice, uuid)
-				}
-			} else {
-				return nil, fmt.Errorf("uuid slice was neither []string or *string")
-			}
-			ovsSet = OvsSet{GoSet: ovsSlice}
-
-		} else {
-			var err error
-			ovsSet, err = NewOvsSet(rawElem)
-			if err != nil {
-				return nil, err
-			}
-		}
-		return ovsSet, nil
+		return NewOvsSet(column.TypeObj.Key.Type, rawElem)
 	case TypeMap:
 		nativeMapVal := reflect.ValueOf(rawElem)
 		ovsMap := make(map[interface{}]interface{}, nativeMapVal.Len())
@@ -446,4 +399,22 @@ func isDefaultBaseValue(elem interface{}, etype ExtendedType) bool {
 	default:
 		return false
 	}
+}
+
+// ValidateColumnConstraints validates the native value against any constraints
+// of a given column.
+func ValidateColumnConstraints(column *ColumnSchema, nativeValue interface{}) error {
+	switch column.Type {
+	case TypeSet, TypeEnum:
+		// Validate set length requirements
+		newVal := reflect.ValueOf(nativeValue)
+		maxVal := column.TypeObj.Max()
+		minVal := column.TypeObj.Min()
+		if maxVal > 1 && newVal.Len() > maxVal {
+			return fmt.Errorf("slice would overflow (%d elements but %d allowed)", newVal.Len(), maxVal)
+		} else if minVal > 0 && newVal.Len() < minVal {
+			return fmt.Errorf("slice would underflow (%d elements but %d required)", newVal.Len(), minVal)
+		}
+	}
+	return nil
 }

@@ -73,7 +73,7 @@ func TestOpRowsSerialization(t *testing.T) {
 
 func TestValidateOvsSet(t *testing.T) {
 	goSlice := []int{1, 2, 3, 4}
-	oSet, err := NewOvsSet(goSlice)
+	oSet, err := NewOvsSet(TypeInteger, goSlice)
 	if err != nil {
 		t.Error("Error creating OvsSet ", err)
 	}
@@ -86,7 +86,7 @@ func TestValidateOvsSet(t *testing.T) {
 		t.Error("Expected: ", expected, "Got", string(data))
 	}
 	// Negative condition test
-	oSet, err = NewOvsSet(struct{ foo string }{})
+	oSet, err = NewOvsSet(TypeString, struct{ foo string }{})
 	if err == nil {
 		t.Error("OvsSet must fail for anything other than Slices and atomic types")
 		t.Error("Got", oSet)
@@ -194,6 +194,13 @@ func TestOperationsMarshalUnmarshalJSON(t *testing.T) {
 }
 
 func TestOvsSliceToGoNotation(t *testing.T) {
+	emptySet, err := NewOvsSet(TypeString, []interface{}{})
+	assert.NoError(t, err)
+	stringSet, err := NewOvsSet(TypeString, []interface{}{"foo", "bar", "baz"})
+	assert.NoError(t, err)
+	uuidSet, err := NewOvsSet(TypeUUID, []interface{}{UUID{GoUUID: "foo"}, UUID{GoUUID: "bar"}})
+	assert.NoError(t, err)
+
 	tests := []struct {
 		name    string
 		value   interface{}
@@ -209,19 +216,19 @@ func TestOvsSliceToGoNotation(t *testing.T) {
 		{
 			"empty set",
 			[]interface{}{"set", []interface{}{}},
-			OvsSet{GoSet: []interface{}{}},
+			emptySet,
 			false,
 		},
 		{
 			"set",
 			[]interface{}{"set", []interface{}{"foo", "bar", "baz"}},
-			OvsSet{GoSet: []interface{}{"foo", "bar", "baz"}},
+			stringSet,
 			false,
 		},
 		{
 			"uuid set",
 			[]interface{}{"set", []interface{}{[]interface{}{"named-uuid", "foo"}, []interface{}{"named-uuid", "bar"}}},
-			OvsSet{GoSet: []interface{}{UUID{GoUUID: "foo"}, UUID{GoUUID: "bar"}}},
+			uuidSet,
 			false,
 		},
 		{
