@@ -959,6 +959,43 @@ func setLeader(t *testing.T, cli Client, row *serverdb.Database, isLeader bool) 
 	assert.NoErrorf(t, err, "%+v", opErr)
 }
 
+func TestClientInactiveCheck(t *testing.T) {
+	var defSchema ovsdb.DatabaseSchema
+	err := json.Unmarshal([]byte(schema), &defSchema)
+	require.NoError(t, err)
+
+	serverDBModel, err := serverdb.FullDatabaseModel()
+	require.NoError(t, err)
+	// Create server
+	server, sock := newOVSDBServer(t, defDB, defSchema)
+
+	// Create client to test inactivity check.
+	endpoint := fmt.Sprintf("unix:%s", sock)
+	ovs, err := newOVSDBClient(serverDBModel,
+		WithReconnect(5*time.Second, &backoff.ZeroBackOff{}),
+		WithInactivityCheck(1*time.Second, 2*time.Second),
+		WithEndpoint(endpoint))
+	require.NoError(t, err)
+	err = ovs.Connect(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(ovs.Close)
+
+	server.DoEcho(false)
+	require.Eventually(t, func() bool {
+		ovs.shutdownMutex.Lock()
+		defer ovs.shutdownMutex.Unlock()
+		return ovs.isInActive
+	}, 10*time.Second, 1*time.Second)
+
+	server.DoEcho(true)
+	require.Eventually(t, func() bool {
+		ovs.shutdownMutex.Lock()
+		defer ovs.shutdownMutex.Unlock()
+		return !ovs.isInActive
+	}, 10*time.Second, 1*time.Second)
+
+}
+
 func TestClientReconnectLeaderOnly(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 

@@ -26,6 +26,7 @@ type OvsdbServer struct {
 	done         chan struct{}
 	db           database.Database
 	ready        bool
+	doEcho       bool
 	readyMutex   sync.RWMutex
 	models       map[string]model.DatabaseModel
 	modelsMutex  sync.RWMutex
@@ -41,6 +42,7 @@ func NewOvsdbServer(db database.Database, models ...model.DatabaseModel) (*Ovsdb
 	stdr.SetVerbosity(5)
 	o := &OvsdbServer{
 		done:         make(chan struct{}, 1),
+		doEcho:       true,
 		db:           db,
 		models:       make(map[string]model.DatabaseModel),
 		modelsMutex:  sync.RWMutex{},
@@ -81,6 +83,12 @@ func (o *OvsdbServer) OnConnect(f func(*rpc2.Client)) {
 // OnDisConnect registers a function to run when a client disconnects.
 func (o *OvsdbServer) OnDisConnect(f func(*rpc2.Client)) {
 	o.srv.OnDisconnect(f)
+}
+
+func (o *OvsdbServer) DoEcho(ok bool) {
+	o.readyMutex.Lock()
+	o.doEcho = ok
+	o.readyMutex.Unlock()
 }
 
 // Serve starts the OVSDB server on the given path and protocol
@@ -382,6 +390,11 @@ func (o *OvsdbServer) Unlock(client *rpc2.Client, args []interface{}, reply *[]i
 
 // Echo tests the liveness of the connection
 func (o *OvsdbServer) Echo(client *rpc2.Client, args []interface{}, reply *[]interface{}) error {
+	o.readyMutex.Lock()
+	defer o.readyMutex.Unlock()
+	if !o.doEcho {
+		return fmt.Errorf("no echo reply")
+	}
 	echoReply := make([]interface{}, len(args))
 	copy(echoReply, args)
 	*reply = echoReply

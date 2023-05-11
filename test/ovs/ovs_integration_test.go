@@ -80,6 +80,7 @@ func (suite *OVSIntegrationSuite) SetupTest() {
 			defDB,
 			client.WithEndpoint(endpoint),
 			client.WithLeaderOnly(true),
+			client.WithInactivityCheck(10*time.Second, 5*time.Second),
 		)
 		if err != nil {
 			return err
