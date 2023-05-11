@@ -888,8 +888,6 @@ func buildTestInterface() *vswitchd.Interface {
 		ExternalIDs:               map[string]string{*buildRandStr(): *buildRandStr(), *buildRandStr(): *buildRandStr()},
 		Ifindex:                   &aInt,
 		IngressPolicingBurst:      aInt,
-		IngressPolicingKpktsBurst: aInt,
-		IngressPolicingKpktsRate:  aInt,
 		IngressPolicingRate:       aInt,
 		LACPCurrent:               &aBool,
 		LinkResets:                &aInt,
