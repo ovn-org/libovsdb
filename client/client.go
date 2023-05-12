@@ -97,12 +97,17 @@ type ovsdbClient struct {
 	primaryDBName string
 	databases     map[string]*database
 
-	errorCh       chan error
-	stopCh        chan struct{}
-	disconnect    chan struct{}
-	shutdown      bool
-	isInActive    bool
-	shutdownMutex sync.Mutex
+	errorCh                chan error
+	stopCh                 chan struct{}
+	disconnect             chan struct{}
+	shutdown               bool
+	isInActive             bool
+	inactivityCheckRunning bool
+	stopEcho               chan struct{}
+	readyForShutdown       chan struct{}
+	inactiveMutex          sync.Mutex
+	shutdownMutex          sync.Mutex
+	reconnectMutex         sync.Mutex
 
 	handlerShutdown *sync.WaitGroup
 
@@ -152,9 +157,11 @@ func newOVSDBClient(clientDBModel model.ClientDBModel, opts ...Option) (*ovsdbCl
 				deferredUpdates: make([]*bufferedUpdate, 0),
 			},
 		},
-		errorCh:         make(chan error),
-		handlerShutdown: &sync.WaitGroup{},
-		disconnect:      make(chan struct{}),
+		errorCh:          make(chan error),
+		handlerShutdown:  &sync.WaitGroup{},
+		disconnect:       make(chan struct{}),
+		stopEcho:         make(chan struct{}),
+		readyForShutdown: make(chan struct{}),
 	}
 	var err error
 	ovs.options, err = newOptions(opts...)
@@ -203,7 +210,7 @@ func newOVSDBClient(clientDBModel model.ClientDBModel, opts ...Option) (*ovsdbCl
 // The connection can be configured using one or more Option(s), like WithTLSConfig
 // If no WithEndpoint option is supplied, the default of unix:/var/run/openvswitch/ovsdb.sock is used
 func (o *ovsdbClient) Connect(ctx context.Context) error {
-	if err := o.connect(ctx, false); err != nil {
+	if err := o.connect(ctx, false, false); err != nil {
 		if err == ErrAlreadyConnected {
 			return nil
 		}
@@ -214,8 +221,11 @@ func (o *ovsdbClient) Connect(ctx context.Context) error {
 			return err
 		}
 	}
-	if o.options.inactiveCheck {
+	o.rpcMutex.Lock()
+	defer o.rpcMutex.Unlock()
+	if o.options.inactiveCheck && !o.inactivityCheckRunning {
 		go o.handleInactivityCheck()
+		o.inactivityCheckRunning = true
 	}
 	return nil
 }
@@ -242,7 +252,7 @@ func (o *ovsdbClient) resetRPCClient() {
 	}
 }
 
-func (o *ovsdbClient) connect(ctx context.Context, reconnect bool) error {
+func (o *ovsdbClient) connect(ctx context.Context, reconnect, inactive bool) error {
 	o.rpcMutex.Lock()
 	defer o.rpcMutex.Unlock()
 	if o.rpcClient != nil {
@@ -306,8 +316,9 @@ func (o *ovsdbClient) connect(ctx context.Context, reconnect bool) error {
 			}
 		}
 	}
-
-	go o.handleDisconnectNotification()
+	if !inactive {
+		go o.handleDisconnectNotification()
+	}
 	for _, db := range o.databases {
 		o.handlerShutdown.Add(1)
 		eventStopChan := make(chan struct{})
@@ -1178,75 +1189,71 @@ func (o *ovsdbClient) handleClientErrors(stopCh <-chan struct{}) {
 	}
 }
 
-// o.rpcClient and o.options.timeout are protected by o.rpcMutex.
-// o.shutdown and o.isInActive are protected by o.shutdownMutex.
 func (o *ovsdbClient) handleInactivityCheck() {
 	failCount := 0
+	o.rpcMutex.Lock()
+	timeout := o.options.timeout
+	o.rpcMutex.Unlock()
 	for {
-		o.rpcMutex.Lock()
-		o.shutdownMutex.Lock()
-		if o.rpcClient == nil || o.shutdown {
-			o.shutdownMutex.Unlock()
-			o.rpcMutex.Unlock()
+		select {
+		case <-o.stopEcho:
+			close(o.readyForShutdown)
 			return
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), o.options.timeout)
-		o.shutdownMutex.Unlock()
-		o.rpcMutex.Unlock()
-
-		if !o.isInactive() {
-			err := o.Echo(ctx)
-			if err != nil {
-				failCount++
-				// When echo fails consecutively 2 times, then consider ovndb connection as inactive.
-				if failCount == 2 {
-					o.setInActive(true)
+		default:
+			o.reconnectMutex.Lock()
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			if !o.isInactive() {
+				err := o.Echo(ctx)
+				if err != nil {
+					failCount++
+					// When echo fails consecutively 2 times, then consider ovndb connection as inactive.
+					if failCount == 2 {
+						o.setInActive(true)
+					}
+				} else {
+					failCount = 0
 				}
-			} else {
-				failCount = 0
-			}
-		} else if o.isInactive() {
-			// Since connection to ovsdb server is inactive for 2 * interval, try to reconnect with it.
-			o.rpcMutex.Lock()
-			if o.rpcClient != nil {
-				// close the stopCh, which will stop the cache event processor
-				close(o.stopCh)
-				// wait for client related handlers to shutdown
-				o.handlerShutdown.Wait()
-			}
-			o.rpcClient = nil
-			o.rpcMutex.Unlock()
-			// need to ensure deferredUpdates is cleared on every reconnect attempt
-			for _, db := range o.databases {
-				db.cacheMutex.Lock()
-				db.deferredUpdates = make([]*bufferedUpdate, 0)
-				db.deferUpdates = true
-				db.cacheMutex.Unlock()
-			}
-			err := o.connect(ctx, true)
-			if err == nil || err == ErrAlreadyConnected {
-				o.setInActive(false)
-				failCount = 0
-			} else {
+			} else if o.isInactive() {
+				// Since connection to ovsdb server is inactive for 2 * interval, try to reconnect with it.
 				o.rpcMutex.Lock()
-				o.resetRPCClient()
+				if o.rpcClient != nil {
+					// close the stopCh, which will stop the cache event processor
+					close(o.stopCh)
+					// wait for client related handlers to shutdown
+					o.handlerShutdown.Wait()
+				}
+				o.rpcClient = nil
 				o.rpcMutex.Unlock()
+				// need to ensure deferredUpdates is cleared on every reconnect attempt
+				for _, db := range o.databases {
+					db.cacheMutex.Lock()
+					db.deferredUpdates = make([]*bufferedUpdate, 0)
+					db.deferUpdates = true
+					db.cacheMutex.Unlock()
+				}
+				err := o.connect(ctx, true, true)
+				if err == nil || err == ErrAlreadyConnected {
+					o.setInActive(false)
+					failCount = 0
+				}
 			}
+			o.reconnectMutex.Unlock()
+			cancel()
+			time.Sleep(o.options.interval)
 		}
-		cancel()
-		time.Sleep(o.options.interval)
+
 	}
 }
 
 func (o *ovsdbClient) isInactive() bool {
-	o.shutdownMutex.Lock()
-	defer o.shutdownMutex.Unlock()
+	o.inactiveMutex.Lock()
+	defer o.inactiveMutex.Unlock()
 	return o.isInActive
 }
 
 func (o *ovsdbClient) setInActive(inactive bool) {
-	o.shutdownMutex.Lock()
-	defer o.shutdownMutex.Unlock()
+	o.inactiveMutex.Lock()
+	defer o.inactiveMutex.Unlock()
 	o.isInActive = inactive
 }
 
@@ -1256,6 +1263,8 @@ func (o *ovsdbClient) handleDisconnectNotification() {
 	disConnectCh = o.rpcClient.DisconnectNotify()
 	o.rpcMutex.Unlock()
 	<-disConnectCh
+	o.reconnectMutex.Lock()
+	defer o.reconnectMutex.Unlock()
 	// close the stopCh, which will stop the cache event processor
 	close(o.stopCh)
 	o.metrics.numDisconnects.Inc()
@@ -1276,7 +1285,7 @@ func (o *ovsdbClient) handleDisconnectNotification() {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), o.options.timeout)
 			defer cancel()
-			err := o.connect(ctx, true)
+			err := o.connect(ctx, true, false)
 			if err != nil {
 				if suppressionCounter < 5 {
 					o.logger.V(2).Error(err, "failed to reconnect")
@@ -1321,10 +1330,6 @@ func (o *ovsdbClient) handleDisconnectNotification() {
 	}
 	o.metrics.numMonitors.Set(0)
 
-	o.shutdownMutex.Lock()
-	defer o.shutdownMutex.Unlock()
-	o.shutdown = false
-
 	select {
 	case o.disconnect <- struct{}{}:
 		// sent disconnect notification to client
@@ -1365,6 +1370,10 @@ func (o *ovsdbClient) Close() {
 	}
 	o.shutdownMutex.Lock()
 	defer o.shutdownMutex.Unlock()
+	if o.options.inactiveCheck && !o.shutdown {
+		close(o.stopEcho)
+		<-o.readyForShutdown
+	}
 	o.shutdown = true
 	o.rpcClient.Close()
 }

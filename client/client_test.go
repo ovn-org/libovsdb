@@ -980,20 +980,37 @@ func TestClientInactiveCheck(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(ovs.Close)
 
+	// Make server to do echo off and then on for two times.
+	// Ensure this is detected by client's inactivity probe
+	// each time and then reconnects to the server when it
+	// is started responding to echo requests.
 	server.DoEcho(false)
 	require.Eventually(t, func() bool {
-		ovs.shutdownMutex.Lock()
-		defer ovs.shutdownMutex.Unlock()
-		return ovs.isInActive
+		ovs.inactiveMutex.Lock()
+		defer ovs.inactiveMutex.Unlock()
+		return ovs.isInActive == true
 	}, 10*time.Second, 1*time.Second)
 
 	server.DoEcho(true)
 	require.Eventually(t, func() bool {
-		ovs.shutdownMutex.Lock()
-		defer ovs.shutdownMutex.Unlock()
-		return !ovs.isInActive
+		ovs.inactiveMutex.Lock()
+		defer ovs.inactiveMutex.Unlock()
+		return ovs.isInActive == false
 	}, 10*time.Second, 1*time.Second)
 
+	server.DoEcho(false)
+	require.Eventually(t, func() bool {
+		ovs.inactiveMutex.Lock()
+		defer ovs.inactiveMutex.Unlock()
+		return ovs.isInActive == true
+	}, 10*time.Second, 1*time.Second)
+
+	server.DoEcho(true)
+	require.Eventually(t, func() bool {
+		ovs.inactiveMutex.Lock()
+		defer ovs.inactiveMutex.Unlock()
+		return ovs.isInActive == false
+	}, 10*time.Second, 1*time.Second)
 }
 
 func TestClientReconnectLeaderOnly(t *testing.T) {
