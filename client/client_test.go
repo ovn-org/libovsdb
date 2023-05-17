@@ -986,30 +986,30 @@ func TestClientInactiveCheck(t *testing.T) {
 	// is started responding to echo requests.
 	server.DoEcho(false)
 	require.Eventually(t, func() bool {
-		ovs.inactiveMutex.Lock()
-		defer ovs.inactiveMutex.Unlock()
-		return ovs.isInActive == true
+		ovs.inactivityMutex.Lock()
+		defer ovs.inactivityMutex.Unlock()
+		return ovs.isInactivity == true
 	}, 10*time.Second, 1*time.Second)
 
 	server.DoEcho(true)
 	require.Eventually(t, func() bool {
-		ovs.inactiveMutex.Lock()
-		defer ovs.inactiveMutex.Unlock()
-		return ovs.isInActive == false
+		ovs.inactivityMutex.Lock()
+		defer ovs.inactivityMutex.Unlock()
+		return ovs.isInactivity == false
 	}, 10*time.Second, 1*time.Second)
 
 	server.DoEcho(false)
 	require.Eventually(t, func() bool {
-		ovs.inactiveMutex.Lock()
-		defer ovs.inactiveMutex.Unlock()
-		return ovs.isInActive == true
+		ovs.inactivityMutex.Lock()
+		defer ovs.inactivityMutex.Unlock()
+		return ovs.isInactivity == true
 	}, 10*time.Second, 1*time.Second)
 
 	server.DoEcho(true)
 	require.Eventually(t, func() bool {
-		ovs.inactiveMutex.Lock()
-		defer ovs.inactiveMutex.Unlock()
-		return ovs.isInActive == false
+		ovs.inactivityMutex.Lock()
+		defer ovs.inactivityMutex.Unlock()
+		return ovs.isInactivity == false
 	}, 10*time.Second, 1*time.Second)
 }
 

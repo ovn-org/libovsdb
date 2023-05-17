@@ -17,19 +17,19 @@ const (
 )
 
 type options struct {
-	endpoints             []string
-	tlsConfig             *tls.Config
-	reconnect             bool
-	leaderOnly            bool
-	timeout               time.Duration
-	backoff               backoff.BackOff
-	logger                *logr.Logger
-	registry              prometheus.Registerer
-	shouldRegisterMetrics bool   // in case metrics are changed after-the-fact
-	metricNamespace       string // prometheus metric namespace
-	metricSubsystem       string // prometheus metric subsystem
-	inactiveCheck         bool
-	interval              time.Duration
+	endpoints               []string
+	tlsConfig               *tls.Config
+	reconnect               bool
+	leaderOnly              bool
+	timeout                 time.Duration
+	backoff                 backoff.BackOff
+	logger                  *logr.Logger
+	registry                prometheus.Registerer
+	shouldRegisterMetrics   bool   // in case metrics are changed after-the-fact
+	metricNamespace         string // prometheus metric namespace
+	metricSubsystem         string // prometheus metric subsystem
+	inactivityCheck         bool
+	inactivityCheckInterval time.Duration
 }
 
 type Option func(o *options) error
@@ -114,17 +114,17 @@ func WithReconnect(timeout time.Duration, backoff backoff.BackOff) Option {
 }
 
 // WithInactivityCheck tells the client to send Echo request to ovsdb
-// server periodically at specified interval. When echo request fails
-// consecutively 2 * interval, then attempts to reconnect with server.
-// Once reconnect is successful, then aliveness check would go on until
-// connection to the server is shutdown. The timeout argument is used
-// for constructing the context for sending each Echo and Reconnect
-// requests.
-func WithInactivityCheck(timeout, interval time.Duration) Option {
+// server periodically at specified inactivityCheckInterval. When echo
+// request fails consecutively 2 * inactivityCheckInterval, then attempts
+// to reconnect with server. Once reconnect is successful, then inactivity
+// check would go on until connection to the server is shutdown.
+// The timeout argument is used for constructing the context for sending
+// each Echo and Reconnect requests.
+func WithInactivityCheck(timeout, inactivityCheckInterval time.Duration) Option {
 	return func(o *options) error {
-		o.inactiveCheck = true
+		o.inactivityCheck = true
 		o.timeout = timeout
-		o.interval = interval
+		o.inactivityCheckInterval = inactivityCheckInterval
 		return nil
 	}
 }
