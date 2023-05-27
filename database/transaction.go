@@ -79,13 +79,13 @@ func (t *Transaction) Transact(operations []ovsdb.Operation) ([]*ovsdb.Operation
 			r = t.Wait(op.Table, op.Timeout, op.Where, op.Columns, op.Until, op.Rows)
 		case ovsdb.OperationCommit:
 			durable := op.Durable
-			r = t.Commit(op.Table, *durable)
+			r = t.Commit(*durable)
 		case ovsdb.OperationAbort:
-			r = t.Abort(op.Table)
+			r = t.Abort()
 		case ovsdb.OperationComment:
-			r = t.Comment(op.Table, *op.Comment)
+			r = t.Comment(*op.Comment)
 		case ovsdb.OperationAssert:
-			r = t.Assert(op.Table, *op.Lock)
+			r = t.Assert(*op.Lock)
 		default:
 			r = ovsdb.ResultFromError(&ovsdb.NotSupported{})
 		}
@@ -395,18 +395,18 @@ Loop:
 	return ovsdb.ResultFromError(&ovsdb.TimedOut{})
 }
 
-func (t *Transaction) Commit(table string, durable bool) ovsdb.OperationResult {
+func (t *Transaction) Commit(durable bool) ovsdb.OperationResult {
 	return ovsdb.ResultFromError(&ovsdb.NotSupported{})
 }
 
-func (t *Transaction) Abort(table string) ovsdb.OperationResult {
+func (t *Transaction) Abort() ovsdb.OperationResult {
 	return ovsdb.ResultFromError(&ovsdb.NotSupported{})
 }
 
-func (t *Transaction) Comment(table string, comment string) ovsdb.OperationResult {
+func (t *Transaction) Comment(comment string) ovsdb.OperationResult {
 	return ovsdb.ResultFromError(&ovsdb.NotSupported{})
 }
 
-func (t *Transaction) Assert(table, lock string) ovsdb.OperationResult {
+func (t *Transaction) Assert(lock string) ovsdb.OperationResult {
 	return ovsdb.ResultFromError(&ovsdb.NotSupported{})
 }
