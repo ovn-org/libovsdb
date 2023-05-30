@@ -36,10 +36,13 @@ type OvsdbServer struct {
 	txnMutex     sync.Mutex
 }
 
+func init() {
+	stdr.SetVerbosity(5)
+}
+
 // NewOvsdbServer returns a new OvsdbServer
 func NewOvsdbServer(db database.Database, models ...model.DatabaseModel) (*OvsdbServer, error) {
 	l := stdr.NewWithOptions(log.New(os.Stderr, "", log.LstdFlags), stdr.Options{LogCaller: stdr.All}).WithName("server")
-	stdr.SetVerbosity(5)
 	o := &OvsdbServer{
 		done:         make(chan struct{}, 1),
 		doEcho:       true,

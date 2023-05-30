@@ -972,8 +972,7 @@ func TestClientInactiveCheck(t *testing.T) {
 	// Create client to test inactivity check.
 	endpoint := fmt.Sprintf("unix:%s", sock)
 	ovs, err := newOVSDBClient(serverDBModel,
-		WithReconnect(5*time.Second, &backoff.ZeroBackOff{}),
-		WithInactivityCheck(1*time.Second, 2*time.Second),
+		WithInactivityCheck(2*time.Second, 1*time.Second, &backoff.ZeroBackOff{}),
 		WithEndpoint(endpoint))
 	require.NoError(t, err)
 	err = ovs.Connect(context.Background())
@@ -984,33 +983,70 @@ func TestClientInactiveCheck(t *testing.T) {
 	// Ensure this is detected by client's inactivity probe
 	// each time and then reconnects to the server when it
 	// is started responding to echo requests.
+
+	// 1st test for client with making server not to respond for echo requests.
+	notified := make(chan struct{})
+	ready := make(chan struct{})
+	disconnectNotify := ovs.rpcClient.DisconnectNotify()
+	go func() {
+		ready <- struct{}{}
+		<-disconnectNotify
+		notified <- struct{}{}
+	}()
+	<-ready
 	server.DoEcho(false)
-	require.Eventually(t, func() bool {
-		ovs.inactivityMutex.Lock()
-		defer ovs.inactivityMutex.Unlock()
-		return ovs.isInactivity == true
-	}, 10*time.Second, 1*time.Second)
+	select {
+	case <-notified:
+		// got notification
+	case <-time.After(5 * time.Second):
+		assert.Fail(t, "client doesn't detect the echo failure")
+	}
 
+	// 2nd test for client with making server to respond for echo requests.
 	server.DoEcho(true)
-	require.Eventually(t, func() bool {
-		ovs.inactivityMutex.Lock()
-		defer ovs.inactivityMutex.Unlock()
-		return ovs.isInactivity == false
-	}, 10*time.Second, 1*time.Second)
+loop:
+	for timeout := time.After(5 * time.Second); ; {
+		select {
+		case <-timeout:
+			assert.Fail(t, "reconnect is not successful")
+		default:
+			if ovs.Connected() {
+				break loop
+			}
+		}
+	}
 
+	// 3rd test for client with making server not to respond for echo requests.
+	notified = make(chan struct{})
+	ready = make(chan struct{})
+	disconnectNotify = ovs.rpcClient.DisconnectNotify()
+	go func() {
+		ready <- struct{}{}
+		<-disconnectNotify
+		notified <- struct{}{}
+	}()
+	<-ready
 	server.DoEcho(false)
-	require.Eventually(t, func() bool {
-		ovs.inactivityMutex.Lock()
-		defer ovs.inactivityMutex.Unlock()
-		return ovs.isInactivity == true
-	}, 10*time.Second, 1*time.Second)
+	select {
+	case <-notified:
+		// got notification
+	case <-time.After(5 * time.Second):
+		assert.Fail(t, "client doesn't detect the echo failure")
+	}
 
+	// 4th test for client with making server to respond for echo requests.
 	server.DoEcho(true)
-	require.Eventually(t, func() bool {
-		ovs.inactivityMutex.Lock()
-		defer ovs.inactivityMutex.Unlock()
-		return ovs.isInactivity == false
-	}, 10*time.Second, 1*time.Second)
+loop1:
+	for timeout := time.After(5 * time.Second); ; {
+		select {
+		case <-timeout:
+			assert.Fail(t, "reconnect is not successful")
+		default:
+			if ovs.Connected() {
+				break loop1
+			}
+		}
+	}
 }
 
 func TestClientReconnectLeaderOnly(t *testing.T) {

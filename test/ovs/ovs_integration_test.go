@@ -24,9 +24,10 @@ import (
 // OVSIntegrationSuite runs tests against a real Open vSwitch instance
 type OVSIntegrationSuite struct {
 	suite.Suite
-	pool     *dockertest.Pool
-	resource *dockertest.Resource
-	client   client.Client
+	pool                        *dockertest.Pool
+	resource                    *dockertest.Resource
+	clientWithoutInactvityCheck client.Client
+	clientWithInactivityCheck   client.Client
 }
 
 func (suite *OVSIntegrationSuite) SetupSuite() {
@@ -68,8 +69,11 @@ func (suite *OVSIntegrationSuite) SetupSuite() {
 }
 
 func (suite *OVSIntegrationSuite) SetupTest() {
-	if suite.client != nil {
-		suite.client.Close()
+	if suite.clientWithoutInactvityCheck != nil {
+		suite.clientWithoutInactvityCheck.Close()
+	}
+	if suite.clientWithInactivityCheck != nil {
+		suite.clientWithInactivityCheck.Close()
 	}
 	var err error
 	err = suite.pool.Retry(func() error {
@@ -80,7 +84,6 @@ func (suite *OVSIntegrationSuite) SetupTest() {
 			defDB,
 			client.WithEndpoint(endpoint),
 			client.WithLeaderOnly(true),
-			client.WithInactivityCheck(10*time.Second, 1*time.Second),
 		)
 		if err != nil {
 			return err
@@ -90,15 +93,32 @@ func (suite *OVSIntegrationSuite) SetupTest() {
 			suite.T().Log(err)
 			return err
 		}
-		suite.client = ovs
+		suite.clientWithoutInactvityCheck = ovs
+
+		ovs2, err := client.NewOVSDBClient(
+			defDB,
+			client.WithEndpoint(endpoint),
+			client.WithInactivityCheck(2*time.Second, 1*time.Second, &backoff.ZeroBackOff{}),
+			client.WithLeaderOnly(true),
+		)
+		if err != nil {
+			return err
+		}
+		err = ovs2.Connect(ctx)
+		if err != nil {
+			suite.T().Log(err)
+			return err
+		}
+		suite.clientWithInactivityCheck = ovs2
+
 		return nil
 	})
 	require.NoError(suite.T(), err)
 
 	// give ovsdb-server some time to start up
 
-	_, err = suite.client.Monitor(context.TODO(),
-		suite.client.NewMonitor(
+	_, err = suite.clientWithoutInactvityCheck.Monitor(context.TODO(),
+		suite.clientWithoutInactvityCheck.NewMonitor(
 			client.WithTable(&ovsType{}),
 			client.WithTable(&bridgeType{}),
 		),
@@ -107,9 +127,13 @@ func (suite *OVSIntegrationSuite) SetupTest() {
 }
 
 func (suite *OVSIntegrationSuite) TearDownSuite() {
-	if suite.client != nil {
-		suite.client.Close()
-		suite.client = nil
+	if suite.clientWithoutInactvityCheck != nil {
+		suite.clientWithoutInactvityCheck.Close()
+		suite.clientWithoutInactvityCheck = nil
+	}
+	if suite.clientWithInactivityCheck != nil {
+		suite.clientWithInactivityCheck.Close()
+		suite.clientWithInactivityCheck = nil
 	}
 	err := suite.pool.Purge(suite.resource)
 	require.NoError(suite.T(), err)
@@ -184,13 +208,13 @@ var defDB, _ = model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
 })
 
 func (suite *OVSIntegrationSuite) TestConnectReconnect() {
-	assert.True(suite.T(), suite.client.Connected())
-	err := suite.client.Echo(context.TODO())
+	assert.True(suite.T(), suite.clientWithoutInactvityCheck.Connected())
+	err := suite.clientWithoutInactvityCheck.Echo(context.TODO())
 	require.NoError(suite.T(), err)
 
 	bridgeName := "br-discoreco"
 	brChan := make(chan *bridgeType)
-	suite.client.Cache().AddEventHandler(&cache.EventHandlerFuncs{
+	suite.clientWithoutInactvityCheck.Cache().AddEventHandler(&cache.EventHandlerFuncs{
 		AddFunc: func(table string, model model.Model) {
 			br, ok := model.(*bridgeType)
 			if !ok {
@@ -209,10 +233,10 @@ func (suite *OVSIntegrationSuite) TestConnectReconnect() {
 	// make another connect call, this should return without error as we're already connected
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	err = suite.client.Connect(ctx)
+	err = suite.clientWithoutInactvityCheck.Connect(ctx)
 	require.NoError(suite.T(), err)
 
-	disconnectNotification := suite.client.DisconnectNotify()
+	disconnectNotification := suite.clientWithoutInactvityCheck.DisconnectNotify()
 	notified := make(chan struct{})
 	ready := make(chan struct{})
 
@@ -223,7 +247,7 @@ func (suite *OVSIntegrationSuite) TestConnectReconnect() {
 	}()
 
 	<-ready
-	suite.client.Disconnect()
+	suite.clientWithoutInactvityCheck.Disconnect()
 
 	select {
 	case <-notified:
@@ -232,15 +256,15 @@ func (suite *OVSIntegrationSuite) TestConnectReconnect() {
 		suite.T().Fatal("expected a disconnect notification but didn't receive one")
 	}
 
-	assert.Equal(suite.T(), false, suite.client.Connected())
+	assert.Equal(suite.T(), false, suite.clientWithoutInactvityCheck.Connected())
 
-	err = suite.client.Echo(context.TODO())
+	err = suite.clientWithoutInactvityCheck.Echo(context.TODO())
 	require.EqualError(suite.T(), err, client.ErrNotConnected.Error())
 
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	err = suite.client.Connect(ctx)
+	err = suite.clientWithoutInactvityCheck.Connect(ctx)
 	require.NoError(suite.T(), err)
 
 	br := &bridgeType{
@@ -248,14 +272,14 @@ func (suite *OVSIntegrationSuite) TestConnectReconnect() {
 	}
 
 	// assert cache has been purged
-	err = suite.client.Get(ctx, br)
+	err = suite.clientWithoutInactvityCheck.Get(ctx, br)
 	require.Error(suite.T(), err, client.ErrNotFound)
 
-	err = suite.client.Echo(context.TODO())
+	err = suite.clientWithoutInactvityCheck.Echo(context.TODO())
 	assert.NoError(suite.T(), err)
 
-	_, err = suite.client.Monitor(context.TODO(),
-		suite.client.NewMonitor(
+	_, err = suite.clientWithoutInactvityCheck.Monitor(context.TODO(),
+		suite.clientWithoutInactvityCheck.NewMonitor(
 			client.WithTable(&ovsType{}),
 			client.WithTable(&bridgeType{}),
 		),
@@ -263,24 +287,90 @@ func (suite *OVSIntegrationSuite) TestConnectReconnect() {
 	require.NoError(suite.T(), err)
 
 	// assert cache has been re-populated
-	require.NoError(suite.T(), suite.client.Get(ctx, br))
+	require.NoError(suite.T(), suite.clientWithoutInactvityCheck.Get(ctx, br))
 
 }
 
-func (suite *OVSIntegrationSuite) TestWithReconnect() {
-	assert.Equal(suite.T(), true, suite.client.Connected())
-	err := suite.client.Echo(context.TODO())
+func (suite *OVSIntegrationSuite) TestWithInactivityCheck() {
+	assert.Equal(suite.T(), true, suite.clientWithInactivityCheck.Connected())
+	err := suite.clientWithInactivityCheck.Echo(context.TODO())
 	require.NoError(suite.T(), err)
 
 	// Disconnect client
-	suite.client.Disconnect()
+	suite.clientWithInactivityCheck.Disconnect()
+
+	// Ensure Disconnect doesn't have any impact to the connection.
+	require.Eventually(suite.T(), func() bool {
+		return suite.clientWithInactivityCheck.Connected()
+	}, 5*time.Second, 1*time.Second)
+	// Try to reconfigure client which already have an established connection.
+	err = suite.clientWithInactivityCheck.SetOption(
+		client.WithReconnect(2*time.Second, &backoff.ZeroBackOff{}),
+	)
+	require.Error(suite.T(), err)
+
+	// Ensure Connect doesn't purge the cache.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err = suite.clientWithInactivityCheck.Connect(ctx)
+	require.NoError(suite.T(), err)
+	err = suite.clientWithoutInactvityCheck.Echo(context.TODO())
+	require.NoError(suite.T(), err)
+	require.True(suite.T(), suite.clientWithoutInactvityCheck.Cache().Table("Bridge").Len() != 0)
+
+	// set up a disconnect notification
+	disconnectNotification := suite.clientWithoutInactvityCheck.DisconnectNotify()
+	notified := make(chan struct{})
+	ready := make(chan struct{})
+
+	go func() {
+		ready <- struct{}{}
+		<-disconnectNotification
+		notified <- struct{}{}
+	}()
+
+	<-ready
+	// close the connection
+	suite.clientWithoutInactvityCheck.Close()
+
+	select {
+	case <-notified:
+		// got notification
+	case <-time.After(5 * time.Second):
+		suite.T().Fatal("expected a disconnect notification but didn't receive one")
+	}
+
+	assert.Equal(suite.T(), false, suite.clientWithoutInactvityCheck.Connected())
+
+	err = suite.clientWithoutInactvityCheck.Echo(context.TODO())
+	require.EqualError(suite.T(), err, client.ErrNotConnected.Error())
+
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err = suite.clientWithoutInactvityCheck.Connect(ctx)
+	require.NoError(suite.T(), err)
+
+	err = suite.clientWithoutInactvityCheck.Echo(context.TODO())
+	assert.NoError(suite.T(), err)
+
+	_, err = suite.clientWithoutInactvityCheck.MonitorAll(context.TODO())
+	require.NoError(suite.T(), err)
+}
+
+func (suite *OVSIntegrationSuite) TestWithReconnect() {
+	assert.Equal(suite.T(), true, suite.clientWithoutInactvityCheck.Connected())
+	err := suite.clientWithoutInactvityCheck.Echo(context.TODO())
+	require.NoError(suite.T(), err)
+
+	// Disconnect client
+	suite.clientWithoutInactvityCheck.Disconnect()
 
 	require.Eventually(suite.T(), func() bool {
-		return !suite.client.Connected()
+		return !suite.clientWithoutInactvityCheck.Connected()
 	}, 5*time.Second, 1*time.Second)
 
 	// Reconfigure
-	err = suite.client.SetOption(
+	err = suite.clientWithoutInactvityCheck.SetOption(
 		client.WithReconnect(2*time.Second, &backoff.ZeroBackOff{}),
 	)
 	require.NoError(suite.T(), err)
@@ -288,30 +378,30 @@ func (suite *OVSIntegrationSuite) TestWithReconnect() {
 	// Connect (again)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err = suite.client.Connect(ctx)
+	err = suite.clientWithoutInactvityCheck.Connect(ctx)
 	require.NoError(suite.T(), err)
 
 	// make another connect call, this should return without error as we're already connected
 	ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	err = suite.client.Connect(ctx)
+	err = suite.clientWithoutInactvityCheck.Connect(ctx)
 	require.NoError(suite.T(), err)
 
 	// check the connection is working
-	err = suite.client.Echo(context.TODO())
+	err = suite.clientWithoutInactvityCheck.Echo(context.TODO())
 	require.NoError(suite.T(), err)
 
 	// check the cache is purged
-	require.True(suite.T(), suite.client.Cache().Table("Bridge").Len() == 0)
+	require.True(suite.T(), suite.clientWithoutInactvityCheck.Cache().Table("Bridge").Len() == 0)
 
 	// set up the monitor again
-	_, err = suite.client.MonitorAll(context.TODO())
+	_, err = suite.clientWithoutInactvityCheck.MonitorAll(context.TODO())
 	require.NoError(suite.T(), err)
 
 	// add a bridge and verify our handler gets called
 	bridgeName := "recon-b4"
 	brChan := make(chan *bridgeType)
-	suite.client.Cache().AddEventHandler(&cache.EventHandlerFuncs{
+	suite.clientWithoutInactvityCheck.Cache().AddEventHandler(&cache.EventHandlerFuncs{
 		AddFunc: func(table string, model model.Model) {
 			br, ok := model.(*bridgeType)
 			if !ok {
@@ -334,14 +424,14 @@ func (suite *OVSIntegrationSuite) TestWithReconnect() {
 
 	// check that we are automatically reconnected
 	require.Eventually(suite.T(), func() bool {
-		return suite.client.Connected()
+		return suite.clientWithoutInactvityCheck.Connected()
 	}, 20*time.Second, 1*time.Second)
 
-	err = suite.client.Echo(context.TODO())
+	err = suite.clientWithoutInactvityCheck.Echo(context.TODO())
 	require.NoError(suite.T(), err)
 
 	// check our original bridge is in the cache
-	err = suite.client.Get(ctx, br)
+	err = suite.clientWithoutInactvityCheck.Get(ctx, br)
 	require.NoError(suite.T(), err)
 
 	// create a new bridge to ensure the monitor and cache handler is still working
@@ -362,7 +452,7 @@ LOOP:
 	}
 
 	// set up a disconnect notification
-	disconnectNotification := suite.client.DisconnectNotify()
+	disconnectNotification := suite.clientWithoutInactvityCheck.DisconnectNotify()
 	notified := make(chan struct{})
 	ready := make(chan struct{})
 
@@ -374,7 +464,7 @@ LOOP:
 
 	<-ready
 	// close the connection
-	suite.client.Close()
+	suite.clientWithoutInactvityCheck.Close()
 
 	select {
 	case <-notified:
@@ -383,20 +473,20 @@ LOOP:
 		suite.T().Fatal("expected a disconnect notification but didn't receive one")
 	}
 
-	assert.Equal(suite.T(), false, suite.client.Connected())
+	assert.Equal(suite.T(), false, suite.clientWithoutInactvityCheck.Connected())
 
-	err = suite.client.Echo(context.TODO())
+	err = suite.clientWithoutInactvityCheck.Echo(context.TODO())
 	require.EqualError(suite.T(), err, client.ErrNotConnected.Error())
 
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err = suite.client.Connect(ctx)
+	err = suite.clientWithoutInactvityCheck.Connect(ctx)
 	require.NoError(suite.T(), err)
 
-	err = suite.client.Echo(context.TODO())
+	err = suite.clientWithoutInactvityCheck.Echo(context.TODO())
 	assert.NoError(suite.T(), err)
 
-	_, err = suite.client.MonitorAll(context.TODO())
+	_, err = suite.clientWithoutInactvityCheck.MonitorAll(context.TODO())
 	require.NoError(suite.T(), err)
 }
 
@@ -406,7 +496,7 @@ func (suite *OVSIntegrationSuite) TestInsertTransactIntegration() {
 	require.NoError(suite.T(), err)
 	require.Eventually(suite.T(), func() bool {
 		br := &bridgeType{UUID: uuid}
-		err := suite.client.Get(context.Background(), br)
+		err := suite.clientWithoutInactvityCheck.Get(context.Background(), br)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 }
@@ -417,7 +507,7 @@ func (suite *OVSIntegrationSuite) TestMultipleOpsTransactIntegration() {
 	require.NoError(suite.T(), err)
 	require.Eventually(suite.T(), func() bool {
 		br := &bridgeType{UUID: uuid}
-		err := suite.client.Get(context.Background(), br)
+		err := suite.clientWithoutInactvityCheck.Get(context.Background(), br)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 
@@ -425,7 +515,7 @@ func (suite *OVSIntegrationSuite) TestMultipleOpsTransactIntegration() {
 	ovsRow := bridgeType{}
 	br := &bridgeType{UUID: uuid}
 
-	op1, err := suite.client.Where(br).
+	op1, err := suite.clientWithoutInactvityCheck.Where(br).
 		Mutate(&ovsRow, model.Mutation{
 			Field:   &ovsRow.ExternalIds,
 			Mutator: ovsdb.MutateOperationInsert,
@@ -451,7 +541,7 @@ func (suite *OVSIntegrationSuite) TestMultipleOpsTransactIntegration() {
 			Value:   map[string]string{"podman": "made-for-each-other"},
 		},
 	}
-	op2, err := suite.client.Where(br).Mutate(&ovsRow, op2Mutations...)
+	op2, err := suite.clientWithoutInactvityCheck.Where(br).Mutate(&ovsRow, op2Mutations...)
 	require.NoError(suite.T(), err)
 	operations = append(operations, op2...)
 
@@ -459,14 +549,14 @@ func (suite *OVSIntegrationSuite) TestMultipleOpsTransactIntegration() {
 	op3 := ovsdb.Operation{Op: ovsdb.OperationComment, Comment: &op3Comment}
 	operations = append(operations, op3)
 
-	reply, err := suite.client.Transact(context.TODO(), operations...)
+	reply, err := suite.clientWithoutInactvityCheck.Transact(context.TODO(), operations...)
 	require.NoError(suite.T(), err)
 
 	_, err = ovsdb.CheckOperationResults(reply, operations)
 	require.NoError(suite.T(), err)
 
 	require.Eventually(suite.T(), func() bool {
-		err := suite.client.Get(context.Background(), br)
+		err := suite.clientWithoutInactvityCheck.Get(context.Background(), br)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 
@@ -487,15 +577,15 @@ func (suite *OVSIntegrationSuite) TestInsertAndDeleteTransactIntegration() {
 
 	require.Eventually(suite.T(), func() bool {
 		br := &bridgeType{UUID: bridgeUUID}
-		err := suite.client.Get(context.Background(), br)
+		err := suite.clientWithoutInactvityCheck.Get(context.Background(), br)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 
-	deleteOp, err := suite.client.Where(&bridgeType{Name: bridgeName}).Delete()
+	deleteOp, err := suite.clientWithoutInactvityCheck.Where(&bridgeType{Name: bridgeName}).Delete()
 	require.NoError(suite.T(), err)
 
 	ovsRow := ovsType{}
-	delMutateOp, err := suite.client.WhereCache(func(*ovsType) bool { return true }).
+	delMutateOp, err := suite.clientWithoutInactvityCheck.WhereCache(func(*ovsType) bool { return true }).
 		Mutate(&ovsRow, model.Mutation{
 			Field:   &ovsRow.Bridges,
 			Mutator: ovsdb.MutateOperationDelete,
@@ -505,7 +595,7 @@ func (suite *OVSIntegrationSuite) TestInsertAndDeleteTransactIntegration() {
 	require.NoError(suite.T(), err)
 
 	delOperations := append(deleteOp, delMutateOp...)
-	delReply, err := suite.client.Transact(context.TODO(), delOperations...)
+	delReply, err := suite.clientWithoutInactvityCheck.Transact(context.TODO(), delOperations...)
 	require.NoError(suite.T(), err)
 
 	delOperationErrs, err := ovsdb.CheckOperationResults(delReply, delOperations)
@@ -518,7 +608,7 @@ func (suite *OVSIntegrationSuite) TestInsertAndDeleteTransactIntegration() {
 
 	require.Eventually(suite.T(), func() bool {
 		br := &bridgeType{UUID: bridgeUUID}
-		err := suite.client.Get(context.Background(), br)
+		err := suite.clientWithoutInactvityCheck.Get(context.Background(), br)
 		return err != nil
 	}, 2*time.Second, 500*time.Millisecond)
 }
@@ -529,7 +619,7 @@ func (suite *OVSIntegrationSuite) TestTableSchemaValidationIntegration() {
 		Table: "InvalidTable",
 		Row:   ovsdb.Row(map[string]interface{}{"name": "docker-ovs"}),
 	}
-	_, err := suite.client.Transact(context.TODO(), operation)
+	_, err := suite.clientWithoutInactvityCheck.Transact(context.TODO(), operation)
 	assert.Error(suite.T(), err)
 }
 
@@ -540,7 +630,7 @@ func (suite *OVSIntegrationSuite) TestColumnSchemaInRowValidationIntegration() {
 		Row:   ovsdb.Row(map[string]interface{}{"name": "docker-ovs", "invalid_column": "invalid_column"}),
 	}
 
-	_, err := suite.client.Transact(context.TODO(), operation)
+	_, err := suite.clientWithoutInactvityCheck.Transact(context.TODO(), operation)
 	assert.Error(suite.T(), err)
 }
 
@@ -554,7 +644,7 @@ func (suite *OVSIntegrationSuite) TestColumnSchemaInMultipleRowsValidationIntegr
 		Table: "Bridge",
 		Rows:  rows,
 	}
-	_, err := suite.client.Transact(context.TODO(), operation)
+	_, err := suite.clientWithoutInactvityCheck.Transact(context.TODO(), operation)
 	assert.Error(suite.T(), err)
 }
 
@@ -564,14 +654,14 @@ func (suite *OVSIntegrationSuite) TestColumnSchemaValidationIntegration() {
 		Table:   "Bridge",
 		Columns: []string{"name", "invalidColumn"},
 	}
-	_, err := suite.client.Transact(context.TODO(), operation)
+	_, err := suite.clientWithoutInactvityCheck.Transact(context.TODO(), operation)
 	assert.Error(suite.T(), err)
 }
 
 func (suite *OVSIntegrationSuite) TestMonitorCancelIntegration() {
-	monitorID, err := suite.client.Monitor(
+	monitorID, err := suite.clientWithoutInactvityCheck.Monitor(
 		context.TODO(),
-		suite.client.NewMonitor(
+		suite.clientWithoutInactvityCheck.NewMonitor(
 			client.WithTable(&queueType{}),
 		),
 	)
@@ -581,18 +671,18 @@ func (suite *OVSIntegrationSuite) TestMonitorCancelIntegration() {
 	require.NoError(suite.T(), err)
 	require.Eventually(suite.T(), func() bool {
 		q := &queueType{UUID: uuid}
-		err = suite.client.Get(context.Background(), q)
+		err = suite.clientWithoutInactvityCheck.Get(context.Background(), q)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 
-	err = suite.client.MonitorCancel(context.TODO(), monitorID)
+	err = suite.clientWithoutInactvityCheck.MonitorCancel(context.TODO(), monitorID)
 	assert.NoError(suite.T(), err)
 
 	uuid, err = suite.createQueue("test2", 1)
 	require.NoError(suite.T(), err)
 	assert.Never(suite.T(), func() bool {
 		q := &queueType{UUID: uuid}
-		err = suite.client.Get(context.Background(), q)
+		err = suite.clientWithoutInactvityCheck.Get(context.Background(), q)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 }
@@ -615,9 +705,9 @@ func (suite *OVSIntegrationSuite) TestMonitorConditionIntegration() {
 		},
 	}
 
-	_, err := suite.client.Monitor(
+	_, err := suite.clientWithoutInactvityCheck.Monitor(
 		context.TODO(),
-		suite.client.NewMonitor(
+		suite.clientWithoutInactvityCheck.NewMonitor(
 			client.WithConditionalTable(&queue, conditions),
 		),
 	)
@@ -627,7 +717,7 @@ func (suite *OVSIntegrationSuite) TestMonitorConditionIntegration() {
 	require.NoError(suite.T(), err)
 	require.Eventually(suite.T(), func() bool {
 		q := &queueType{UUID: uuid}
-		err = suite.client.Get(context.Background(), q)
+		err = suite.clientWithoutInactvityCheck.Get(context.Background(), q)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 
@@ -635,7 +725,7 @@ func (suite *OVSIntegrationSuite) TestMonitorConditionIntegration() {
 	require.NoError(suite.T(), err)
 	assert.Never(suite.T(), func() bool {
 		q := &queueType{UUID: uuid}
-		err = suite.client.Get(context.Background(), q)
+		err = suite.clientWithoutInactvityCheck.Get(context.Background(), q)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 
@@ -643,7 +733,7 @@ func (suite *OVSIntegrationSuite) TestMonitorConditionIntegration() {
 	require.NoError(suite.T(), err)
 	require.Eventually(suite.T(), func() bool {
 		q := &queueType{UUID: uuid}
-		err = suite.client.Get(context.Background(), q)
+		err = suite.clientWithoutInactvityCheck.Get(context.Background(), q)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 }
@@ -654,7 +744,7 @@ func (suite *OVSIntegrationSuite) TestInsertDuplicateTransactIntegration() {
 
 	require.Eventually(suite.T(), func() bool {
 		br := &bridgeType{UUID: uuid}
-		err := suite.client.Get(context.Background(), br)
+		err := suite.clientWithoutInactvityCheck.Get(context.Background(), br)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 
@@ -669,32 +759,32 @@ func (suite *OVSIntegrationSuite) TestUpdate() {
 
 	require.Eventually(suite.T(), func() bool {
 		br := &bridgeType{UUID: uuid}
-		err := suite.client.Get(context.Background(), br)
+		err := suite.clientWithoutInactvityCheck.Get(context.Background(), br)
 		return err == nil
 	}, 2*time.Second, 500*time.Millisecond)
 
 	bridgeRow := &bridgeType{UUID: uuid}
-	err = suite.client.Get(context.Background(), bridgeRow)
+	err = suite.clientWithoutInactvityCheck.Get(context.Background(), bridgeRow)
 	require.NoError(suite.T(), err)
 
 	// try to modify immutable field
 	bridgeRow.Name = "br-update2"
-	_, err = suite.client.Where(bridgeRow).Update(bridgeRow, &bridgeRow.Name)
+	_, err = suite.clientWithoutInactvityCheck.Where(bridgeRow).Update(bridgeRow, &bridgeRow.Name)
 	require.Error(suite.T(), err)
 	bridgeRow.Name = "br-update"
 	// update many fields
 	bridgeRow.ExternalIds["baz"] = "foobar"
 	bridgeRow.OtherConfig = map[string]string{"foo": "bar"}
-	ops, err := suite.client.Where(bridgeRow).Update(bridgeRow)
+	ops, err := suite.clientWithoutInactvityCheck.Where(bridgeRow).Update(bridgeRow)
 	require.NoError(suite.T(), err)
-	reply, err := suite.client.Transact(context.Background(), ops...)
+	reply, err := suite.clientWithoutInactvityCheck.Transact(context.Background(), ops...)
 	require.NoError(suite.T(), err)
 	opErrs, err := ovsdb.CheckOperationResults(reply, ops)
 	require.NoErrorf(suite.T(), err, "%+v", opErrs)
 
 	require.Eventually(suite.T(), func() bool {
 		br := &bridgeType{UUID: uuid}
-		err = suite.client.Get(context.Background(), br)
+		err = suite.clientWithoutInactvityCheck.Get(context.Background(), br)
 		if err != nil {
 			return false
 		}
@@ -703,16 +793,16 @@ func (suite *OVSIntegrationSuite) TestUpdate() {
 
 	newExternalIds := map[string]string{"foo": "bar"}
 	bridgeRow.ExternalIds = newExternalIds
-	ops, err = suite.client.Where(bridgeRow).Update(bridgeRow, &bridgeRow.ExternalIds)
+	ops, err = suite.clientWithoutInactvityCheck.Where(bridgeRow).Update(bridgeRow, &bridgeRow.ExternalIds)
 	require.NoError(suite.T(), err)
-	reply, err = suite.client.Transact(context.Background(), ops...)
+	reply, err = suite.clientWithoutInactvityCheck.Transact(context.Background(), ops...)
 	require.NoError(suite.T(), err)
 	opErr, err := ovsdb.CheckOperationResults(reply, ops)
 	require.NoErrorf(suite.T(), err, "%Populate2+v", opErr)
 
 	assert.Eventually(suite.T(), func() bool {
 		br := &bridgeType{UUID: uuid}
-		err = suite.client.Get(context.Background(), br)
+		err = suite.clientWithoutInactvityCheck.Get(context.Background(), br)
 		if err != nil {
 			return false
 		}
@@ -733,12 +823,12 @@ func (suite *OVSIntegrationSuite) createBridge(bridgeName string) (string, error
 		BridgeFailMode: &BridgeFailModeSecure,
 	}
 
-	insertOp, err := suite.client.Create(&br)
+	insertOp, err := suite.clientWithoutInactvityCheck.Create(&br)
 	require.NoError(suite.T(), err)
 
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
 	ovsRow := ovsType{}
-	mutateOp, err := suite.client.WhereCache(func(*ovsType) bool { return true }).
+	mutateOp, err := suite.clientWithoutInactvityCheck.WhereCache(func(*ovsType) bool { return true }).
 		Mutate(&ovsRow, model.Mutation{
 			Field:   &ovsRow.Bridges,
 			Mutator: ovsdb.MutateOperationInsert,
@@ -747,7 +837,7 @@ func (suite *OVSIntegrationSuite) createBridge(bridgeName string) (string, error
 	require.NoError(suite.T(), err)
 
 	operations := append(insertOp, mutateOp...)
-	reply, err := suite.client.Transact(context.TODO(), operations...)
+	reply, err := suite.clientWithoutInactvityCheck.Transact(context.TODO(), operations...)
 	require.NoError(suite.T(), err)
 
 	_, err = ovsdb.CheckOperationResults(reply, operations)
@@ -763,17 +853,17 @@ func (suite *OVSIntegrationSuite) TestCreateIPFIX() {
 		UUID:    namedUUID,
 		Targets: []string{"127.0.0.1:6650"},
 	}
-	insertOp, err := suite.client.Create(&ipfix)
+	insertOp, err := suite.clientWithoutInactvityCheck.Create(&ipfix)
 	require.NoError(suite.T(), err)
 
 	bridge := bridgeType{
 		UUID:  uuid,
 		IPFIX: &namedUUID,
 	}
-	updateOps, err := suite.client.Where(&bridge).Update(&bridge, &bridge.IPFIX)
+	updateOps, err := suite.clientWithoutInactvityCheck.Where(&bridge).Update(&bridge, &bridge.IPFIX)
 	require.NoError(suite.T(), err)
 	operations := append(insertOp, updateOps...)
-	reply, err := suite.client.Transact(context.TODO(), operations...)
+	reply, err := suite.clientWithoutInactvityCheck.Transact(context.TODO(), operations...)
 	require.NoError(suite.T(), err)
 	opErrs, err := ovsdb.CheckOperationResults(reply, operations)
 	if err != nil {
@@ -784,9 +874,9 @@ func (suite *OVSIntegrationSuite) TestCreateIPFIX() {
 
 	// Delete the IPFIX row by removing it's strong reference
 	bridge.IPFIX = nil
-	updateOps, err = suite.client.Where(&bridge).Update(&bridge, &bridge.IPFIX)
+	updateOps, err = suite.clientWithoutInactvityCheck.Where(&bridge).Update(&bridge, &bridge.IPFIX)
 	require.NoError(suite.T(), err)
-	reply, err = suite.client.Transact(context.TODO(), updateOps...)
+	reply, err = suite.clientWithoutInactvityCheck.Transact(context.TODO(), updateOps...)
 	require.NoError(suite.T(), err)
 	opErrs, err = ovsdb.CheckOperationResults(reply, updateOps)
 	if err != nil {
@@ -798,7 +888,7 @@ func (suite *OVSIntegrationSuite) TestCreateIPFIX() {
 
 	//Assert the IPFIX table is empty
 	ipfixes := []ipfixType{}
-	err = suite.client.List(context.Background(), &ipfixes)
+	err = suite.clientWithoutInactvityCheck.List(context.Background(), &ipfixes)
 	require.NoError(suite.T(), err)
 	require.Empty(suite.T(), ipfixes)
 
@@ -820,10 +910,10 @@ func (suite *OVSIntegrationSuite) TestWait() {
 		},
 	}
 	timeout := 0
-	ops, err := suite.client.WhereAny(bridgeRow, conditions...).Wait(
+	ops, err := suite.clientWithoutInactvityCheck.WhereAny(bridgeRow, conditions...).Wait(
 		ovsdb.WaitConditionNotEqual, &timeout, bridgeRow, &bridgeRow.Name)
 	require.NoError(suite.T(), err)
-	reply, err := suite.client.Transact(context.Background(), ops...)
+	reply, err := suite.clientWithoutInactvityCheck.Transact(context.Background(), ops...)
 	require.NoError(suite.T(), err)
 	opErrs, err := ovsdb.CheckOperationResults(reply, ops)
 	require.NoErrorf(suite.T(), err, "%+v", opErrs)
@@ -845,20 +935,20 @@ func (suite *OVSIntegrationSuite) TestWait() {
 		},
 	}
 	timeout = 2 * 1000 // 2 seconds (in milliseconds)
-	ops, err = suite.client.WhereAny(bridgeRow, conditions...).Wait(
+	ops, err = suite.clientWithoutInactvityCheck.WhereAny(bridgeRow, conditions...).Wait(
 		ovsdb.WaitConditionEqual, &timeout, bridgeRow, &bridgeRow.BridgeFailMode)
 	require.NoError(suite.T(), err)
-	reply, err = suite.client.Transact(context.Background(), ops...)
+	reply, err = suite.clientWithoutInactvityCheck.Transact(context.Background(), ops...)
 	require.NoError(suite.T(), err)
 	opErrs, err = ovsdb.CheckOperationResults(reply, ops)
 	require.NoErrorf(suite.T(), err, "%+v", opErrs)
 
 	// Use wait to get a txn error due to until condition that is not happening
 	timeout = 222 // milliseconds
-	ops, err = suite.client.WhereAny(bridgeRow, conditions...).Wait(
+	ops, err = suite.clientWithoutInactvityCheck.WhereAny(bridgeRow, conditions...).Wait(
 		ovsdb.WaitConditionNotEqual, &timeout, bridgeRow, &bridgeRow.BridgeFailMode)
 	require.NoError(suite.T(), err)
-	reply, err = suite.client.Transact(context.Background(), ops...)
+	reply, err = suite.clientWithoutInactvityCheck.Transact(context.Background(), ops...)
 	require.NoError(suite.T(), err)
 	_, err = ovsdb.CheckOperationResults(reply, ops)
 	assert.Error(suite.T(), err)
@@ -869,9 +959,9 @@ func (suite *OVSIntegrationSuite) createQueue(queueName string, dscp int) (strin
 		DSCP: &dscp,
 	}
 
-	insertOp, err := suite.client.Create(&q)
+	insertOp, err := suite.clientWithoutInactvityCheck.Create(&q)
 	require.NoError(suite.T(), err)
-	reply, err := suite.client.Transact(context.TODO(), insertOp...)
+	reply, err := suite.clientWithoutInactvityCheck.Transact(context.TODO(), insertOp...)
 	require.NoError(suite.T(), err)
 
 	_, err = ovsdb.CheckOperationResults(reply, insertOp)
@@ -886,18 +976,18 @@ func (suite *OVSIntegrationSuite) TestOpsWaitForReconnect() {
 	}
 
 	// Shutdown client
-	suite.client.Disconnect()
+	suite.clientWithoutInactvityCheck.Disconnect()
 
 	require.Eventually(suite.T(), func() bool {
-		return !suite.client.Connected()
+		return !suite.clientWithoutInactvityCheck.Connected()
 	}, 5*time.Second, 1*time.Second)
 
-	err := suite.client.SetOption(
+	err := suite.clientWithoutInactvityCheck.SetOption(
 		client.WithReconnect(2*time.Second, &backoff.ZeroBackOff{}),
 	)
 	require.NoError(suite.T(), err)
 	var insertOp []ovsdb.Operation
-	insertOp, err = suite.client.Create(&ipfix)
+	insertOp, err = suite.clientWithoutInactvityCheck.Create(&ipfix)
 	require.NoError(suite.T(), err)
 
 	wg := sync.WaitGroup{}
@@ -905,7 +995,7 @@ func (suite *OVSIntegrationSuite) TestOpsWaitForReconnect() {
 	// delay reconnecting for 5 seconds
 	go func() {
 		time.Sleep(5 * time.Second)
-		err := suite.client.Connect(context.Background())
+		err := suite.clientWithoutInactvityCheck.Connect(context.Background())
 		require.NoError(suite.T(), err)
 		wg.Done()
 	}()
@@ -913,7 +1003,7 @@ func (suite *OVSIntegrationSuite) TestOpsWaitForReconnect() {
 	// execute the transaction, should not fail and execute after reconnection
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	reply, err := suite.client.Transact(ctx, insertOp...)
+	reply, err := suite.clientWithoutInactvityCheck.Transact(ctx, insertOp...)
 	require.NoError(suite.T(), err)
 
 	_, err = ovsdb.CheckOperationResults(reply, insertOp)
@@ -936,21 +1026,21 @@ func (suite *OVSIntegrationSuite) TestUnsetOptional() {
 	}
 
 	// verify the bridge has BridgeFailMode set
-	err = suite.client.Get(ctx, &br)
+	err = suite.clientWithoutInactvityCheck.Get(ctx, &br)
 	require.NoError(suite.T(), err)
 	require.NotNil(suite.T(), br.BridgeFailMode)
 
 	// modify bridge to unset BridgeFailMode
 	br.BridgeFailMode = nil
-	ops, err := suite.client.Where(&br).Update(&br, &br.BridgeFailMode)
+	ops, err := suite.clientWithoutInactvityCheck.Where(&br).Update(&br, &br.BridgeFailMode)
 	require.NoError(suite.T(), err)
-	r, err := suite.client.Transact(ctx, ops...)
+	r, err := suite.clientWithoutInactvityCheck.Transact(ctx, ops...)
 	require.NoError(suite.T(), err)
 	_, err = ovsdb.CheckOperationResults(r, ops)
 	require.NoError(suite.T(), err)
 
 	// verify the bridge has BridgeFailMode unset
-	err = suite.client.Get(ctx, &br)
+	err = suite.clientWithoutInactvityCheck.Get(ctx, &br)
 	require.NoError(suite.T(), err)
 	require.Nil(suite.T(), br.BridgeFailMode)
 }
@@ -968,21 +1058,21 @@ func (suite *OVSIntegrationSuite) TestUpdateOptional() {
 	}
 
 	// verify the bridge has BridgeFailMode set
-	err = suite.client.Get(ctx, &br)
+	err = suite.clientWithoutInactvityCheck.Get(ctx, &br)
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), &BridgeFailModeSecure, br.BridgeFailMode)
 
 	// modify bridge to update BridgeFailMode
 	br.BridgeFailMode = &BridgeFailModeStandalone
-	ops, err := suite.client.Where(&br).Update(&br, &br.BridgeFailMode)
+	ops, err := suite.clientWithoutInactvityCheck.Where(&br).Update(&br, &br.BridgeFailMode)
 	require.NoError(suite.T(), err)
-	r, err := suite.client.Transact(ctx, ops...)
+	r, err := suite.clientWithoutInactvityCheck.Transact(ctx, ops...)
 	require.NoError(suite.T(), err)
 	_, err = ovsdb.CheckOperationResults(r, ops)
 	require.NoError(suite.T(), err)
 
 	// verify the bridge has BridgeFailMode updated
-	err = suite.client.Get(ctx, &br)
+	err = suite.clientWithoutInactvityCheck.Get(ctx, &br)
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), &BridgeFailModeStandalone, br.BridgeFailMode)
 }
@@ -1062,12 +1152,12 @@ func (suite *OVSIntegrationSuite) TestMultipleOpsSameRow() {
 		Ports:       []string{port10UUID, port1UUID},
 		ExternalIds: map[string]string{"key1": "value1"},
 	}
-	op, err := suite.client.Create(&br)
+	op, err := suite.clientWithoutInactvityCheck.Create(&br)
 	require.NoError(suite.T(), err)
 	ops = append(ops, op...)
 
 	ovs := ovsType{}
-	op, err = suite.client.WhereCache(func(*ovsType) bool { return true }).Mutate(&ovs, model.Mutation{
+	op, err = suite.clientWithoutInactvityCheck.WhereCache(func(*ovsType) bool { return true }).Mutate(&ovs, model.Mutation{
 		Field:   &ovs.Bridges,
 		Mutator: ovsdb.MutateOperationInsert,
 		Value:   []string{bridgeUUID},
@@ -1075,7 +1165,7 @@ func (suite *OVSIntegrationSuite) TestMultipleOpsSameRow() {
 	require.NoError(suite.T(), err)
 	ops = append(ops, op...)
 
-	results, err := suite.client.Transact(ctx, ops...)
+	results, err := suite.clientWithoutInactvityCheck.Transact(ctx, ops...)
 	require.NoError(suite.T(), err)
 
 	_, err = ovsdb.CheckOperationResults(results, ops)
@@ -1091,11 +1181,11 @@ func (suite *OVSIntegrationSuite) TestMultipleOpsSameRow() {
 	// Do several ops with the bridge in the same transaction
 	br.Ports = []string{port10UUID}
 	br.ExternalIds = map[string]string{"key1": "value1", "key10": "value10"}
-	op, err = suite.client.Where(&br).Update(&br, &br.Ports, &br.ExternalIds)
+	op, err = suite.clientWithoutInactvityCheck.Where(&br).Update(&br, &br.Ports, &br.ExternalIds)
 	require.NoError(suite.T(), err)
 	ops = append(ops, op...)
 
-	op, err = suite.client.Where(&br).Mutate(&br,
+	op, err = suite.clientWithoutInactvityCheck.Where(&br).Mutate(&br,
 		model.Mutation{
 			Field:   &br.ExternalIds,
 			Mutator: ovsdb.MutateOperationInsert,
@@ -1110,7 +1200,7 @@ func (suite *OVSIntegrationSuite) TestMultipleOpsSameRow() {
 	require.NoError(suite.T(), err)
 	ops = append(ops, op...)
 
-	op, err = suite.client.Where(&br).Mutate(&br,
+	op, err = suite.clientWithoutInactvityCheck.Where(&br).Mutate(&br,
 		model.Mutation{
 			Field:   &br.ExternalIds,
 			Mutator: ovsdb.MutateOperationDelete,
@@ -1126,16 +1216,16 @@ func (suite *OVSIntegrationSuite) TestMultipleOpsSameRow() {
 	ops = append(ops, op...)
 
 	datapathID = "datapathID_updated"
-	op, err = suite.client.Where(&br).Update(&br, &br.DatapathID)
+	op, err = suite.clientWithoutInactvityCheck.Where(&br).Update(&br, &br.DatapathID)
 	require.NoError(suite.T(), err)
 	ops = append(ops, op...)
 
 	br.DatapathID = nil
-	op, err = suite.client.Where(&br).Update(&br, &br.DatapathID)
+	op, err = suite.clientWithoutInactvityCheck.Where(&br).Update(&br, &br.DatapathID)
 	require.NoError(suite.T(), err)
 	ops = append(ops, op...)
 
-	results, err = suite.client.Transact(ctx, ops...)
+	results, err = suite.clientWithoutInactvityCheck.Transact(ctx, ops...)
 	require.NoError(suite.T(), err)
 
 	errors, err := ovsdb.CheckOperationResults(results, ops)
@@ -1146,7 +1236,7 @@ func (suite *OVSIntegrationSuite) TestMultipleOpsSameRow() {
 	br = bridgeType{
 		UUID: bridgeUUID,
 	}
-	err = suite.client.Get(ctx, &br)
+	err = suite.clientWithoutInactvityCheck.Get(ctx, &br)
 	require.NoError(suite.T(), err)
 
 	require.Equal(suite.T(), []string{port1UUID}, br.Ports)

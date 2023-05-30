@@ -36,8 +36,6 @@ const (
 
 const serverDB = "_Server"
 
-const maxAllowedEchoFailCount = 2
-
 // ErrNotConnected is an error returned when the client is not connected
 var ErrNotConnected = errors.New("not connected")
 
@@ -99,19 +97,15 @@ type ovsdbClient struct {
 	primaryDBName string
 	databases     map[string]*database
 
-	errorCh                  chan error
-	stopCh                   chan struct{}
-	disconnect               chan struct{}
-	shutdown                 bool
-	isInactivity             bool
-	isInactivityCheckRunning bool
-	stopInactivity           chan struct{}
-	inactivityCheckStopped   chan struct{}
-	inactivityMutex          sync.Mutex
-	shutdownMutex            sync.Mutex
-	reconnectMutex           sync.Mutex
+	errorCh       chan error
+	stopCh        chan struct{}
+	disconnect    chan struct{}
+	shutdown      bool
+	shutdownMutex sync.Mutex
 
 	handlerShutdown *sync.WaitGroup
+
+	trafficSeen chan struct{}
 
 	logger *logr.Logger
 }
@@ -159,11 +153,9 @@ func newOVSDBClient(clientDBModel model.ClientDBModel, opts ...Option) (*ovsdbCl
 				deferredUpdates: make([]*bufferedUpdate, 0),
 			},
 		},
-		errorCh:                make(chan error),
-		handlerShutdown:        &sync.WaitGroup{},
-		disconnect:             make(chan struct{}),
-		stopInactivity:         make(chan struct{}),
-		inactivityCheckStopped: make(chan struct{}),
+		errorCh:         make(chan error),
+		handlerShutdown: &sync.WaitGroup{},
+		disconnect:      make(chan struct{}),
 	}
 	var err error
 	ovs.options, err = newOptions(opts...)
@@ -212,7 +204,7 @@ func newOVSDBClient(clientDBModel model.ClientDBModel, opts ...Option) (*ovsdbCl
 // The connection can be configured using one or more Option(s), like WithTLSConfig
 // If no WithEndpoint option is supplied, the default of unix:/var/run/openvswitch/ovsdb.sock is used
 func (o *ovsdbClient) Connect(ctx context.Context) error {
-	if err := o.connect(ctx, false, false); err != nil {
+	if err := o.connect(ctx, false); err != nil {
 		if err == ErrAlreadyConnected {
 			return nil
 		}
@@ -222,12 +214,6 @@ func (o *ovsdbClient) Connect(ctx context.Context) error {
 		if err := o.watchForLeaderChange(); err != nil {
 			return err
 		}
-	}
-	o.rpcMutex.Lock()
-	defer o.rpcMutex.Unlock()
-	if o.options.inactivityCheck && !o.isInactivityCheckRunning {
-		go o.handleInactivityCheck()
-		o.isInactivityCheckRunning = true
 	}
 	return nil
 }
@@ -254,7 +240,7 @@ func (o *ovsdbClient) resetRPCClient() {
 	}
 }
 
-func (o *ovsdbClient) connect(ctx context.Context, reconnect, inactivity bool) error {
+func (o *ovsdbClient) connect(ctx context.Context, reconnect bool) error {
 	o.rpcMutex.Lock()
 	defer o.rpcMutex.Unlock()
 	if o.rpcClient != nil {
@@ -318,8 +304,11 @@ func (o *ovsdbClient) connect(ctx context.Context, reconnect, inactivity bool) e
 			}
 		}
 	}
-	if !inactivity {
-		go o.handleDisconnectNotification()
+
+	go o.handleDisconnectNotification()
+	if o.options.inactivityTimeout > 0 {
+		o.handlerShutdown.Add(1)
+		go o.handleInactivityProbes()
 	}
 	for _, db := range o.databases {
 		o.handlerShutdown.Add(1)
@@ -435,6 +424,9 @@ func (o *ovsdbClient) tryEndpoint(ctx context.Context, u *url.URL) (string, erro
 // Should only be called when the mutex is held
 func (o *ovsdbClient) createRPC2Client(conn net.Conn) {
 	o.stopCh = make(chan struct{})
+	if o.options.inactivityTimeout > 0 {
+		o.trafficSeen = make(chan struct{})
+	}
 	o.rpcClient = rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
 	o.rpcClient.SetBlocking(true)
 	o.rpcClient.Handle("echo", func(_ *rpc2.Client, args []interface{}, reply *[]interface{}) error {
@@ -462,7 +454,7 @@ func (o *ovsdbClient) isEndpointLeader(ctx context.Context) (bool, string, error
 		Table:   "Database",
 		Columns: []string{"name", "model", "leader", "sid"},
 	}
-	results, err := o.transact(ctx, serverDB, op)
+	results, err := o.transact(ctx, serverDB, true, op)
 	if err != nil {
 		return false, "", fmt.Errorf("could not check if server was leader: %w", err)
 	}
@@ -810,10 +802,10 @@ func (o *ovsdbClient) Transact(ctx context.Context, operation ...ovsdb.Operation
 		}
 	}
 	defer o.rpcMutex.RUnlock()
-	return o.transact(ctx, o.primaryDBName, operation...)
+	return o.transact(ctx, o.primaryDBName, false, operation...)
 }
 
-func (o *ovsdbClient) transact(ctx context.Context, dbName string, operation ...ovsdb.Operation) ([]ovsdb.OperationResult, error) {
+func (o *ovsdbClient) transact(ctx context.Context, dbName string, skipChWrite bool, operation ...ovsdb.Operation) ([]ovsdb.OperationResult, error) {
 	var reply []ovsdb.OperationResult
 	db := o.databases[dbName]
 	db.modelMutex.RLock()
@@ -840,6 +832,10 @@ func (o *ovsdbClient) transact(ctx context.Context, dbName string, operation ...
 			return nil, ErrNotConnected
 		}
 		return nil, err
+	}
+
+	if !skipChWrite && o.trafficSeen != nil {
+		o.trafficSeen <- struct{}{}
 	}
 	return reply, nil
 }
@@ -1191,83 +1187,82 @@ func (o *ovsdbClient) handleClientErrors(stopCh <-chan struct{}) {
 	}
 }
 
-func (o *ovsdbClient) handleInactivityCheck() {
-	echoFailCount := 0
-	o.rpcMutex.Lock()
-	timeout := o.options.timeout
-	o.rpcMutex.Unlock()
+func (o *ovsdbClient) sendEcho(args []interface{}, reply *[]interface{}) *rpc2.Call {
+	o.rpcMutex.RLock()
+	defer o.rpcMutex.RUnlock()
+	if o.rpcClient == nil {
+		return nil
+	}
+	return o.rpcClient.Go("echo", args, reply, make(chan *rpc2.Call, 1))
+}
+
+func (o *ovsdbClient) handleInactivityProbes() {
+	defer o.handlerShutdown.Done()
+	echoReplied := make(chan string)
+	var lastEcho string
+	stopCh := o.stopCh
+	trafficSeen := o.trafficSeen
 	for {
 		select {
-		case <-o.stopInactivity:
-			close(o.inactivityCheckStopped)
+		case <-stopCh:
 			return
-		default:
-			o.reconnectMutex.Lock()
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
-			if !o.isClientUnderInactivity() {
-				err := o.Echo(ctx)
-				if err != nil {
-					echoFailCount++
-					// When echo failure reaches maxAllowedEchoFailCount, then consider ovndb connection as inactive.
-					if echoFailCount >= maxAllowedEchoFailCount {
-						o.setClientIsInActivity(true)
-					}
-				} else {
-					echoFailCount = 0
-				}
-			} else if o.isClientUnderInactivity() {
-				// Since connection to ovsdb server is inactive for 2 * interval, try to reconnect with it.
-				o.rpcMutex.Lock()
-				if o.rpcClient != nil {
-					// close the stopCh, which will stop the cache event processor
-					close(o.stopCh)
-					// wait for client related handlers to shutdown
-					o.handlerShutdown.Wait()
-				}
-				o.rpcClient = nil
-				o.rpcMutex.Unlock()
-				// need to ensure deferredUpdates is cleared on every reconnect attempt
-				for _, db := range o.databases {
-					db.cacheMutex.Lock()
-					db.deferredUpdates = make([]*bufferedUpdate, 0)
-					db.deferUpdates = true
-					db.cacheMutex.Unlock()
-				}
-				err := o.connect(ctx, true, true)
-				if err == nil || err == ErrAlreadyConnected {
-					o.setClientIsInActivity(false)
-					echoFailCount = 0
-				}
+		case <-trafficSeen:
+			// We got some traffic from the server, restart our timer
+		case ts := <-echoReplied:
+			// Got a response from the server, check it against lastEcho; if same clear lastEcho; if not same Disconnect()
+			if ts != lastEcho {
+				o.Disconnect()
+				return
 			}
-			o.reconnectMutex.Unlock()
-			cancel()
-			time.Sleep(o.options.inactivityCheckInterval)
+			lastEcho = ""
+		case <-time.After(o.options.inactivityTimeout):
+			// If there's a lastEcho already, then we didn't get a server reply, disconnect
+			if lastEcho != "" {
+				o.Disconnect()
+				return
+			}
+			// Otherwise send an echo
+			thisEcho := fmt.Sprintf("%d", time.Now().UnixMicro())
+			args := []interface{}{"libovsdb echo", thisEcho}
+			var reply []interface{}
+			// Can't use o.Echo() because it blocks; we need the Call object direct from o.rpcClient.Go()
+			call := o.sendEcho(args, &reply)
+			if call == nil {
+				o.Disconnect()
+				return
+			}
+			lastEcho = thisEcho
+			go func() {
+				// Wait for the echo reply
+				select {
+				case <-stopCh:
+					return
+				case <-call.Done:
+					if call.Error != nil {
+						// RPC timeout; disconnect
+						o.logger.V(3).Error(call.Error, "server echo reply error")
+						o.Disconnect()
+					} else if !reflect.DeepEqual(args, reply) {
+						o.logger.V(3).Info("warning: incorrect server echo reply",
+							"expected", args, "reply", reply)
+						o.Disconnect()
+					} else {
+						// Otherwise stuff thisEcho into the echoReplied channel
+						echoReplied <- thisEcho
+					}
+				}
+			}()
 		}
 	}
 }
 
-func (o *ovsdbClient) isClientUnderInactivity() bool {
-	o.inactivityMutex.Lock()
-	defer o.inactivityMutex.Unlock()
-	return o.isInactivity
-}
-
-func (o *ovsdbClient) setClientIsInActivity(inactivity bool) {
-	o.inactivityMutex.Lock()
-	defer o.inactivityMutex.Unlock()
-	o.isInactivity = inactivity
-}
-
 func (o *ovsdbClient) handleDisconnectNotification() {
-	var disConnectCh <-chan struct{}
-	o.rpcMutex.Lock()
-	disConnectCh = o.rpcClient.DisconnectNotify()
-	o.rpcMutex.Unlock()
-	<-disConnectCh
-	o.reconnectMutex.Lock()
-	defer o.reconnectMutex.Unlock()
+	<-o.rpcClient.DisconnectNotify()
 	// close the stopCh, which will stop the cache event processor
 	close(o.stopCh)
+	if o.trafficSeen != nil {
+		close(o.trafficSeen)
+	}
 	o.metrics.numDisconnects.Inc()
 	// wait for client related handlers to shutdown
 	o.handlerShutdown.Wait()
@@ -1286,7 +1281,7 @@ func (o *ovsdbClient) handleDisconnectNotification() {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), o.options.timeout)
 			defer cancel()
-			err := o.connect(ctx, true, false)
+			err := o.connect(ctx, true)
 			if err != nil {
 				if suppressionCounter < 5 {
 					o.logger.V(2).Error(err, "failed to reconnect")
@@ -1331,6 +1326,10 @@ func (o *ovsdbClient) handleDisconnectNotification() {
 	}
 	o.metrics.numMonitors.Set(0)
 
+	o.shutdownMutex.Lock()
+	defer o.shutdownMutex.Unlock()
+	o.shutdown = false
+
 	select {
 	case o.disconnect <- struct{}{}:
 		// sent disconnect notification to client
@@ -1371,14 +1370,6 @@ func (o *ovsdbClient) Close() {
 	}
 	o.shutdownMutex.Lock()
 	defer o.shutdownMutex.Unlock()
-	if o.options.inactivityCheck && !o.shutdown {
-		// Stop inactivity check in a goroutine to avoid deadlock with rpcMutex
-		// as there is a chance for an echo request is underway.
-		go func() {
-			close(o.stopInactivity)
-			<-o.inactivityCheckStopped
-		}()
-	}
 	o.shutdown = true
 	o.rpcClient.Close()
 }
