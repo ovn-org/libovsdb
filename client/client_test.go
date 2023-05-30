@@ -903,7 +903,7 @@ func newOVSDBServer(t *testing.T, dbModel model.ClientDBModel, schema ovsdb.Data
 	return server, tmpfile
 }
 
-func newClientServerPair(t *testing.T, connectCounter *int32, isLeader bool) (Client, *serverdb.Database, string) {
+func newClientServerPair(t *testing.T, connectCounter, disConnectCounter *int32, isLeader bool) (Client, *serverdb.Database, string) {
 	var defSchema ovsdb.DatabaseSchema
 	err := json.Unmarshal([]byte(schema), &defSchema)
 	require.NoError(t, err)
@@ -915,6 +915,9 @@ func newClientServerPair(t *testing.T, connectCounter *int32, isLeader bool) (Cl
 	s, sock := newOVSDBServer(t, defDB, defSchema)
 	s.OnConnect(func(_ *rpc2.Client) {
 		atomic.AddInt32(connectCounter, 1)
+	})
+	s.OnDisConnect(func(_ *rpc2.Client) {
+		atomic.AddInt32(disConnectCounter, 1)
 	})
 
 	// Create client for this server's Server database
@@ -959,9 +962,9 @@ func setLeader(t *testing.T, cli Client, row *serverdb.Database, isLeader bool) 
 func TestClientReconnectLeaderOnly(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 
-	var connected1, connected2 int32
-	cli1, row1, endpoint1 := newClientServerPair(t, &connected1, true)
-	cli2, row2, endpoint2 := newClientServerPair(t, &connected2, false)
+	var connected1, connected2, disConnected1, disConnected2 int32
+	cli1, row1, endpoint1 := newClientServerPair(t, &connected1, &disConnected1, true)
+	cli2, row2, endpoint2 := newClientServerPair(t, &connected2, &disConnected2, false)
 
 	// Create client to test reconnection for
 	ovs, err := newOVSDBClient(defDB,
@@ -1080,4 +1083,71 @@ func TestNewMonitorRequest(t *testing.T) {
 	mr2, err := newMonitorRequest(info, []string{"int1", "name"}, nil)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, mr2.Columns, []string{"int1", "name"})
+}
+
+func TestUpdateEndpoints(t *testing.T) {
+	rand.Seed(time.Now().UnixNano())
+
+	var connected1, connected2, connected3, disConnected1, disConnected2, disConnected3 int32
+	_, _, endpoint1 := newClientServerPair(t, &connected1, &disConnected1, true)
+	_, _, endpoint2 := newClientServerPair(t, &connected2, &disConnected2, false)
+	_, _, endpoint3 := newClientServerPair(t, &connected3, &disConnected3, true)
+
+	// Create client to test reconnection for
+	ovs, err := newOVSDBClient(defDB,
+		WithLeaderOnly(true),
+		WithReconnect(1*time.Second, &backoff.ZeroBackOff{}),
+		WithEndpoint(endpoint1))
+	require.NoError(t, err)
+	err = ovs.Connect(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(ovs.Close)
+
+	require.Eventually(t, func() bool {
+		return atomic.LoadInt32(&connected1) == 2
+	}, 2*time.Second, 10*time.Millisecond)
+
+	require.Equal(t, ovs.CurrentEndpoint(), endpoint1)
+	require.NotEmpty(t, ovs.endpoints[0].serverID)
+
+	// update with same endpoints should not have a disconnect
+	ovs.UpdateEndpoints([]string{endpoint1})
+	require.Eventually(t, func() bool {
+		// connect should not increase
+		return atomic.LoadInt32(&connected1) == 2
+	}, 2*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool {
+		// should not disconnect
+		return atomic.LoadInt32(&disConnected1) == 0
+	}, 2*time.Second, 10*time.Millisecond)
+
+	ovs.UpdateEndpoints([]string{endpoint2, endpoint1})
+	require.Eventually(t, func() bool {
+		return ovs.CurrentEndpoint() == endpoint1
+	}, 2*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool {
+		return atomic.LoadInt32(&connected2) == 1
+	}, 2*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool {
+		// server1 should still be the active
+		return atomic.LoadInt32(&disConnected1) == 0
+	}, 2*time.Second, 10*time.Millisecond)
+	require.Equal(t, ovs.endpoints[0].address, endpoint1)
+	require.Equal(t, ovs.endpoints[1].address, endpoint2)
+	require.NotEmpty(t, ovs.endpoints[0].serverID)
+
+	// server3 is the new leader
+	ovs.UpdateEndpoints([]string{endpoint2, endpoint3})
+	require.Eventually(t, func() bool {
+		return ovs.CurrentEndpoint() == endpoint3
+	}, 2*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool {
+		return atomic.LoadInt32(&disConnected2) == 1
+	}, 2*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool {
+		return atomic.LoadInt32(&connected3) == 2
+	}, 2*time.Second, 10*time.Millisecond)
+	require.Equal(t, ovs.endpoints[0].address, endpoint3)
+	require.Equal(t, ovs.endpoints[1].address, endpoint2)
+	require.NotEmpty(t, ovs.endpoints[0].serverID)
 }
