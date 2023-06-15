@@ -47,6 +47,14 @@ func (u UUID) validateUUID() error {
 	return nil
 }
 
-func isNamed(uuid string) bool {
+func IsNamedUUID(uuid string) bool {
 	return len(uuid) > 0 && !validUUID.MatchString(uuid)
+}
+
+func IsValidUUID(uuid string) bool {
+	u := UUID{GoUUID: uuid}
+	if err := u.validateUUID(); err != nil {
+		return false
+	}
+	return true
 }

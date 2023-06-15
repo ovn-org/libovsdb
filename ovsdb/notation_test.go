@@ -137,32 +137,24 @@ func TestValidateOvsMap(t *testing.T) {
 }
 
 func TestValidateUuid(t *testing.T) {
-	uuid1 := UUID{"this is a bad uuid"}                   // Bad
-	uuid2 := UUID{"alsoabaduuid"}                         // Bad
-	uuid3 := UUID{"550e8400-e29b-41d4-a716-446655440000"} // Good
-	uuid4 := UUID{"thishoul-dnot-pass-vali-dationchecks"} // Bad
+	uuid1 := "this is a bad uuid"                   // Bad
+	uuid2 := "alsoabaduuid"                         // Bad
+	uuid3 := "550e8400-e29b-41d4-a716-446655440000" // Good
+	uuid4 := "thishoul-dnot-pass-vali-dationchecks" // Bad
 
-	err := uuid1.validateUUID()
-
-	if err == nil {
+	if IsValidUUID(uuid1) {
 		t.Error(uuid1, " is not a valid UUID")
 	}
 
-	err = uuid2.validateUUID()
-
-	if err == nil {
+	if IsValidUUID(uuid2) {
 		t.Error(uuid2, " is not a valid UUID")
 	}
 
-	err = uuid3.validateUUID()
-
-	if err != nil {
+	if !IsValidUUID(uuid3) {
 		t.Error(uuid3, " is a valid UUID")
 	}
 
-	err = uuid4.validateUUID()
-
-	if err == nil {
+	if IsValidUUID(uuid4) {
 		t.Error(uuid4, " is not a valid UUID")
 	}
 }
