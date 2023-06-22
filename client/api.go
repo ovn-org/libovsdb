@@ -311,6 +311,8 @@ func (a api) Create(models ...model.Model) ([]ovsdb.Operation, error) {
 		if err != nil {
 			return nil, err
 		}
+		// UUID is given in the operation, not the object
+		delete(row, "_uuid")
 
 		operations = append(operations, ovsdb.Operation{
 			Op:       ovsdb.OperationInsert,

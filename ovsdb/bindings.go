@@ -409,7 +409,7 @@ func isDefaultBaseValue(elem interface{}, etype ExtendedType) bool {
 	}
 	switch etype {
 	case TypeUUID:
-		return elem.(string) == "00000000-0000-0000-0000-000000000000" || elem.(string) == "" || IsNamedUUID(elem.(string))
+		return elem.(string) == "00000000-0000-0000-0000-000000000000" || elem.(string) == ""
 	case TypeMap, TypeSet:
 		if value.Kind() == reflect.Array {
 			return value.Len() == 0
