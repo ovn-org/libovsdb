@@ -14,60 +14,6 @@ import (
 	. "github.com/ovn-org/libovsdb/test"
 )
 
-func TestExpandNamedUUID(t *testing.T) {
-	testUUID := uuid.NewString()
-	testUUID1 := uuid.NewString()
-	tests := []struct {
-		name       string
-		namedUUIDs map[string]ovsdb.UUID
-		value      interface{}
-		expected   interface{}
-	}{
-		{
-			"uuid",
-			map[string]ovsdb.UUID{"foo": {GoUUID: testUUID}},
-			ovsdb.UUID{GoUUID: "foo"},
-			ovsdb.UUID{GoUUID: testUUID},
-		},
-		{
-			"set",
-			map[string]ovsdb.UUID{"foo": {GoUUID: testUUID}},
-			ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "foo"}}},
-			ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: testUUID}}},
-		},
-		{
-			"set multiple",
-			map[string]ovsdb.UUID{"foo": {GoUUID: testUUID}, "bar": {GoUUID: testUUID1}},
-			ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: "foo"}, ovsdb.UUID{GoUUID: "bar"}, ovsdb.UUID{GoUUID: "baz"}}},
-			ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: testUUID}, ovsdb.UUID{GoUUID: testUUID1}, ovsdb.UUID{GoUUID: "baz"}}},
-		},
-		{
-			"map key",
-			map[string]ovsdb.UUID{"foo": {GoUUID: testUUID}},
-			ovsdb.OvsMap{GoMap: map[interface{}]interface{}{ovsdb.UUID{GoUUID: "foo"}: "foo"}},
-			ovsdb.OvsMap{GoMap: map[interface{}]interface{}{ovsdb.UUID{GoUUID: testUUID}: "foo"}},
-		},
-		{
-			"map values",
-			map[string]ovsdb.UUID{"foo": {GoUUID: testUUID}},
-			ovsdb.OvsMap{GoMap: map[interface{}]interface{}{"foo": ovsdb.UUID{GoUUID: "foo"}}},
-			ovsdb.OvsMap{GoMap: map[interface{}]interface{}{"foo": ovsdb.UUID{GoUUID: testUUID}}},
-		},
-		{
-			"map key and values",
-			map[string]ovsdb.UUID{"foo": {GoUUID: testUUID}, "bar": {GoUUID: testUUID1}},
-			ovsdb.OvsMap{GoMap: map[interface{}]interface{}{ovsdb.UUID{GoUUID: "foo"}: ovsdb.UUID{GoUUID: "bar"}}},
-			ovsdb.OvsMap{GoMap: map[interface{}]interface{}{ovsdb.UUID{GoUUID: testUUID}: ovsdb.UUID{GoUUID: testUUID1}}},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := expandNamedUUID(tt.value, tt.namedUUIDs)
-			assert.Equal(t, tt.expected, got)
-		})
-	}
-}
-
 func TestOvsdbServerMonitor(t *testing.T) {
 	dbModel, err := GetModel()
 	require.NoError(t, err)
@@ -95,28 +41,28 @@ func TestOvsdbServerMonitor(t *testing.T) {
 
 	operations := []ovsdb.Operation{
 		{
-			Op:       ovsdb.OperationInsert,
-			Table:    "Bridge",
-			UUIDName: fooUUID,
-			Row:      ovsdb.Row{"name": "foo"},
+			Op:    ovsdb.OperationInsert,
+			Table: "Bridge",
+			UUID:  fooUUID,
+			Row:   ovsdb.Row{"name": "foo"},
 		},
 		{
-			Op:       ovsdb.OperationInsert,
-			Table:    "Bridge",
-			UUIDName: barUUID,
-			Row:      ovsdb.Row{"name": "bar"},
+			Op:    ovsdb.OperationInsert,
+			Table: "Bridge",
+			UUID:  barUUID,
+			Row:   ovsdb.Row{"name": "bar"},
 		},
 		{
-			Op:       ovsdb.OperationInsert,
-			Table:    "Bridge",
-			UUIDName: bazUUID,
-			Row:      ovsdb.Row{"name": "baz"},
+			Op:    ovsdb.OperationInsert,
+			Table: "Bridge",
+			UUID:  bazUUID,
+			Row:   ovsdb.Row{"name": "baz"},
 		},
 		{
-			Op:       ovsdb.OperationInsert,
-			Table:    "Bridge",
-			UUIDName: quuxUUID,
-			Row:      ovsdb.Row{"name": "quux"},
+			Op:    ovsdb.OperationInsert,
+			Table: "Bridge",
+			UUID:  quuxUUID,
+			Row:   ovsdb.Row{"name": "quux"},
 		},
 	}
 	transaction := database.NewTransaction(dbModel, "Open_vSwitch", o.db, &o.logger)

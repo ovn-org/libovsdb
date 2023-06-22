@@ -45,6 +45,22 @@ func (t *Transaction) Transact(operations []ovsdb.Operation) ([]*ovsdb.Operation
 	results := []*ovsdb.OperationResult{}
 	update := updates.ModelUpdates{}
 
+	// Every Insert operation must have a UUID
+	for i := range operations {
+		op := &operations[i]
+		if op.Op == ovsdb.OperationInsert && op.UUID == "" {
+			op.UUID = uuid.NewString()
+		}
+	}
+
+	// Ensure Named UUIDs are expanded in all operations
+	var err error
+	operations, err = ovsdb.ExpandNamedUUIDs(operations, &t.Model.Schema)
+	if err != nil {
+		r := ovsdb.ResultFromError(err)
+		return []*ovsdb.OperationResult{&r}, nil
+	}
+
 	var r ovsdb.OperationResult
 	for _, op := range operations {
 		// if we had a previous error, just append a nil result for every op
@@ -200,19 +216,18 @@ func (t *Transaction) checkIndexes() error {
 }
 
 func (t *Transaction) Insert(op *ovsdb.Operation) (ovsdb.OperationResult, *updates.ModelUpdates) {
-	rowUUID := op.UUIDName
-	if rowUUID == "" {
-		rowUUID = uuid.NewString()
+	if err := ovsdb.ValidateUUID(op.UUID); err != nil {
+		return ovsdb.ResultFromError(err), nil
 	}
 
 	update := updates.ModelUpdates{}
-	err := update.AddOperation(t.Model, op.Table, rowUUID, nil, op)
+	err := update.AddOperation(t.Model, op.Table, op.UUID, nil, op)
 	if err != nil {
 		return ovsdb.ResultFromError(err), nil
 	}
 
 	result := ovsdb.OperationResult{
-		UUID: ovsdb.UUID{GoUUID: rowUUID},
+		UUID: ovsdb.UUID{GoUUID: op.UUID},
 	}
 
 	return result, &update

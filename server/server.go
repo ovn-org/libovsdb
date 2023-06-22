@@ -185,31 +185,11 @@ func (o *OvsdbServer) Transact(client *rpc2.Client, args []json.RawMessage, repl
 		return fmt.Errorf("database %v is not a string", args[0])
 	}
 	var ops []ovsdb.Operation
-	namedUUID := make(map[string]ovsdb.UUID)
 	for i := 1; i < len(args); i++ {
 		var op ovsdb.Operation
 		err = json.Unmarshal(args[i], &op)
 		if err != nil {
 			return err
-		}
-		if op.UUIDName != "" {
-			newUUID := uuid.NewString()
-			namedUUID[op.UUIDName] = ovsdb.UUID{GoUUID: newUUID}
-			op.UUIDName = newUUID
-		}
-		for i, condition := range op.Where {
-			op.Where[i].Value = expandNamedUUID(condition.Value, namedUUID)
-		}
-		for i, mutation := range op.Mutations {
-			op.Mutations[i].Value = expandNamedUUID(mutation.Value, namedUUID)
-		}
-		for _, row := range op.Rows {
-			for k, v := range row {
-				row[k] = expandNamedUUID(v, namedUUID)
-			}
-		}
-		for k, v := range op.Row {
-			op.Row[k] = expandNamedUUID(v, namedUUID)
 		}
 		ops = append(ops, op)
 	}
@@ -423,39 +403,4 @@ func (o *OvsdbServer) processMonitors(id uuid.UUID, update database.Update) {
 		}
 	}
 	o.monitorMutex.RUnlock()
-}
-
-func expandNamedUUID(value interface{}, namedUUID map[string]ovsdb.UUID) interface{} {
-	if uuid, ok := value.(ovsdb.UUID); ok {
-		if newUUID, ok := namedUUID[uuid.GoUUID]; ok {
-			return newUUID
-		}
-	}
-	if set, ok := value.(ovsdb.OvsSet); ok {
-		for i, s := range set.GoSet {
-			if _, ok := s.(ovsdb.UUID); !ok {
-				return value
-			}
-			uuid := s.(ovsdb.UUID)
-			if newUUID, ok := namedUUID[uuid.GoUUID]; ok {
-				set.GoSet[i] = newUUID
-			}
-		}
-	}
-	if m, ok := value.(ovsdb.OvsMap); ok {
-		for k, v := range m.GoMap {
-			if uuid, ok := v.(ovsdb.UUID); ok {
-				if newUUID, ok := namedUUID[uuid.GoUUID]; ok {
-					m.GoMap[k] = newUUID
-				}
-			}
-			if uuid, ok := k.(ovsdb.UUID); ok {
-				if newUUID, ok := namedUUID[uuid.GoUUID]; ok {
-					m.GoMap[newUUID] = m.GoMap[k]
-					delete(m.GoMap, uuid)
-				}
-			}
-		}
-	}
-	return value
 }
