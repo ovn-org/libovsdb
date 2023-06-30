@@ -26,7 +26,7 @@ func TestUUIDIsNamed(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isNamed(tt.uuid); got != tt.want {
+			if got := IsNamedUUID(tt.uuid); got != tt.want {
 				t.Errorf("UUID.Named() = %v, want %v", got, tt.want)
 			}
 		})

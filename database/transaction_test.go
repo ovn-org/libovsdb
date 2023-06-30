@@ -48,20 +48,20 @@ func TestWaitOpEquals(t *testing.T) {
 	transaction := NewTransaction(dbModel, "Open_vSwitch", db, nil)
 
 	operation := ovsdb.Operation{
-		Op:       ovsdb.OperationInsert,
-		Table:    "Open_vSwitch",
-		UUIDName: ovsUUID,
-		Row:      ovsRow,
+		Op:    ovsdb.OperationInsert,
+		Table: "Open_vSwitch",
+		UUID:  ovsUUID,
+		Row:   ovsRow,
 	}
 	res, updates := transaction.Insert(&operation)
 	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
 	require.Nil(t, err)
 
 	operation = ovsdb.Operation{
-		Op:       ovsdb.OperationInsert,
-		Table:    "Bridge",
-		UUIDName: bridgeUUID,
-		Row:      bridgeRow,
+		Op:    ovsdb.OperationInsert,
+		Table: "Bridge",
+		UUID:  bridgeUUID,
+		Row:   bridgeRow,
 	}
 	res, update2 := transaction.Insert(&operation)
 	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
@@ -175,20 +175,20 @@ func TestWaitOpNotEquals(t *testing.T) {
 	transaction := NewTransaction(dbModel, "Open_vSwitch", db, nil)
 
 	operation := ovsdb.Operation{
-		Op:       ovsdb.OperationInsert,
-		Table:    "Open_vSwitch",
-		UUIDName: ovsUUID,
-		Row:      ovsRow,
+		Op:    ovsdb.OperationInsert,
+		Table: "Open_vSwitch",
+		UUID:  ovsUUID,
+		Row:   ovsRow,
 	}
 	res, updates := transaction.Insert(&operation)
 	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
 	require.Nil(t, err)
 
 	operation = ovsdb.Operation{
-		Op:       ovsdb.OperationInsert,
-		Table:    "Bridge",
-		UUIDName: bridgeUUID,
-		Row:      bridgeRow,
+		Op:    ovsdb.OperationInsert,
+		Table: "Bridge",
+		UUID:  bridgeUUID,
+		Row:   bridgeRow,
 	}
 	res, update2 := transaction.Insert(&operation)
 	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
@@ -295,20 +295,20 @@ func TestMutateOp(t *testing.T) {
 	transaction := NewTransaction(dbModel, "Open_vSwitch", db, nil)
 
 	operation := ovsdb.Operation{
-		Op:       ovsdb.OperationInsert,
-		Table:    "Open_vSwitch",
-		UUIDName: ovsUUID,
-		Row:      ovsRow,
+		Op:    ovsdb.OperationInsert,
+		Table: "Open_vSwitch",
+		UUID:  ovsUUID,
+		Row:   ovsRow,
 	}
 	res, updates := transaction.Insert(&operation)
 	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
 	require.Nil(t, err)
 
 	operation = ovsdb.Operation{
-		Op:       ovsdb.OperationInsert,
-		Table:    "Bridge",
-		UUIDName: bridgeUUID,
-		Row:      bridgeRow,
+		Op:    ovsdb.OperationInsert,
+		Table: "Bridge",
+		UUID:  bridgeUUID,
+		Row:   bridgeRow,
 	}
 	res, update2 := transaction.Insert(&operation)
 	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
@@ -411,10 +411,10 @@ func TestOvsdbServerInsert(t *testing.T) {
 	transaction := NewTransaction(dbModel, "Open_vSwitch", db, nil)
 
 	operation := ovsdb.Operation{
-		Op:       ovsdb.OperationInsert,
-		Table:    "Bridge",
-		UUIDName: bridgeUUID,
-		Row:      bridgeRow,
+		Op:    ovsdb.OperationInsert,
+		Table: "Bridge",
+		UUID:  bridgeUUID,
+		Row:   bridgeRow,
 	}
 	res, updates := transaction.Insert(&operation)
 	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
@@ -464,10 +464,10 @@ func TestOvsdbServerUpdate(t *testing.T) {
 	transaction := NewTransaction(dbModel, "Open_vSwitch", db, nil)
 
 	operation := ovsdb.Operation{
-		Op:       ovsdb.OperationInsert,
-		Table:    "Bridge",
-		UUIDName: bridgeUUID,
-		Row:      bridgeRow,
+		Op:    ovsdb.OperationInsert,
+		Table: "Bridge",
+		UUID:  bridgeUUID,
+		Row:   bridgeRow,
 	}
 	res, updates := transaction.Insert(&operation)
 	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
@@ -556,9 +556,9 @@ func TestMultipleOps(t *testing.T) {
 
 	bridgeUUID := uuid.NewString()
 	op = ovsdb.Operation{
-		Op:       ovsdb.OperationInsert,
-		Table:    "Bridge",
-		UUIDName: bridgeUUID,
+		Op:    ovsdb.OperationInsert,
+		Table: "Bridge",
+		UUID:  bridgeUUID,
 		Row: ovsdb.Row{
 			"name": "a_bridge_to_nowhere",
 		},
@@ -667,9 +667,9 @@ func TestOvsdbServerDbDoesNotExist(t *testing.T) {
 
 	ops := []ovsdb.Operation{
 		{
-			Op:       ovsdb.OperationInsert,
-			Table:    "Bridge",
-			UUIDName: uuid.NewString(),
+			Op:    ovsdb.OperationInsert,
+			Table: "Bridge",
+			UUID:  uuid.NewString(),
 			Row: ovsdb.Row{
 				"name": "bridge",
 			},
@@ -706,19 +706,21 @@ func TestCheckIndexes(t *testing.T) {
 
 	bridgeUUID := uuid.NewString()
 	fscsUUID := uuid.NewString()
+	fscsUUID2 := uuid.NewString()
+	fscsUUID3 := uuid.NewString()
 	ops := []ovsdb.Operation{
 		{
-			Table:    "Bridge",
-			Op:       ovsdb.OperationInsert,
-			UUIDName: bridgeUUID,
+			Table: "Bridge",
+			Op:    ovsdb.OperationInsert,
+			UUID:  bridgeUUID,
 			Row: ovsdb.Row{
 				"name": "a_bridge_to_nowhere",
 			},
 		},
 		{
-			Table:    "Flow_Sample_Collector_Set",
-			Op:       ovsdb.OperationInsert,
-			UUIDName: fscsUUID,
+			Table: "Flow_Sample_Collector_Set",
+			Op:    ovsdb.OperationInsert,
+			UUID:  fscsUUID,
 			Row: ovsdb.Row{
 				"id":     1,
 				"bridge": ovsdb.UUID{GoUUID: bridgeUUID},
@@ -727,6 +729,7 @@ func TestCheckIndexes(t *testing.T) {
 		{
 			Table: "Flow_Sample_Collector_Set",
 			Op:    ovsdb.OperationInsert,
+			UUID:  fscsUUID2,
 			Row: ovsdb.Row{
 				"id":     2,
 				"bridge": ovsdb.UUID{GoUUID: bridgeUUID},
@@ -755,6 +758,7 @@ func TestCheckIndexes(t *testing.T) {
 					{
 						Table: "Flow_Sample_Collector_Set",
 						Op:    ovsdb.OperationInsert,
+						UUID:  fscsUUID3,
 						Row: ovsdb.Row{
 							"id":     1,
 							"bridge": ovsdb.UUID{GoUUID: bridgeUUID},
@@ -790,6 +794,7 @@ func TestCheckIndexes(t *testing.T) {
 					{
 						Table: "Flow_Sample_Collector_Set",
 						Op:    ovsdb.OperationInsert,
+						UUID:  fscsUUID3,
 						Row: ovsdb.Row{
 							"id":     3,
 							"bridge": ovsdb.UUID{GoUUID: bridgeUUID},
@@ -817,6 +822,7 @@ func TestCheckIndexes(t *testing.T) {
 					{
 						Table: "Flow_Sample_Collector_Set",
 						Op:    ovsdb.OperationInsert,
+						UUID:  fscsUUID3,
 						Row: ovsdb.Row{
 							"id":     1,
 							"bridge": ovsdb.UUID{GoUUID: bridgeUUID},
@@ -844,6 +850,7 @@ func TestCheckIndexes(t *testing.T) {
 					{
 						Table: "Flow_Sample_Collector_Set",
 						Op:    ovsdb.OperationInsert,
+						UUID:  fscsUUID3,
 						Row: ovsdb.Row{
 							"id":     1,
 							"bridge": ovsdb.UUID{GoUUID: bridgeUUID},

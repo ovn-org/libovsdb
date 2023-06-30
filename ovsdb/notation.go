@@ -41,6 +41,7 @@ type Operation struct {
 	Durable   *bool       `json:"durable,omitempty"`
 	Comment   *string     `json:"comment,omitempty"`
 	Lock      *string     `json:"lock,omitempty"`
+	UUID      string      `json:"uuid,omitempty"`
 	UUIDName  string      `json:"uuid-name,omitempty"`
 }
 
