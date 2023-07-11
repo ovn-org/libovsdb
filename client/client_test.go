@@ -959,6 +959,96 @@ func setLeader(t *testing.T, cli Client, row *serverdb.Database, isLeader bool) 
 	assert.NoErrorf(t, err, "%+v", opErr)
 }
 
+func TestClientInactiveCheck(t *testing.T) {
+	var defSchema ovsdb.DatabaseSchema
+	err := json.Unmarshal([]byte(schema), &defSchema)
+	require.NoError(t, err)
+
+	serverDBModel, err := serverdb.FullDatabaseModel()
+	require.NoError(t, err)
+	// Create server
+	server, sock := newOVSDBServer(t, defDB, defSchema)
+
+	// Create client to test inactivity check.
+	endpoint := fmt.Sprintf("unix:%s", sock)
+	ovs, err := newOVSDBClient(serverDBModel,
+		WithInactivityCheck(2*time.Second, 1*time.Second, &backoff.ZeroBackOff{}),
+		WithEndpoint(endpoint))
+	require.NoError(t, err)
+	err = ovs.Connect(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(ovs.Close)
+
+	// Make server to do echo off and then on for two times.
+	// Ensure this is detected by client's inactivity probe
+	// each time and then reconnects to the server when it
+	// is started responding to echo requests.
+
+	// 1st test for client with making server not to respond for echo requests.
+	notified := make(chan struct{})
+	ready := make(chan struct{})
+	disconnectNotify := ovs.rpcClient.DisconnectNotify()
+	go func() {
+		ready <- struct{}{}
+		<-disconnectNotify
+		notified <- struct{}{}
+	}()
+	<-ready
+	server.DoEcho(false)
+	select {
+	case <-notified:
+		// got notification
+	case <-time.After(5 * time.Second):
+		assert.Fail(t, "client doesn't detect the echo failure")
+	}
+
+	// 2nd test for client with making server to respond for echo requests.
+	server.DoEcho(true)
+loop:
+	for timeout := time.After(5 * time.Second); ; {
+		select {
+		case <-timeout:
+			assert.Fail(t, "reconnect is not successful")
+		default:
+			if ovs.Connected() {
+				break loop
+			}
+		}
+	}
+
+	// 3rd test for client with making server not to respond for echo requests.
+	notified = make(chan struct{})
+	ready = make(chan struct{})
+	disconnectNotify = ovs.rpcClient.DisconnectNotify()
+	go func() {
+		ready <- struct{}{}
+		<-disconnectNotify
+		notified <- struct{}{}
+	}()
+	<-ready
+	server.DoEcho(false)
+	select {
+	case <-notified:
+		// got notification
+	case <-time.After(5 * time.Second):
+		assert.Fail(t, "client doesn't detect the echo failure")
+	}
+
+	// 4th test for client with making server to respond for echo requests.
+	server.DoEcho(true)
+loop1:
+	for timeout := time.After(5 * time.Second); ; {
+		select {
+		case <-timeout:
+			assert.Fail(t, "reconnect is not successful")
+		default:
+			if ovs.Connected() {
+				break loop1
+			}
+		}
+	}
+}
+
 func TestClientReconnectLeaderOnly(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 

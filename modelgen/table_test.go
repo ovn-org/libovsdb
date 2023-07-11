@@ -719,7 +719,7 @@ func TestFieldType(t *testing.T) {
 		out        string
 	}{
 		{"t1", "c1", &singleValueSetSchema, "*string"},
-		{"t1", "c2", &multipleValueSetSchema, "[2]string"},
+		{"t1", "c2", &multipleValueSetSchema, "[]string"},
 	}
 
 	for _, tt := range tests {
