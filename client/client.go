@@ -107,7 +107,8 @@ type ovsdbClient struct {
 
 	trafficSeen chan struct{}
 
-	logger *logr.Logger
+	logger    *logr.Logger
+	txnLogger *logr.Logger
 }
 
 // database is everything needed to map between go types and an ovsdb Database
@@ -180,6 +181,25 @@ func newOVSDBClient(clientDBModel model.ClientDBModel, opts ...Option) (*ovsdbCl
 			"database", ovs.primaryDBName,
 		)
 		ovs.logger = &l
+	}
+
+	// Specific logger for transactions. Set verbosity explicitly.
+	if ovs.options.txnLogger == nil {
+		if ovs.options.logger == nil {
+			// create a new logger to log to stdout
+			l := stdr.NewWithOptions(log.New(os.Stderr, "", log.LstdFlags), stdr.Options{LogCaller: stdr.All}).WithName("libovsdb").WithValues(
+				"database", ovs.primaryDBName,
+			).V(4)
+			ovs.txnLogger = &l
+		} else {
+			l := ovs.options.logger.WithValues(
+				"database", ovs.primaryDBName,
+			).V(4)
+			ovs.txnLogger = &l
+		}
+	} else {
+		l := ovs.options.txnLogger.V(4)
+		ovs.txnLogger = &l
 	}
 	ovs.metrics.init(clientDBModel.Name(), ovs.options.metricNamespace, ovs.options.metricSubsystem)
 	ovs.registerMetrics()
@@ -822,9 +842,9 @@ func (o *ovsdbClient) transact(ctx context.Context, dbName string, skipChWrite b
 	if o.rpcClient == nil {
 		return nil, ErrNotConnected
 	}
-	dbgLogger := o.logger.WithValues("database", dbName).V(4)
-	if dbgLogger.Enabled() {
-		dbgLogger.Info("transacting operations", "operations", fmt.Sprintf("%+v", operation))
+	// Use dedicated logger for providing transactions.
+	if o.txnLogger.Enabled() {
+		o.txnLogger.Info(fmt.Sprintf("%+v", operation))
 	}
 	err := o.rpcClient.CallWithContext(ctx, "transact", args, &reply)
 	if err != nil {
