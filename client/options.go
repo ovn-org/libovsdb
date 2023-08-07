@@ -24,6 +24,7 @@ type options struct {
 	timeout               time.Duration
 	backoff               backoff.BackOff
 	logger                *logr.Logger
+	txnLogger             *logr.Logger
 	registry              prometheus.Registerer
 	shouldRegisterMetrics bool   // in case metrics are changed after-the-fact
 	metricNamespace       string // prometheus metric namespace
@@ -133,6 +134,15 @@ func WithInactivityCheck(inactivityTimeout, reconnectTimeout time.Duration,
 func WithLogger(l *logr.Logger) Option {
 	return func(o *options) error {
 		o.logger = l
+		return nil
+	}
+}
+
+// WithTransactionLogger allows setting a specific log sink for transactions.
+// Otherwise, the default go log package is used.
+func WithTransactionLogger(l *logr.Logger) Option {
+	return func(o *options) error {
+		o.txnLogger = l
 		return nil
 	}
 }
