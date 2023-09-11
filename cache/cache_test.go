@@ -1,12 +1,12 @@
 package cache
 
 import (
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"testing"
 
 	"github.com/go-logr/logr"
+	"github.com/ovn-org/libovsdb/internal/json"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/ovn-org/libovsdb/test"
