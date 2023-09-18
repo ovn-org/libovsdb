@@ -80,6 +80,10 @@ type AtomicTable struct {
 	Protocol  *AtomicTableProtocol ` + "`" + `ovsdb:"protocol"` + "`" + `
 	Str       string               ` + "`" + `ovsdb:"str"` + "`" + `
 }
+
+func (a *AtomicTable) Table() string {
+	return AtomicTableTable
+}
 `,
 		},
 		{
@@ -102,6 +106,10 @@ type AtomicTable struct {
 	Int       int     ` + "`" + `ovsdb:"int"` + "`" + `
 	Protocol  *string ` + "`" + `ovsdb:"protocol"` + "`" + `
 	Str       string  ` + "`" + `ovsdb:"str"` + "`" + `
+}
+
+func (a *AtomicTable) Table() string {
+	return AtomicTableTable
 }
 `,
 		},
@@ -151,6 +159,10 @@ type AtomicTable struct {
 	OtherProtocol  *string
 	OtherStr       string
 }
+
+func (a *AtomicTable) Table() string {
+	return AtomicTableTable
+}
 `,
 		},
 		{
@@ -187,6 +199,10 @@ type AtomicTable struct {
 	Int       int                  ` + "`" + `ovsdb:"int"` + "`" + `
 	Protocol  *AtomicTableProtocol ` + "`" + `ovsdb:"protocol"` + "`" + `
 	Str       string               ` + "`" + `ovsdb:"str"` + "`" + `
+}
+
+func (a *AtomicTable) Table() string {
+	return AtomicTableTable
 }
 
 func (a *AtomicTable) GetUUID() string {
@@ -354,6 +370,10 @@ type AtomicTable struct {
 	OtherStr       string
 }
 
+func (a *AtomicTable) Table() string {
+	return AtomicTableTable
+}
+
 func copyAtomicTableOtherProtocol(a *AtomicTableProtocol) *AtomicTableProtocol {
 	if a == nil {
 		return nil
@@ -483,6 +503,10 @@ type AtomicTable struct {
 	Str       string  ` + "`" + `ovsdb:"str"` + "`" + `
 }
 
+func (a *AtomicTable) Table() string {
+	return AtomicTableTable
+}
+
 func (a *AtomicTable) GetUUID() string {
 	return a.UUID
 }
@@ -604,6 +628,10 @@ type AtomicTable struct {
 	Int       int                  ` + "`" + `ovsdb:"int"` + "`" + `
 	Protocol  *AtomicTableProtocol ` + "`" + `ovsdb:"protocol"` + "`" + `
 	Str       string               ` + "`" + `ovsdb:"str"` + "`" + `
+}
+
+func (a *AtomicTable) Table() string {
+	return AtomicTableTable
 }
 
 func TestFunc() string {

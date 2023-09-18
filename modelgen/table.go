@@ -246,6 +246,9 @@ type {{ index . "StructName" }} struct {
 {{ end }}
 {{ template "extraFields" . }}
 }
+func (a *{{ index . "StructName" }}) Table() string {
+	return {{ index . "StructName" }}Table
+}
 {{ template "postStructDefinitions" . }}
 {{ template "extraDefinitions" . }}
 {{ template "extendedGen" . }}
