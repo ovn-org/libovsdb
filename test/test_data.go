@@ -144,10 +144,18 @@ type BridgeType struct {
 	Status       map[string]string `ovsdb:"status"`
 }
 
+func (b *BridgeType) Table() string {
+	return "Bridge"
+}
+
 // OvsType is the simplified ORM model of the Bridge table
 type OvsType struct {
 	UUID    string   `ovsdb:"_uuid"`
 	Bridges []string `ovsdb:"bridges"`
+}
+
+func (o *OvsType) Table() string {
+	return "Open_vSwitch"
 }
 
 type FlowSampleCollectorSetType struct {
@@ -156,6 +164,10 @@ type FlowSampleCollectorSetType struct {
 	ExternalIDs map[string]string `ovsdb:"external_ids"`
 	ID          int               `ovsdb:"id"`
 	IPFIX       *string           // `ovsdb:"ipfix"`
+}
+
+func (f *FlowSampleCollectorSetType) Table() string {
+	return "FlowSampleCollectorSet"
 }
 
 func GetModel() (model.DatabaseModel, error) {

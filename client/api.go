@@ -21,10 +21,10 @@ type API interface {
 	// If it has a capacity != 0, only 'capacity' elements will be filled in
 	List(ctx context.Context, result interface{}) error
 
-	// Create a Conditional API from a Function that is used to filter cached data
+	// WhereCache creates a Conditional API from a Function that is used to filter cached data
 	// The function must accept a Model implementation and return a boolean. E.g:
-	// ConditionFromFunc(func(l *LogicalSwitch) bool { return l.Enabled })
-	WhereCache(predicate interface{}) ConditionalAPI
+	// WhereCache(&LogicalSwitchPort{}, func(m model.Model) bool { l := m.(*LogicalSwitchPort); return l.Enabled })
+	WhereCache(model.Model, func(model.Model) bool) ConditionalAPI
 
 	// Create a ConditionalAPI from a Model's index data, where operations
 	// apply to elements that match the values provided in one or more
@@ -120,13 +120,20 @@ func (a api) List(ctx context.Context, result interface{}) error {
 	// structs
 	var appendValue func(reflect.Value)
 	var m model.Model
+	var ok bool
 	if resultVal.Type().Elem().Kind() == reflect.Ptr {
-		m = reflect.New(resultVal.Type().Elem().Elem()).Interface()
+		m, ok = reflect.New(resultVal.Type().Elem().Elem()).Interface().(model.Model)
+		if !ok {
+			return &ErrWrongType{resultPtr.Type(), "Expected pointer to slice of valid Models"}
+		}
 		appendValue = func(v reflect.Value) {
 			resultVal.Set(reflect.Append(resultVal, v))
 		}
 	} else {
-		m = reflect.New(resultVal.Type().Elem()).Interface()
+		m, ok = reflect.New(resultVal.Type().Elem()).Interface().(model.Model)
+		if !ok {
+			return &ErrWrongType{resultPtr.Type(), "Expected pointer to slice of valid Models"}
+		}
 		appendValue = func(v reflect.Value) {
 			resultVal.Set(reflect.Append(resultVal, reflect.Indirect(v)))
 		}
@@ -194,14 +201,17 @@ func (a api) WhereAll(m model.Model, cond ...model.Condition) ConditionalAPI {
 }
 
 // WhereCache returns a conditionalAPI based a Predicate
-func (a api) WhereCache(predicate interface{}) ConditionalAPI {
-	return newConditionalAPI(a.cache, a.conditionFromFunc(predicate), a.logger)
+func (a api) WhereCache(m model.Model, predicate func(model.Model) bool) ConditionalAPI {
+	return newConditionalAPI(a.cache, a.conditionFromFunc(m, predicate), a.logger)
 }
 
 // Conditional interface implementation
 // FromFunc returns a Condition from a function
-func (a api) conditionFromFunc(predicate interface{}) Conditional {
-	table, err := a.getTableFromFunc(predicate)
+func (a api) conditionFromFunc(m model.Model, predicate func(model.Model) bool) Conditional {
+	if predicate == nil {
+		return newErrorConditional(fmt.Errorf("expect predicate as a function, got nil"))
+	}
+	table, err := a.getTableFromModel(m)
 	if err != nil {
 		return newErrorConditional(err)
 	}
@@ -538,39 +548,11 @@ func (a api) Wait(untilConFun ovsdb.WaitCondition, timeout *int, model model.Mod
 
 // getTableFromModel returns the table name from a Model object after performing
 // type verifications on the model
-func (a api) getTableFromModel(m interface{}) (string, error) {
-	if _, ok := m.(model.Model); !ok {
-		return "", &ErrWrongType{reflect.TypeOf(m), "Type does not implement Model interface"}
-	}
-	table := a.cache.DatabaseModel().FindTable(reflect.TypeOf(m))
-	if table == "" {
+func (a api) getTableFromModel(m model.Model) (string, error) {
+	table := m.Table()
+	_, found := a.cache.DatabaseModel().Types()[table]
+	if table == "" || !found {
 		return "", &ErrWrongType{reflect.TypeOf(m), "Model not found in Database Model"}
-	}
-	return table, nil
-}
-
-// getTableFromModel returns the table name from a the predicate after performing
-// type verifications
-func (a api) getTableFromFunc(predicate interface{}) (string, error) {
-	predType := reflect.TypeOf(predicate)
-	if predType == nil || predType.Kind() != reflect.Func {
-		return "", &ErrWrongType{predType, "Expected function"}
-	}
-	if predType.NumIn() != 1 || predType.NumOut() != 1 || predType.Out(0).Kind() != reflect.Bool {
-		return "", &ErrWrongType{predType, "Expected func(Model) bool"}
-	}
-
-	modelInterface := reflect.TypeOf((*model.Model)(nil)).Elem()
-	modelType := predType.In(0)
-	if !modelType.Implements(modelInterface) {
-		return "", &ErrWrongType{predType,
-			fmt.Sprintf("Type %s does not implement Model interface", modelType.String())}
-	}
-
-	table := a.cache.DatabaseModel().FindTable(modelType)
-	if table == "" {
-		return "", &ErrWrongType{predType,
-			fmt.Sprintf("Model %s not found in Database Model", modelType.String())}
 	}
 	return table, nil
 }

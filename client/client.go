@@ -1475,6 +1475,6 @@ func (o *ovsdbClient) WhereAll(m model.Model, conditions ...model.Condition) Con
 }
 
 // WhereCache implements the API interface's WhereCache function
-func (o *ovsdbClient) WhereCache(predicate interface{}) ConditionalAPI {
-	return o.primaryDB().api.WhereCache(predicate)
+func (o *ovsdbClient) WhereCache(m model.Model, predicate func(model.Model) bool) ConditionalAPI {
+	return o.primaryDB().api.WhereCache(m, predicate)
 }

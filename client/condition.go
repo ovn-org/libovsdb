@@ -2,7 +2,6 @@ package client
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/mapper"
@@ -176,7 +175,7 @@ func newExplicitConditional(table string, cache *cache.TableCache, matchAll bool
 // to match on models.
 type predicateConditional struct {
 	tableName string
-	predicate interface{}
+	predicate func(model.Model) bool
 	cache     *cache.TableCache
 }
 
@@ -192,8 +191,7 @@ func (c *predicateConditional) Matches() (map[string]model.Model, error) {
 	// run the predicate on a shallow copy of the models for speed and only
 	// clone the matches
 	for u, m := range tableCache.RowsShallow() {
-		ret := reflect.ValueOf(c.predicate).Call([]reflect.Value{reflect.ValueOf(m)})
-		if ret[0].Bool() {
+		if c.predicate(m) {
 			found[u] = model.Clone(m)
 		}
 	}
@@ -215,7 +213,7 @@ func (c *predicateConditional) Generate() ([][]ovsdb.Condition, error) {
 }
 
 // newPredicateConditional creates a new predicateConditional
-func newPredicateConditional(table string, cache *cache.TableCache, predicate interface{}) (Conditional, error) {
+func newPredicateConditional(table string, cache *cache.TableCache, predicate func(model.Model) bool) (Conditional, error) {
 	return &predicateConditional{
 		tableName: table,
 		predicate: predicate,
