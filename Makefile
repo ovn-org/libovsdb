@@ -1,4 +1,5 @@
-OVS_VERSION ?= v2.16.0
+OVS_VERSION ?= v2.17.7
+OVN_VERSION ?= v22.03.4
 
 .PHONY: all
 all: lint build test integration-test coverage
@@ -9,12 +10,12 @@ modelgen:
 	@go build -v -o ./bin ./cmd/modelgen
 
 .PHONY: prebuild
-prebuild: modelgen ovsdb/serverdb/_server.ovsschema example/vswitchd/ovs.ovsschema
+prebuild: modelgen ovsdb/serverdb/_server.ovsschema example/vswitchd/ovs.ovsschema example/vtep/vtep.ovsschema example/nb/ovn-nb.ovsschema example/sb/ovn-sb.ovsschema example/icnb/ovn-ic-nb.ovsschema example/icsb/ovn-ic-sb.ovsschema
 	@echo "+ $@"
 	@go generate -v ./...
 
 .PHONY: build
-build: prebuild 
+build: prebuild
 	@echo "+ $@"
 	@go build -v ./...
 
@@ -56,3 +57,18 @@ ovsdb/serverdb/_server.ovsschema:
 
 example/vswitchd/ovs.ovsschema:
 	@curl -sSL https://raw.githubusercontent.com/openvswitch/ovs/${OVS_VERSION}/vswitchd/vswitch.ovsschema -o $@
+
+example/vtep/vtep.ovsschema:
+	@curl -sSL https://raw.githubusercontent.com/openvswitch/ovs/${OVS_VERSION}/vtep/vtep.ovsschema -o $@
+
+example/nb/ovn-nb.ovsschema:
+	@curl -sSL https://raw.githubusercontent.com/ovn-org/ovn/${OVN_VERSION}/ovn-nb.ovsschema -o $@
+
+example/sb/ovn-sb.ovsschema:
+	@curl -sSL https://raw.githubusercontent.com/ovn-org/ovn/${OVN_VERSION}/ovn-sb.ovsschema -o $@
+
+example/icnb/ovn-ic-nb.ovsschema:
+	@curl -sSL https://raw.githubusercontent.com/ovn-org/ovn/${OVN_VERSION}/ovn-ic-nb.ovsschema -o $@
+
+example/icsb/ovn-ic-sb.ovsschema:
+	@curl -sSL https://raw.githubusercontent.com/ovn-org/ovn/${OVN_VERSION}/ovn-ic-sb.ovsschema -o $@

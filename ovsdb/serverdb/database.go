@@ -30,7 +30,7 @@ type Database struct {
 	Sid       *string       `ovsdb:"sid"`
 }
 
-func (a *Database) Table() string {
+func (a *Database) GetTableName() string {
 	return DatabaseTable
 }
 

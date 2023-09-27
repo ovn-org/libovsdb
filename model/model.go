@@ -24,7 +24,7 @@ import (
 //		LoadBalancers []string          `ovsdb:"load_balancer"`
 //	}
 type Model interface {
-	Table() string
+	GetTableName() string
 }
 
 type CloneableModel interface {

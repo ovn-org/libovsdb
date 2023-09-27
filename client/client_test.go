@@ -81,7 +81,7 @@ type Bridge struct {
 	STPEnable           bool              `ovsdb:"stp_enable"`
 }
 
-func (b *Bridge) Table() string {
+func (b *Bridge) GetTableName() string {
 	return "Bridge"
 }
 
@@ -107,7 +107,7 @@ type OpenvSwitch struct {
 	SystemVersion   *string           `ovsdb:"system_version"`
 }
 
-func (o *OpenvSwitch) Table() string {
+func (o *OpenvSwitch) GetTableName() string {
 	return "Open_vSwitch"
 }
 

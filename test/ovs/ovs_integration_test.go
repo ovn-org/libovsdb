@@ -166,7 +166,7 @@ type bridgeType struct {
 	DatapathID     *string           `ovsdb:"datapath_id"`
 }
 
-func (b *bridgeType) Table() string {
+func (b *bridgeType) GetTableName() string {
 	return "Bridge"
 }
 
@@ -192,7 +192,7 @@ type ovsType struct {
 	SystemVersion   *string           `ovsdb:"system_version"`
 }
 
-func (o *ovsType) Table() string {
+func (o *ovsType) GetTableName() string {
 	return "Open_vSwitch"
 }
 
@@ -202,7 +202,7 @@ type ipfixType struct {
 	Targets []string `ovsdb:"targets"`
 }
 
-func (i *ipfixType) Table() string {
+func (i *ipfixType) GetTableName() string {
 	return "IPFIX"
 }
 
@@ -212,7 +212,7 @@ type queueType struct {
 	DSCP *int   `ovsdb:"dscp"`
 }
 
-func (q *queueType) Table() string {
+func (q *queueType) GetTableName() string {
 	return "Queue"
 }
 

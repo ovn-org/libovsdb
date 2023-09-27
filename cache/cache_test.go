@@ -24,7 +24,7 @@ type testModel struct {
 	Datapath *string  `ovsdb:"datapath"`
 }
 
-func (t *testModel) Table() string {
+func (t *testModel) GetTableName() string {
 	return "Open_vSwitch"
 }
 
@@ -379,7 +379,7 @@ type testModel1 struct {
 	Bar  map[string]string `ovsdb:"bar"`
 }
 
-func (t *testModel1) Table() string {
+func (t *testModel1) GetTableName() string {
 	return "Open_vSwitch"
 }
 
@@ -807,7 +807,7 @@ type testModel2 struct {
 	Baz  string            `ovsdb:"baz"`
 }
 
-func (t *testModel2) Table() string {
+func (t *testModel2) GetTableName() string {
 	return "Open_vSwitch"
 }
 
@@ -1058,7 +1058,7 @@ type testModel3 struct {
 	Bar  map[string]string `ovsdb:"bar"`
 }
 
-func (t *testModel3) Table() string {
+func (t *testModel3) GetTableName() string {
 	return "Open_vSwitch"
 }
 
@@ -1922,7 +1922,7 @@ type badModel struct {
 	Baz  string `ovsdb:"baz"`
 }
 
-func (b *badModel) Table() string {
+func (b *badModel) GetTableName() string {
 	return "bad"
 }
 
@@ -2156,7 +2156,7 @@ type testModel4 struct {
 	Baz  map[string]string `ovsdb:"baz"`
 }
 
-func (t *testModel4) Table() string {
+func (t *testModel4) GetTableName() string {
 	return "Open_vSwitch"
 }
 
@@ -2331,7 +2331,7 @@ type rowsByConditionTestModel struct {
 	Empty  string            `ovsdb:"empty"`
 }
 
-func (r *rowsByConditionTestModel) Table() string {
+func (r *rowsByConditionTestModel) GetTableName() string {
 	return "Open_vSwitch"
 }
 
@@ -2747,7 +2747,7 @@ type testDBModel struct {
 	Set  []string `ovsdb:"set"`
 }
 
-func (t *testDBModel) Table() string {
+func (t *testDBModel) GetTableName() string {
 	return "Open_vSwitch"
 }
 

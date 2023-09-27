@@ -14,7 +14,7 @@ type modelA struct {
 	UUID string `ovsdb:"_uuid"`
 }
 
-func (m *modelA) Table() string {
+func (m *modelA) GetTableName() string {
 	return "A"
 }
 
@@ -24,7 +24,7 @@ type modelB struct {
 	Bar string `ovsdb:"baz"`
 }
 
-func (m *modelB) Table() string {
+func (m *modelB) GetTableName() string {
 	return "B"
 }
 
@@ -32,7 +32,7 @@ type modelInvalid struct {
 	Foo string
 }
 
-func (m *modelInvalid) Table() string {
+func (m *modelInvalid) GetTableName() string {
 	return "Invalid"
 }
 
@@ -107,7 +107,7 @@ type testTable struct {
 	AMap    map[string]string `ovsdb:"aMap"`
 }
 
-func (t *testTable) Table() string {
+func (t *testTable) GetTableName() string {
 	return "TestTable"
 }
 
@@ -453,4 +453,13 @@ func TestEqualViaComparable(t *testing.T) {
 	assert.True(t, Equal(a, b))
 	a.UID = "baz"
 	assert.False(t, Equal(a, b))
+}
+
+func TestGetTableName(t *testing.T) {
+	a := &testTable{}
+	func(a interface{}) {
+		m, ok := a.(Model)
+		assert.True(t, ok, "is not a model")
+		assert.Equal(t, m.GetTableName(), "TestTable")
+	}(a)
 }

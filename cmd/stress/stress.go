@@ -29,7 +29,7 @@ type bridgeType struct {
 	Status      map[string]string `ovsdb:"status"`
 }
 
-func (b *bridgeType) Table() string {
+func (b *bridgeType) GetTableName() string {
 	return "Bridge"
 }
 
@@ -39,7 +39,7 @@ type ovsType struct {
 	Bridges []string `ovsdb:"bridges"`
 }
 
-func (o *ovsType) Table() string {
+func (o *ovsType) GetTableName() string {
 	return "Open_vSwitch"
 }
 

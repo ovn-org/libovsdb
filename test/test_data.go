@@ -144,7 +144,7 @@ type BridgeType struct {
 	Status       map[string]string `ovsdb:"status"`
 }
 
-func (b *BridgeType) Table() string {
+func (b *BridgeType) GetTableName() string {
 	return "Bridge"
 }
 
@@ -154,7 +154,7 @@ type OvsType struct {
 	Bridges []string `ovsdb:"bridges"`
 }
 
-func (o *OvsType) Table() string {
+func (o *OvsType) GetTableName() string {
 	return "Open_vSwitch"
 }
 
@@ -166,7 +166,7 @@ type FlowSampleCollectorSetType struct {
 	IPFIX       *string           // `ovsdb:"ipfix"`
 }
 
-func (f *FlowSampleCollectorSetType) Table() string {
+func (f *FlowSampleCollectorSetType) GetTableName() string {
 	return "FlowSampleCollectorSet"
 }
 

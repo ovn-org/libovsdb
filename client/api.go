@@ -549,7 +549,7 @@ func (a api) Wait(untilConFun ovsdb.WaitCondition, timeout *int, model model.Mod
 // getTableFromModel returns the table name from a Model object after performing
 // type verifications on the model
 func (a api) getTableFromModel(m model.Model) (string, error) {
-	table := m.Table()
+	table := m.GetTableName()
 	_, found := a.cache.DatabaseModel().Types()[table]
 	if table == "" || !found {
 		return "", &ErrWrongType{reflect.TypeOf(m), "Model not found in Database Model"}
