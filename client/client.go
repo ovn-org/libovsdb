@@ -21,6 +21,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/go-logr/stdr"
 	"github.com/ovn-org/libovsdb/cache"
+	syscall "github.com/ovn-org/libovsdb/internal"
 	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
@@ -352,7 +353,10 @@ func (o *ovsdbClient) tryEndpoint(ctx context.Context, u *url.URL) (string, erro
 		return "", fmt.Errorf("failed to open connection: %w", err)
 	}
 
-	o.createRPC2Client(c)
+	err = o.createRPC2Client(c)
+	if err != nil {
+		return "", err
+	}
 
 	serverDBNames, err := o.listDbs(ctx)
 	if err != nil {
@@ -423,12 +427,24 @@ func (o *ovsdbClient) tryEndpoint(ctx context.Context, u *url.URL) (string, erro
 // createRPC2Client creates an rpcClient using the provided connection
 // It is also responsible for setting up go routines for client-side event handling
 // Should only be called when the mutex is held
-func (o *ovsdbClient) createRPC2Client(conn net.Conn) {
+func (o *ovsdbClient) createRPC2Client(conn net.Conn) error {
 	o.stopCh = make(chan struct{})
 	if o.options.inactivityTimeout > 0 {
 		o.trafficSeen = make(chan struct{})
 	}
 	o.conn = conn
+	// set TCP_USER_TIMEOUT socket option for connection so that
+	// channel write doesn't block indefinitely on network disconnect.
+	var userTimeout time.Duration
+	if o.options.timeout > 0 {
+		userTimeout = o.options.timeout * 3
+	} else {
+		userTimeout = defaultTimeout
+	}
+	err := syscall.SetTCPUserTimeout(conn, userTimeout)
+	if err != nil {
+		return err
+	}
 	o.rpcClient = rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
 	o.rpcClient.SetBlocking(true)
 	o.rpcClient.Handle("echo", func(_ *rpc2.Client, args []interface{}, reply *[]interface{}) error {
@@ -444,6 +460,7 @@ func (o *ovsdbClient) createRPC2Client(conn net.Conn) {
 		return o.update3(args, reply)
 	})
 	go o.rpcClient.Run()
+	return nil
 }
 
 // isEndpointLeader returns true if the currently connected endpoint is leader,
