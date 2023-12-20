@@ -488,9 +488,7 @@ func TestUpdates_AddOperation(t *testing.T) {
 				},
 			},
 			expected: fields{
-				updates: map[string]map[string]modelUpdate{
-					"Bridge": {},
-				},
+				updates: nil,
 			},
 		},
 		{
@@ -1173,9 +1171,7 @@ func TestUpdates_AddOperation(t *testing.T) {
 				},
 			},
 			expected: fields{
-				updates: map[string]map[string]modelUpdate{
-					"Bridge": {},
-				},
+				updates: nil,
 			},
 		},
 		{
