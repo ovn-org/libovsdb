@@ -283,7 +283,6 @@ func TestMutateOp(t *testing.T) {
 	require.NoError(t, err)
 	m := mapper.NewMapper(dbModel.Schema)
 
-	ovsUUID := uuid.NewString()
 	bridgeUUID := uuid.NewString()
 
 	ovs := OvsType{}
@@ -311,7 +310,6 @@ func TestMutateOp(t *testing.T) {
 		{
 			Op:    ovsdb.OperationInsert,
 			Table: "Open_vSwitch",
-			UUID:  ovsUUID,
 			Row:   ovsRow,
 		},
 		{
@@ -328,6 +326,7 @@ func TestMutateOp(t *testing.T) {
 	err = db.Commit("Open_vSwitch", uuid.New(), updates)
 	require.NoError(t, err)
 
+	ovsUUID := res[0].UUID.GoUUID
 	operation := ovsdb.Operation{
 		Op:        ovsdb.OperationMutate,
 		Table:     "Open_vSwitch",

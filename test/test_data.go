@@ -8,6 +8,8 @@ import (
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
+// Note that this schema is not strictly a subset of the real OVS schema. It has
+// some small variations that allow to effectively test some OVSDB RFC features
 const schema = `
 {
     "name": "Open_vSwitch",
@@ -18,15 +20,13 @@ const schema = `
                 "bridges": {
                     "type": {
                         "key": {
-                            "type": "uuid",
-                            "refTable": "Bridge"
+                            "type": "uuid"
                         },
                         "min": 0,
                         "max": "unlimited"
                     }
                 }
             },
-            "isRoot": true,
             "maxRows": 1
         },
         "Bridge": {
@@ -49,8 +49,7 @@ const schema = `
                 "ports": {
                     "type": {
                         "key": {
-                            "type": "uuid",
-                            "refTable": "Port"
+                            "type": "uuid"
                         },
                         "min": 0,
                         "max": "unlimited"
@@ -104,8 +103,7 @@ const schema = `
                 "bridge": {
                     "type": {
                         "key": {
-                            "type": "uuid",
-                            "refTable": "Bridge"
+                            "type": "uuid"
                         },
                         "min": 1,
                         "max": 1
@@ -120,7 +118,6 @@ const schema = `
                     }
                 }
             },
-            "isRoot": true,
             "indexes": [
                 [
                     "id",
