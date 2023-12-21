@@ -924,3 +924,122 @@ func checkOperationResults(result []*ovsdb.OperationResult, ops ...ovsdb.Operati
 	}
 	return ovsdb.CheckOperationResults(r, ops)
 }
+
+func TestCheckIndexesWithReferentialIntegrity(t *testing.T) {
+	dbModel, err := GetModel()
+	require.NoError(t, err)
+	db := NewDatabase(map[string]model.ClientDBModel{"Open_vSwitch": dbModel.Client()})
+	err = db.CreateDatabase("Open_vSwitch", dbModel.Schema)
+	require.NoError(t, err)
+
+	ovsUUID := uuid.NewString()
+	managerUUID := uuid.NewString()
+	managerUUID2 := uuid.NewString()
+	ops := []ovsdb.Operation{
+		{
+			Table: "Open_vSwitch",
+			Op:    ovsdb.OperationInsert,
+			UUID:  ovsUUID,
+			Row: ovsdb.Row{
+				"manager_options": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: managerUUID}}},
+			},
+		},
+		{
+			Table: "Manager",
+			Op:    ovsdb.OperationInsert,
+			UUID:  managerUUID,
+			Row: ovsdb.Row{
+				"target": "target",
+			},
+		},
+	}
+
+	transaction := db.NewTransaction("Open_vSwitch")
+	results, updates := transaction.Transact(ops...)
+	require.Len(t, results, len(ops))
+	for _, result := range results {
+		assert.Equal(t, "", result.Error)
+	}
+	err = db.Commit("Open_vSwitch", uuid.New(), updates)
+	require.NoError(t, err)
+
+	tests := []struct {
+		desc        string
+		ops         func() []ovsdb.Operation
+		wantUpdates int
+	}{
+		{
+			// As a row is deleted due to garbage collection, that row's index
+			// should be available for use by a different row
+			desc: "Replacing a strong reference should garbage collect and account for indexes",
+			ops: func() []ovsdb.Operation {
+				return []ovsdb.Operation{
+					{
+						Table: "Open_vSwitch",
+						Op:    ovsdb.OperationUpdate,
+						Row: ovsdb.Row{
+							"manager_options": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: managerUUID2}}},
+						},
+						Where: []ovsdb.Condition{
+							ovsdb.NewCondition("_uuid", ovsdb.ConditionEqual, ovsdb.UUID{GoUUID: ovsUUID}),
+						},
+					},
+					{
+						Table: "Manager",
+						Op:    ovsdb.OperationInsert,
+						UUID:  managerUUID2,
+						Row: ovsdb.Row{
+							"target": "target",
+						},
+					},
+				}
+			},
+			// the update and insert above plus the delete from the garbage
+			// collection
+			wantUpdates: 3,
+		},
+		{
+			desc: "A row that is not root and not strongly referenced should not cause index collisions",
+			ops: func() []ovsdb.Operation {
+				return []ovsdb.Operation{
+					{
+						Table: "Manager",
+						Op:    ovsdb.OperationInsert,
+						UUID:  managerUUID2,
+						Row: ovsdb.Row{
+							"target": "target",
+						},
+					},
+				}
+			},
+			// no updates as the row is not strongly referenced
+			wantUpdates: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			transaction := db.NewTransaction("Open_vSwitch")
+			ops := tt.ops()
+			results, update := transaction.Transact(ops...)
+			var err string
+			for _, result := range results {
+				if result.Error != "" {
+					err = result.Error
+					break
+				}
+			}
+			require.Empty(t, err, "got an unexpected error")
+
+			tables := update.GetUpdatedTables()
+			var gotUpdates int
+			for _, table := range tables {
+				_ = update.ForEachRowUpdate(table, func(uuid string, row ovsdb.RowUpdate2) error {
+					gotUpdates++
+					return nil
+				})
+			}
+			assert.Equal(t, tt.wantUpdates, gotUpdates, "got a different number of updates than expected")
+		})
+	}
+}

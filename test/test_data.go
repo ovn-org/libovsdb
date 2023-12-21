@@ -17,6 +17,16 @@ const schema = `
     "tables": {
         "Open_vSwitch": {
             "columns": {
+                "manager_options": {
+                    "type": {
+                        "key": {
+                            "type": "uuid",
+                            "refTable": "Manager"
+                        },
+                        "min": 0,
+                        "max": "unlimited"
+                    }
+                },
                 "bridges": {
                     "type": {
                         "key": {
@@ -27,6 +37,7 @@ const schema = `
                     }
                 }
             },
+            "isRoot": true,
             "maxRows": 1
         },
         "Bridge": {
@@ -81,6 +92,7 @@ const schema = `
                     }
                 }
             },
+            "isRoot": true,
             "indexes": [
                 [
                     "name"
@@ -118,12 +130,21 @@ const schema = `
                     }
                 }
             },
+            "isRoot": true,
             "indexes": [
                 [
                     "id",
                     "bridge"
                 ]
             ]
+        },
+        "Manager": {
+            "columns": {
+                "target": {
+                    "type": "string"
+                }
+            },
+            "indexes": [["target"]]
         }
     }
 }
@@ -143,8 +164,9 @@ type BridgeType struct {
 
 // OvsType is the simplified ORM model of the Bridge table
 type OvsType struct {
-	UUID    string   `ovsdb:"_uuid"`
-	Bridges []string `ovsdb:"bridges"`
+	UUID           string   `ovsdb:"_uuid"`
+	Bridges        []string `ovsdb:"bridges"`
+	ManagerOptions []string `ovsdb:"manager_options"`
 }
 
 type FlowSampleCollectorSetType struct {
@@ -155,6 +177,11 @@ type FlowSampleCollectorSetType struct {
 	IPFIX       *string           // `ovsdb:"ipfix"`
 }
 
+type Manager struct {
+	UUID   string `ovsdb:"_uuid"`
+	Target string `ovsdb:"target"`
+}
+
 func GetModel() (model.DatabaseModel, error) {
 	client, err := model.NewClientDBModel(
 		"Open_vSwitch",
@@ -162,6 +189,7 @@ func GetModel() (model.DatabaseModel, error) {
 			"Open_vSwitch":              &OvsType{},
 			"Bridge":                    &BridgeType{},
 			"Flow_Sample_Collector_Set": &FlowSampleCollectorSetType{},
+			"Manager":                   &Manager{},
 		},
 	)
 	if err != nil {
