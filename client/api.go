@@ -147,13 +147,6 @@ func (a api) List(ctx context.Context, result interface{}) error {
 		return ErrNotFound
 	}
 
-	// If given a null slice, fill it in the cache table completely, if not, just up to
-	// its capability
-	if resultVal.IsNil() || resultVal.Cap() == 0 {
-		resultVal.Set(reflect.MakeSlice(resultVal.Type(), 0, tableCache.Len()))
-	}
-	i := resultVal.Len()
-
 	var rows map[string]model.Model
 	if a.cond != nil {
 		rows, err = a.cond.Matches()
@@ -163,9 +156,16 @@ func (a api) List(ctx context.Context, result interface{}) error {
 	} else {
 		rows = tableCache.Rows()
 	}
+	// If given a null slice, fill it in the cache table completely, if not, just up to
+	// its capability.
+	if resultVal.IsNil() || resultVal.Cap() == 0 {
+		resultVal.Set(reflect.MakeSlice(resultVal.Type(), 0, len(rows)))
+	}
+	i := resultVal.Len()
+	maxCap := resultVal.Cap()
 
 	for _, row := range rows {
-		if i >= resultVal.Cap() {
+		if i >= maxCap {
 			break
 		}
 		appendValue(reflect.ValueOf(row))
