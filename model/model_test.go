@@ -14,14 +14,26 @@ type modelA struct {
 	UUID string `ovsdb:"_uuid"`
 }
 
+func (m *modelA) GetTableName() string {
+	return "A"
+}
+
 type modelB struct {
 	UID string `ovsdb:"_uuid"`
 	Foo string `ovsdb:"bar"`
 	Bar string `ovsdb:"baz"`
 }
 
+func (m *modelB) GetTableName() string {
+	return "B"
+}
+
 type modelInvalid struct {
 	Foo string
+}
+
+func (m *modelInvalid) GetTableName() string {
+	return "Invalid"
 }
 
 func TestClientDBModel(t *testing.T) {
@@ -86,16 +98,22 @@ func TestSetUUID(t *testing.T) {
 
 }
 
+type testTable struct {
+	AUUID   string            `ovsdb:"_uuid"`
+	AString string            `ovsdb:"aString"`
+	AInt    int               `ovsdb:"aInt"`
+	AFloat  float64           `ovsdb:"aFloat"`
+	ASet    []string          `ovsdb:"aSet"`
+	AMap    map[string]string `ovsdb:"aMap"`
+}
+
+func (t *testTable) GetTableName() string {
+	return "TestTable"
+}
+
 func TestValidate(t *testing.T) {
 	model, err := NewClientDBModel("TestDB", map[string]Model{
-		"TestTable": &struct {
-			aUUID   string            `ovsdb:"_uuid"`
-			aString string            `ovsdb:"aString"`
-			aInt    int               `ovsdb:"aInt"`
-			aFloat  float64           `ovsdb:"aFloat"`
-			aSet    []string          `ovsdb:"aSet"`
-			aMap    map[string]string `ovsdb:"aMap"`
-		}{},
+		"TestTable": &testTable{},
 	})
 	assert.Nil(t, err)
 
@@ -435,4 +453,13 @@ func TestEqualViaComparable(t *testing.T) {
 	assert.True(t, Equal(a, b))
 	a.UID = "baz"
 	assert.False(t, Equal(a, b))
+}
+
+func TestGetTableName(t *testing.T) {
+	a := &testTable{}
+	func(a interface{}) {
+		m, ok := a.(Model)
+		assert.True(t, ok, "is not a model")
+		assert.Equal(t, m.GetTableName(), "TestTable")
+	}(a)
 }

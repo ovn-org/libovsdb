@@ -81,6 +81,10 @@ type Bridge struct {
 	STPEnable           bool              `ovsdb:"stp_enable"`
 }
 
+func (b *Bridge) GetTableName() string {
+	return "Bridge"
+}
+
 // OpenvSwitch defines an object in Open_vSwitch table
 type OpenvSwitch struct {
 	UUID            string            `ovsdb:"_uuid"`
@@ -101,6 +105,10 @@ type OpenvSwitch struct {
 	Statistics      map[string]string `ovsdb:"statistics"`
 	SystemType      *string           `ovsdb:"system_type"`
 	SystemVersion   *string           `ovsdb:"system_version"`
+}
+
+func (o *OpenvSwitch) GetTableName() string {
+	return "Open_vSwitch"
 }
 
 var defDB, _ = model.NewClientDBModel("Open_vSwitch",

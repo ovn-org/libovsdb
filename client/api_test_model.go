@@ -123,12 +123,12 @@ type testLogicalSwitch struct {
 	Acls             []string          `ovsdb:"acls"`
 }
 
-// Table returns the table name. It's part of the Model interface
-func (*testLogicalSwitch) Table() string {
+// GetTableName returns the table name. It's part of the Model interface
+func (*testLogicalSwitch) GetTableName() string {
 	return "Logical_Switch"
 }
 
-//LogicalSwitchPort struct defines an object in Logical_Switch_Port table
+// LogicalSwitchPort struct defines an object in Logical_Switch_Port table
 type testLogicalSwitchPort struct {
 	UUID             string            `ovsdb:"_uuid"`
 	Up               *bool             `ovsdb:"up"`
@@ -148,8 +148,8 @@ type testLogicalSwitchPort struct {
 	ParentName       *string           `ovsdb:"parent_name"`
 }
 
-// Table returns the table name. It's part of the Model interface
-func (*testLogicalSwitchPort) Table() string {
+// GetTableName returns the table name. It's part of the Model interface
+func (*testLogicalSwitchPort) GetTableName() string {
 	return "Logical_Switch_Port"
 }
 

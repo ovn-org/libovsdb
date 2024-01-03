@@ -204,14 +204,15 @@ func TestPredicateConditional(t *testing.T) {
 
 	test := []struct {
 		name      string
-		predicate interface{}
+		predicate func(model.Model) bool
 		condition [][]ovsdb.Condition
 		matches   map[string]model.Model
 		err       bool
 	}{
 		{
 			name: "simple value comparison",
-			predicate: func(lsp *testLogicalSwitchPort) bool {
+			predicate: func(m model.Model) bool {
+				lsp := m.(*testLogicalSwitchPort)
 				return lsp.UUID == aUUID0
 			},
 			condition: [][]ovsdb.Condition{
@@ -225,7 +226,8 @@ func TestPredicateConditional(t *testing.T) {
 		},
 		{
 			name: "by random field",
-			predicate: func(lsp *testLogicalSwitchPort) bool {
+			predicate: func(m model.Model) bool {
+				lsp := m.(*testLogicalSwitchPort)
 				return lsp.Enabled != nil && *lsp.Enabled == false
 			},
 			condition: [][]ovsdb.Condition{

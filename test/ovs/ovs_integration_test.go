@@ -166,6 +166,10 @@ type bridgeType struct {
 	DatapathID     *string           `ovsdb:"datapath_id"`
 }
 
+func (b *bridgeType) GetTableName() string {
+	return "Bridge"
+}
+
 // ovsType is the ORM model of the OVS table
 type ovsType struct {
 	UUID            string            `ovsdb:"_uuid"`
@@ -188,16 +192,28 @@ type ovsType struct {
 	SystemVersion   *string           `ovsdb:"system_version"`
 }
 
+func (o *ovsType) GetTableName() string {
+	return "Open_vSwitch"
+}
+
 // ipfixType is a simplified ORM model for the IPFIX table
 type ipfixType struct {
 	UUID    string   `ovsdb:"_uuid"`
 	Targets []string `ovsdb:"targets"`
 }
 
+func (i *ipfixType) GetTableName() string {
+	return "IPFIX"
+}
+
 // queueType is the simplified ORM model of the Queue table
 type queueType struct {
 	UUID string `ovsdb:"_uuid"`
 	DSCP *int   `ovsdb:"dscp"`
+}
+
+func (q *queueType) GetTableName() string {
+	return "Queue"
 }
 
 var defDB, _ = model.NewClientDBModel("Open_vSwitch", map[string]model.Model{
@@ -585,7 +601,7 @@ func (suite *OVSIntegrationSuite) TestInsertAndDeleteTransactIntegration() {
 	require.NoError(suite.T(), err)
 
 	ovsRow := ovsType{}
-	delMutateOp, err := suite.clientWithoutInactvityCheck.WhereCache(func(*ovsType) bool { return true }).
+	delMutateOp, err := suite.clientWithoutInactvityCheck.WhereCache(&ovsType{}, func(m model.Model) bool { return true }).
 		Mutate(&ovsRow, model.Mutation{
 			Field:   &ovsRow.Bridges,
 			Mutator: ovsdb.MutateOperationDelete,
@@ -828,7 +844,7 @@ func (suite *OVSIntegrationSuite) createBridge(bridgeName string) (string, error
 
 	// Inserting a Bridge row in Bridge table requires mutating the open_vswitch table.
 	ovsRow := ovsType{}
-	mutateOp, err := suite.clientWithoutInactvityCheck.WhereCache(func(*ovsType) bool { return true }).
+	mutateOp, err := suite.clientWithoutInactvityCheck.WhereCache(&ovsType{}, func(m model.Model) bool { return true }).
 		Mutate(&ovsRow, model.Mutation{
 			Field:   &ovsRow.Bridges,
 			Mutator: ovsdb.MutateOperationInsert,
@@ -1157,7 +1173,7 @@ func (suite *OVSIntegrationSuite) TestMultipleOpsSameRow() {
 	ops = append(ops, op...)
 
 	ovs := ovsType{}
-	op, err = suite.clientWithoutInactvityCheck.WhereCache(func(*ovsType) bool { return true }).Mutate(&ovs, model.Mutation{
+	op, err = suite.clientWithoutInactvityCheck.WhereCache(&ovsType{}, func(m model.Model) bool { return true }).Mutate(&ovs, model.Mutation{
 		Field:   &ovs.Bridges,
 		Mutator: ovsdb.MutateOperationInsert,
 		Value:   []string{bridgeUUID},

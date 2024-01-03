@@ -29,10 +29,18 @@ type bridgeType struct {
 	Status      map[string]string `ovsdb:"status"`
 }
 
+func (b *bridgeType) GetTableName() string {
+	return "Bridge"
+}
+
 // ORMovs is the simplified ORM model of the Bridge table
 type ovsType struct {
 	UUID    string   `ovsdb:"_uuid"`
 	Bridges []string `ovsdb:"bridges"`
+}
+
+func (o *ovsType) GetTableName() string {
+	return "Open_vSwitch"
 }
 
 var (

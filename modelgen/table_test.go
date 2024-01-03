@@ -8,7 +8,12 @@ import (
 	"text/template"
 
 	"github.com/google/uuid"
+	"github.com/ovn-org/libovsdb/example/icnb"
+	"github.com/ovn-org/libovsdb/example/icsb"
+	"github.com/ovn-org/libovsdb/example/nb"
+	"github.com/ovn-org/libovsdb/example/sb"
 	"github.com/ovn-org/libovsdb/example/vswitchd"
+	"github.com/ovn-org/libovsdb/example/vtep"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
@@ -80,6 +85,10 @@ type AtomicTable struct {
 	Protocol  *AtomicTableProtocol ` + "`" + `ovsdb:"protocol"` + "`" + `
 	Str       string               ` + "`" + `ovsdb:"str"` + "`" + `
 }
+
+func (a *AtomicTable) GetTableName() string {
+	return AtomicTableTable
+}
 `,
 		},
 		{
@@ -102,6 +111,10 @@ type AtomicTable struct {
 	Int       int     ` + "`" + `ovsdb:"int"` + "`" + `
 	Protocol  *string ` + "`" + `ovsdb:"protocol"` + "`" + `
 	Str       string  ` + "`" + `ovsdb:"str"` + "`" + `
+}
+
+func (a *AtomicTable) GetTableName() string {
+	return AtomicTableTable
 }
 `,
 		},
@@ -151,6 +164,10 @@ type AtomicTable struct {
 	OtherProtocol  *string
 	OtherStr       string
 }
+
+func (a *AtomicTable) GetTableName() string {
+	return AtomicTableTable
+}
 `,
 		},
 		{
@@ -187,6 +204,10 @@ type AtomicTable struct {
 	Int       int                  ` + "`" + `ovsdb:"int"` + "`" + `
 	Protocol  *AtomicTableProtocol ` + "`" + `ovsdb:"protocol"` + "`" + `
 	Str       string               ` + "`" + `ovsdb:"str"` + "`" + `
+}
+
+func (a *AtomicTable) GetTableName() string {
+	return AtomicTableTable
 }
 
 func (a *AtomicTable) GetUUID() string {
@@ -354,6 +375,10 @@ type AtomicTable struct {
 	OtherStr       string
 }
 
+func (a *AtomicTable) GetTableName() string {
+	return AtomicTableTable
+}
+
 func copyAtomicTableOtherProtocol(a *AtomicTableProtocol) *AtomicTableProtocol {
 	if a == nil {
 		return nil
@@ -483,6 +508,10 @@ type AtomicTable struct {
 	Str       string  ` + "`" + `ovsdb:"str"` + "`" + `
 }
 
+func (a *AtomicTable) GetTableName() string {
+	return AtomicTableTable
+}
+
 func (a *AtomicTable) GetUUID() string {
 	return a.UUID
 }
@@ -604,6 +633,10 @@ type AtomicTable struct {
 	Int       int                  ` + "`" + `ovsdb:"int"` + "`" + `
 	Protocol  *AtomicTableProtocol ` + "`" + `ovsdb:"protocol"` + "`" + `
 	Str       string               ` + "`" + `ovsdb:"str"` + "`" + `
+}
+
+func (a *AtomicTable) GetTableName() string {
+	return AtomicTableTable
 }
 
 func TestFunc() string {
@@ -991,4 +1024,58 @@ func BenchmarkDeepEqual(b *testing.B) {
 			}
 		})
 	}
+}
+
+func TestVswitchedGetTableName(t *testing.T) {
+	bridge := &vswitchd.Bridge{}
+	func(bridge interface{}) {
+		m, ok := bridge.(model.Model)
+		assert.True(t, ok, "is not a model")
+		assert.Equal(t, m.GetTableName(), vswitchd.BridgeTable)
+	}(bridge)
+}
+
+func TestVtepGetTableName(t *testing.T) {
+	sw := &vtep.LogicalSwitch{}
+	func(sw interface{}) {
+		m, ok := sw.(model.Model)
+		assert.True(t, ok, "is not a model")
+		assert.Equal(t, m.GetTableName(), vtep.LogicalSwitchTable)
+	}(sw)
+}
+
+func TestNBGetTableName(t *testing.T) {
+	sw := &nb.LogicalSwitch{}
+	func(sw interface{}) {
+		m, ok := sw.(model.Model)
+		assert.True(t, ok, "is not a model")
+		assert.Equal(t, m.GetTableName(), nb.LogicalSwitchTable)
+	}(sw)
+}
+
+func TestSBGetTableName(t *testing.T) {
+	p := &sb.RBACPermission{}
+	func(p interface{}) {
+		m, ok := p.(model.Model)
+		assert.True(t, ok, "is not a model")
+		assert.Equal(t, m.GetTableName(), sb.RBACPermissionTable)
+	}(p)
+}
+
+func TestICNBGetTableName(t *testing.T) {
+	sw := &icnb.TransitSwitch{}
+	func(sw interface{}) {
+		m, ok := sw.(model.Model)
+		assert.True(t, ok, "is not a model")
+		assert.Equal(t, m.GetTableName(), icnb.TransitSwitchTable)
+	}(sw)
+}
+
+func TestICSBGetTableName(t *testing.T) {
+	gw := &icsb.Gateway{}
+	func(gw interface{}) {
+		m, ok := gw.(model.Model)
+		assert.True(t, ok, "is not a model")
+		assert.Equal(t, m.GetTableName(), icsb.GatewayTable)
+	}(gw)
 }

@@ -30,6 +30,10 @@ type Database struct {
 	Sid       *string       `ovsdb:"sid"`
 }
 
+func (a *Database) GetTableName() string {
+	return DatabaseTable
+}
+
 func (a *Database) GetUUID() string {
 	return a.UUID
 }

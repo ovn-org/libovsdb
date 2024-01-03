@@ -16,20 +16,25 @@ import (
 // The struct may also have non-tagged fields (which will be ignored by the API calls)
 // The Model interface must be implemented by the pointer to such type
 // Example:
-//type MyLogicalRouter struct {
-//	UUID          string            `ovsdb:"_uuid"`
-//	Name          string            `ovsdb:"name"`
-//	ExternalIDs   map[string]string `ovsdb:"external_ids"`
-//	LoadBalancers []string          `ovsdb:"load_balancer"`
-//}
-type Model interface{}
+//
+//	type MyLogicalRouter struct {
+//		UUID          string            `ovsdb:"_uuid"`
+//		Name          string            `ovsdb:"name"`
+//		ExternalIDs   map[string]string `ovsdb:"external_ids"`
+//		LoadBalancers []string          `ovsdb:"load_balancer"`
+//	}
+type Model interface {
+	GetTableName() string
+}
 
 type CloneableModel interface {
+	Model
 	CloneModel() Model
 	CloneModelInto(Model)
 }
 
 type ComparableModel interface {
+	Model
 	EqualsModel(Model) bool
 }
 
@@ -43,7 +48,7 @@ func Clone(a Model) Model {
 	b := reflect.New(val.Type()).Interface()
 	aBytes, _ := json.Marshal(a)
 	_ = json.Unmarshal(aBytes, b)
-	return b
+	return b.(Model)
 }
 
 // CloneInto deep copies a model into another one

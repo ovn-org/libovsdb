@@ -217,13 +217,15 @@ func TestAPIListPredicate(t *testing.T) {
 
 	test := []struct {
 		name      string
-		predicate interface{}
+		m         model.Model
+		predicate func(model.Model) bool
 		content   []model.Model
 		err       bool
 	}{
 		{
 			name: "none",
-			predicate: func(t *testLogicalSwitch) bool {
+			m:    &testLogicalSwitch{},
+			predicate: func(t model.Model) bool {
 				return false
 			},
 			content: []model.Model{},
@@ -231,7 +233,8 @@ func TestAPIListPredicate(t *testing.T) {
 		},
 		{
 			name: "all",
-			predicate: func(t *testLogicalSwitch) bool {
+			m:    &testLogicalSwitch{},
+			predicate: func(t model.Model) bool {
 				return true
 			},
 			content: lscacheList,
@@ -239,22 +242,18 @@ func TestAPIListPredicate(t *testing.T) {
 		},
 		{
 			name: "nil function must fail",
+			m:    &testLogicalSwitch{},
 			err:  true,
 		},
 		{
 			name: "arbitrary condition",
-			predicate: func(t *testLogicalSwitch) bool {
+			m:    &testLogicalSwitch{},
+			predicate: func(m model.Model) bool {
+				t := m.(*testLogicalSwitch)
 				return strings.HasPrefix(t.Name, "magic")
 			},
 			content: []model.Model{lscacheList[1], lscacheList[3]},
 			err:     false,
-		},
-		{
-			name: "error wrong type",
-			predicate: func(t testLogicalSwitch) string {
-				return "foo"
-			},
-			err: true,
 		},
 	}
 
@@ -262,7 +261,7 @@ func TestAPIListPredicate(t *testing.T) {
 		t.Run(fmt.Sprintf("ApiListPredicate: %s", tt.name), func(t *testing.T) {
 			var result []*testLogicalSwitch
 			api := newAPI(tcache, &discardLogger)
-			cond := api.WhereCache(tt.predicate)
+			cond := api.WhereCache(tt.m, tt.predicate)
 			err := cond.List(context.Background(), &result)
 			if tt.err {
 				assert.NotNil(t, err)
@@ -536,26 +535,14 @@ func TestAPIListMulti(t *testing.T) {
 func TestConditionFromFunc(t *testing.T) {
 	test := []struct {
 		name string
-		arg  interface{}
+		m    model.Model
+		arg  func(model.Model) bool
 		err  bool
 	}{
 		{
-			name: "wrong function must fail",
-			arg: func(s string) bool {
-				return false
-			},
-			err: true,
-		},
-		{
-			name: "wrong function must fail2 ",
-			arg: func(t *testLogicalSwitch) string {
-				return "foo"
-			},
-			err: true,
-		},
-		{
 			name: "correct func should succeed",
-			arg: func(t *testLogicalSwitch) bool {
+			m:    &testLogicalSwitch{},
+			arg: func(m model.Model) bool {
 				return true
 			},
 			err: false,
@@ -566,7 +553,7 @@ func TestConditionFromFunc(t *testing.T) {
 		t.Run(fmt.Sprintf("conditionFromFunc: %s", tt.name), func(t *testing.T) {
 			cache := apiTestCache(t, nil)
 			apiIface := newAPI(cache, &discardLogger)
-			condition := apiIface.(api).conditionFromFunc(tt.arg)
+			condition := apiIface.(api).conditionFromFunc(tt.m, tt.arg)
 			if tt.err {
 				assert.IsType(t, &errorConditional{}, condition)
 			} else {
@@ -584,23 +571,6 @@ func TestConditionFromModel(t *testing.T) {
 		conds  []model.Condition
 		err    bool
 	}{
-		{
-			name: "wrong model must fail",
-			models: []model.Model{
-				&struct{ a string }{},
-			},
-			err: true,
-		},
-		{
-			name: "wrong condition must fail",
-			models: []model.Model{
-				&struct {
-					a string `ovsdb:"_uuid"`
-				}{},
-			},
-			conds: []model.Condition{{Field: "foo"}},
-			err:   true,
-		},
 		{
 			name: "correct model must succeed",
 			models: []model.Model{
@@ -1009,7 +979,8 @@ func TestAPIMutate(t *testing.T) {
 		{
 			name: "select single by predicate name insert element in map",
 			condition: func(a API) ConditionalAPI {
-				return a.WhereCache(func(lsp *testLogicalSwitchPort) bool {
+				return a.WhereCache(&testLogicalSwitchPort{}, func(m model.Model) bool {
+					lsp := m.(*testLogicalSwitchPort)
 					return lsp.Name == "lsp2"
 				})
 			},
@@ -1033,7 +1004,8 @@ func TestAPIMutate(t *testing.T) {
 		{
 			name: "select many by predicate name insert element in map",
 			condition: func(a API) ConditionalAPI {
-				return a.WhereCache(func(lsp *testLogicalSwitchPort) bool {
+				return a.WhereCache(&testLogicalSwitchPort{}, func(m model.Model) bool {
+					lsp := m.(*testLogicalSwitchPort)
 					return lsp.Type == "someType"
 				})
 			},
@@ -1063,7 +1035,8 @@ func TestAPIMutate(t *testing.T) {
 		{
 			name: "No mutations should error",
 			condition: func(a API) ConditionalAPI {
-				return a.WhereCache(func(lsp *testLogicalSwitchPort) bool {
+				return a.WhereCache(&testLogicalSwitchPort{}, func(m model.Model) bool {
+					lsp := m.(*testLogicalSwitchPort)
 					return lsp.Type == "someType"
 				})
 			},
@@ -1411,7 +1384,8 @@ func TestAPIUpdate(t *testing.T) {
 		{
 			name: "select multiple by predicate change multiple field",
 			condition: func(a API) ConditionalAPI {
-				return a.WhereCache(func(t *testLogicalSwitchPort) bool {
+				return a.WhereCache(&testLogicalSwitchPort{}, func(m model.Model) bool {
+					t := m.(*testLogicalSwitchPort)
 					return t.Enabled != nil && *t.Enabled == true
 				})
 			},
@@ -1645,7 +1619,8 @@ func TestAPIDelete(t *testing.T) {
 		{
 			name: "select multiple by predicate",
 			condition: func(a API) ConditionalAPI {
-				return a.WhereCache(func(t *testLogicalSwitchPort) bool {
+				return a.WhereCache(&testLogicalSwitchPort{}, func(m model.Model) bool {
+					t := m.(*testLogicalSwitchPort)
 					return t.Enabled != nil && *t.Enabled == true
 				})
 			},
@@ -1724,29 +1699,36 @@ func BenchmarkAPIList(b *testing.B) {
 
 	test := []struct {
 		name      string
-		predicate interface{}
+		m         model.Model
+		predicate func(model.Model) bool
 	}{
 		{
 			name: "predicate returns none",
-			predicate: func(t *testLogicalSwitchPort) bool {
+			m:    &testLogicalSwitchPort{},
+			predicate: func(t model.Model) bool {
 				return false
 			},
 		},
 		{
 			name: "predicate returns all",
-			predicate: func(t *testLogicalSwitchPort) bool {
+			m:    &testLogicalSwitchPort{},
+			predicate: func(t model.Model) bool {
 				return true
 			},
 		},
 		{
 			name: "predicate on an arbitrary condition",
-			predicate: func(t *testLogicalSwitchPort) bool {
+			m:    &testLogicalSwitchPort{},
+			predicate: func(m model.Model) bool {
+				t := m.(*testLogicalSwitchPort)
 				return strings.HasPrefix(t.Name, "ls1")
 			},
 		},
 		{
 			name: "predicate matches name",
-			predicate: func(t *testLogicalSwitchPort) bool {
+			m:    &testLogicalSwitchPort{},
+			predicate: func(m model.Model) bool {
+				t := m.(*testLogicalSwitchPort)
 				return t.Name == lscacheList[index].Name
 			},
 		},
@@ -1763,7 +1745,7 @@ func BenchmarkAPIList(b *testing.B) {
 				api := newAPI(tcache, &discardLogger)
 				var cond ConditionalAPI
 				if tt.predicate != nil {
-					cond = api.WhereCache(tt.predicate)
+					cond = api.WhereCache(tt.m, tt.predicate)
 				} else {
 					cond = api.Where(lscacheList[index])
 				}
@@ -1979,7 +1961,7 @@ func TestAPIWait(t *testing.T) {
 		{
 			name: "no operation",
 			condition: func(a API) ConditionalAPI {
-				return a.WhereCache(func(t *testLogicalSwitchPort) bool { return false })
+				return a.WhereCache(&testLogicalSwitchPort{}, func(t model.Model) bool { return false })
 			},
 			until: "==",
 			prepare: func() (model.Model, []interface{}) {
