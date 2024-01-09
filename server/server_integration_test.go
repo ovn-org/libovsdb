@@ -10,11 +10,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/ovn-org/libovsdb/cache"
 	"github.com/ovn-org/libovsdb/client"
 	"github.com/ovn-org/libovsdb/database/inmemory"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
+	"github.com/ovn-org/libovsdb/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -515,4 +517,348 @@ func TestMultipleOpsSameRow(t *testing.T) {
 	require.Equal(t, []string{"port1"}, br.Ports)
 	require.Equal(t, map[string]string{"key1": "value1", "keyA": "valueA"}, br.ExternalIds)
 	require.Nil(t, br.DatapathID)
+}
+
+func TestReferentialIntegrity(t *testing.T) {
+	// UUIDs to use throughout the tests
+	ovsUUID := uuid.New().String()
+	bridgeUUID := uuid.New().String()
+	port1UUID := uuid.New().String()
+	port2UUID := uuid.New().String()
+	mirrorUUID := uuid.New().String()
+
+	// the test adds an additional op to initialOps to set a reference to
+	// the bridge in OVS table
+	// the test deletes expectModels at the end
+	tests := []struct {
+		name             string
+		initialOps       []ovsdb.Operation
+		testOps          func(client.Client) ([]ovsdb.Operation, error)
+		expectModels     []model.Model
+		dontExpectModels []model.Model
+		expectErr        bool
+	}{
+		{
+			name: "strong reference is garbage collected",
+			initialOps: []ovsdb.Operation{
+				{
+					Op:    ovsdb.OperationInsert,
+					Table: "Bridge",
+					UUID:  bridgeUUID,
+					Row: ovsdb.Row{
+						"name":    bridgeUUID,
+						"ports":   ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: port1UUID}}},
+						"mirrors": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: mirrorUUID}}},
+					},
+				},
+				{
+					Op:    ovsdb.OperationInsert,
+					Table: "Port",
+					UUID:  port1UUID,
+					Row: ovsdb.Row{
+						"name": port1UUID,
+					},
+				},
+				{
+					Op:    ovsdb.OperationInsert,
+					Table: "Mirror",
+					UUID:  mirrorUUID,
+					Row: ovsdb.Row{
+						"name":            mirrorUUID,
+						"select_src_port": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: port1UUID}}},
+					},
+				},
+			},
+			testOps: func(c client.Client) ([]ovsdb.Operation, error) {
+				// remove the mirror reference
+				b := &test.BridgeType{UUID: bridgeUUID}
+				return c.Where(b).Update(b, &b.Mirrors)
+			},
+			expectModels: []model.Model{
+				&test.BridgeType{UUID: bridgeUUID, Name: bridgeUUID, Ports: []string{port1UUID}},
+				&test.PortType{UUID: port1UUID, Name: port1UUID},
+			},
+			dontExpectModels: []model.Model{
+				// mirror should have been garbage collected
+				&test.MirrorType{UUID: mirrorUUID},
+			},
+		},
+		{
+			name: "adding non-root row that is not strongly reference is a noop",
+			initialOps: []ovsdb.Operation{
+				{
+					Op:    ovsdb.OperationInsert,
+					Table: "Bridge",
+					UUID:  bridgeUUID,
+					Row: ovsdb.Row{
+						"name": bridgeUUID,
+					},
+				},
+			},
+			testOps: func(c client.Client) ([]ovsdb.Operation, error) {
+				// add a mirror
+				m := &test.MirrorType{UUID: mirrorUUID, Name: mirrorUUID}
+				return c.Create(m)
+			},
+			expectModels: []model.Model{
+				&test.BridgeType{UUID: bridgeUUID, Name: bridgeUUID},
+			},
+			dontExpectModels: []model.Model{
+				// mirror should have not been added as is not referenced from anywhere
+				&test.MirrorType{UUID: mirrorUUID},
+			},
+		},
+		{
+			name: "adding non-existent strong reference fails",
+			initialOps: []ovsdb.Operation{
+				{
+					Op:    ovsdb.OperationInsert,
+					Table: "Bridge",
+					UUID:  bridgeUUID,
+					Row: ovsdb.Row{
+						"name": bridgeUUID,
+					},
+				},
+			},
+			testOps: func(c client.Client) ([]ovsdb.Operation, error) {
+				// add a mirror
+				b := &test.BridgeType{UUID: bridgeUUID, Mirrors: []string{mirrorUUID}}
+				return c.Where(b).Update(b, &b.Mirrors)
+			},
+			expectModels: []model.Model{
+				&test.BridgeType{UUID: bridgeUUID, Name: bridgeUUID},
+			},
+			expectErr: true,
+		},
+		{
+			name: "weak reference is garbage collected",
+			initialOps: []ovsdb.Operation{
+				{
+					Op:    ovsdb.OperationInsert,
+					Table: "Bridge",
+					UUID:  bridgeUUID,
+					Row: ovsdb.Row{
+						"name":    bridgeUUID,
+						"ports":   ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: port1UUID}, ovsdb.UUID{GoUUID: port2UUID}}},
+						"mirrors": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: mirrorUUID}}},
+					},
+				},
+				{
+					Op:    ovsdb.OperationInsert,
+					Table: "Port",
+					UUID:  port1UUID,
+					Row: ovsdb.Row{
+						"name": port1UUID,
+					},
+				},
+				{
+					Op:    ovsdb.OperationInsert,
+					Table: "Port",
+					UUID:  port2UUID,
+					Row: ovsdb.Row{
+						"name": port2UUID,
+					},
+				},
+				{
+					Op:    ovsdb.OperationInsert,
+					Table: "Mirror",
+					UUID:  mirrorUUID,
+					Row: ovsdb.Row{
+						"name":            mirrorUUID,
+						"select_src_port": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: port1UUID}, ovsdb.UUID{GoUUID: port2UUID}}},
+					},
+				},
+			},
+			testOps: func(c client.Client) ([]ovsdb.Operation, error) {
+				// remove port1
+				p := &test.PortType{UUID: port1UUID}
+				ops, err := c.Where(p).Delete()
+				if err != nil {
+					return nil, err
+				}
+				b := &test.BridgeType{UUID: bridgeUUID, Ports: []string{port2UUID}}
+				op, err := c.Where(b).Update(b, &b.Ports)
+				if err != nil {
+					return nil, err
+				}
+				return append(ops, op...), nil
+			},
+			expectModels: []model.Model{
+				&test.BridgeType{UUID: bridgeUUID, Name: bridgeUUID, Ports: []string{port2UUID}, Mirrors: []string{mirrorUUID}},
+				&test.PortType{UUID: port2UUID, Name: port2UUID},
+				// mirror reference to port1 should have been garbage collected
+				&test.MirrorType{UUID: mirrorUUID, Name: mirrorUUID, SelectSrcPort: []string{port2UUID}},
+			},
+			dontExpectModels: []model.Model{
+				&test.PortType{UUID: port1UUID},
+			},
+		},
+		{
+			name: "adding a weak reference to a non-existent row is a noop",
+			initialOps: []ovsdb.Operation{
+				{
+					Op:    ovsdb.OperationInsert,
+					Table: "Bridge",
+					UUID:  bridgeUUID,
+					Row: ovsdb.Row{
+						"name":    bridgeUUID,
+						"ports":   ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: port1UUID}}},
+						"mirrors": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: mirrorUUID}}},
+					},
+				},
+				{
+					Op:    ovsdb.OperationInsert,
+					Table: "Port",
+					UUID:  port1UUID,
+					Row: ovsdb.Row{
+						"name": port1UUID,
+					},
+				},
+				{
+					Op:    ovsdb.OperationInsert,
+					Table: "Mirror",
+					UUID:  mirrorUUID,
+					Row: ovsdb.Row{
+						"name":            mirrorUUID,
+						"select_src_port": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: port1UUID}}},
+					},
+				},
+			},
+			testOps: func(c client.Client) ([]ovsdb.Operation, error) {
+				// add reference to non-existent port2
+				m := &test.MirrorType{UUID: mirrorUUID, SelectSrcPort: []string{port1UUID, port2UUID}}
+				return c.Where(m).Update(m, &m.SelectSrcPort)
+			},
+			expectModels: []model.Model{
+				&test.BridgeType{UUID: bridgeUUID, Name: bridgeUUID, Ports: []string{port1UUID}, Mirrors: []string{mirrorUUID}},
+				&test.PortType{UUID: port1UUID, Name: port1UUID},
+				// mirror reference to port2 should have been garbage collected resulting in noop
+				&test.MirrorType{UUID: mirrorUUID, Name: mirrorUUID, SelectSrcPort: []string{port1UUID}},
+			},
+		},
+		{
+			name: "garbage collecting a weak reference on a column lowering it below the min length fails",
+			initialOps: []ovsdb.Operation{
+				{
+					Op:    ovsdb.OperationInsert,
+					Table: "Bridge",
+					UUID:  bridgeUUID,
+					Row: ovsdb.Row{
+						"name":    bridgeUUID,
+						"ports":   ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: port1UUID}}},
+						"mirrors": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: mirrorUUID}}},
+					},
+				},
+				{
+					Op:    ovsdb.OperationInsert,
+					Table: "Port",
+					UUID:  port1UUID,
+					Row: ovsdb.Row{
+						"name": port1UUID,
+					},
+				},
+				{
+					Op:    ovsdb.OperationInsert,
+					Table: "Mirror",
+					UUID:  mirrorUUID,
+					Row: ovsdb.Row{
+						"name":            mirrorUUID,
+						"select_src_port": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: port1UUID}}},
+					},
+				},
+			},
+			testOps: func(c client.Client) ([]ovsdb.Operation, error) {
+				// remove port 1
+				return c.Where(&test.PortType{UUID: port1UUID}).Delete()
+			},
+			expectModels: []model.Model{
+				&test.BridgeType{UUID: bridgeUUID, Name: bridgeUUID, Ports: []string{port1UUID}, Mirrors: []string{mirrorUUID}},
+				&test.PortType{UUID: port1UUID, Name: port1UUID},
+				&test.MirrorType{UUID: mirrorUUID, Name: mirrorUUID, SelectSrcPort: []string{port1UUID}},
+			},
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, close := buildTestServerAndClient(t)
+			defer close()
+			_, err := c.MonitorAll(context.Background())
+			require.NoError(t, err)
+
+			// add the bridge reference to the initial ops
+			ops := append(tt.initialOps, ovsdb.Operation{
+				Op:    ovsdb.OperationInsert,
+				Table: "Open_vSwitch",
+				UUID:  ovsUUID,
+				Row: ovsdb.Row{
+					"bridges": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: bridgeUUID}}},
+				},
+			})
+
+			results, err := c.Transact(context.Background(), ops...)
+			require.NoError(t, err)
+			require.Len(t, results, len(ops))
+
+			errors, err := ovsdb.CheckOperationResults(results, ops)
+			require.Nil(t, errors)
+			require.NoError(t, err)
+
+			ops, err = tt.testOps(c)
+			require.NoError(t, err)
+
+			results, err = c.Transact(context.Background(), ops...)
+			require.NoError(t, err)
+
+			errors, err = ovsdb.CheckOperationResults(results, ops)
+			require.Nil(t, errors)
+			if tt.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			for _, m := range tt.expectModels {
+				actual := model.Clone(m)
+				err := c.Get(context.Background(), actual)
+				require.NoError(t, err, "when expecting model %v", m)
+				require.Equal(t, m, actual)
+			}
+
+			for _, m := range tt.dontExpectModels {
+				err := c.Get(context.Background(), m)
+				require.ErrorIs(t, err, client.ErrNotFound, "when not expecting model %v", m)
+			}
+
+			ops = []ovsdb.Operation{}
+			for _, m := range tt.expectModels {
+				op, err := c.Where(m).Delete()
+				require.NoError(t, err)
+				require.Len(t, op, 1)
+				ops = append(ops, op...)
+			}
+
+			// remove the bridge reference
+			ops = append(ops, ovsdb.Operation{
+				Op:    ovsdb.OperationDelete,
+				Table: "Open_vSwitch",
+				Where: []ovsdb.Condition{
+					{
+						Column:   "_uuid",
+						Function: ovsdb.ConditionEqual,
+						Value:    ovsdb.UUID{GoUUID: ovsUUID},
+					},
+				},
+			})
+
+			results, err = c.Transact(context.Background(), ops...)
+			require.NoError(t, err)
+			require.Len(t, results, len(ops))
+
+			errors, err = ovsdb.CheckOperationResults(results, ops)
+			require.Nil(t, errors)
+			require.NoError(t, err)
+		})
+	}
 }
