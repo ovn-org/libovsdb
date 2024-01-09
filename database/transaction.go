@@ -20,6 +20,7 @@ type Transaction struct {
 	Model       model.DatabaseModel
 	DbName      string
 	Database    Database
+	logger      *logr.Logger
 }
 
 func NewTransaction(model model.DatabaseModel, dbName string, database Database, logger *logr.Logger) Transaction {
@@ -27,23 +28,33 @@ func NewTransaction(model model.DatabaseModel, dbName string, database Database,
 		l := logger.WithName("transaction")
 		logger = &l
 	}
-	cache, err := cache.NewTableCache(model, nil, logger)
-	if err != nil {
-		panic(err)
-	}
+
 	return Transaction{
 		ID:          uuid.New(),
-		Cache:       cache,
 		DeletedRows: make(map[string]struct{}),
 		Model:       model,
 		DbName:      dbName,
 		Database:    database,
+		logger:      logger,
 	}
 }
 
 func (t *Transaction) Transact(operations []ovsdb.Operation) ([]*ovsdb.OperationResult, Update) {
-	results := []*ovsdb.OperationResult{}
+	results := make([]*ovsdb.OperationResult, len(operations), len(operations)+1)
 	update := updates.ModelUpdates{}
+
+	if !t.Database.Exists(t.DbName) {
+		r := ovsdb.ResultFromError(fmt.Errorf("database does not exist"))
+		results[0] = &r
+		return results, nil
+	}
+
+	err := t.initializeCache()
+	if err != nil {
+		r := ovsdb.ResultFromError(err)
+		results[0] = &r
+		return results, nil
+	}
 
 	// Every Insert operation must have a UUID
 	for i := range operations {
@@ -54,31 +65,15 @@ func (t *Transaction) Transact(operations []ovsdb.Operation) ([]*ovsdb.Operation
 	}
 
 	// Ensure Named UUIDs are expanded in all operations
-	var err error
 	operations, err = ovsdb.ExpandNamedUUIDs(operations, &t.Model.Schema)
 	if err != nil {
 		r := ovsdb.ResultFromError(err)
-		return []*ovsdb.OperationResult{&r}, nil
+		results[0] = &r
+		return results, nil
 	}
 
 	var r ovsdb.OperationResult
-	for _, op := range operations {
-		// if we had a previous error, just append a nil result for every op
-		// after that
-		if r.Error != "" {
-			results = append(results, nil)
-			continue
-		}
-
-		// simple case: database name does not exist
-		if !t.Database.Exists(t.DbName) {
-			r = ovsdb.OperationResult{
-				Error: "database does not exist",
-			}
-			results = append(results, &r)
-			continue
-		}
-
+	for i, op := range operations {
 		var u *updates.ModelUpdates
 		switch op.Op {
 		case ovsdb.OperationInsert:
@@ -118,11 +113,21 @@ func (t *Transaction) Transact(operations []ovsdb.Operation) ([]*ovsdb.Operation
 		}
 
 		result := r
-		results = append(results, &result)
+		results[i] = &result
+
+		// if an operation failed, no need to process any further operation
+		if r.Error != "" {
+			break
+		}
 	}
 
 	// if an operation failed, no need to do any further validation
 	if r.Error != "" {
+		return results, update
+	}
+
+	// if there is no updates, no need to do any further validation
+	if len(update.GetUpdatedTables()) == 0 {
 		return results, update
 	}
 
@@ -141,7 +146,21 @@ func (t *Transaction) Transact(operations []ovsdb.Operation) ([]*ovsdb.Operation
 	return results, update
 }
 
+func (t *Transaction) initializeCache() error {
+	if t.Cache != nil {
+		return nil
+	}
+	var err error
+	t.Cache, err = cache.NewTableCache(t.Model, nil, t.logger)
+	return err
+}
+
 func (t *Transaction) rowsFromTransactionCacheAndDatabase(table string, where []ovsdb.Condition) (map[string]model.Model, error) {
+	err := t.initializeCache()
+	if err != nil {
+		return nil, err
+	}
+
 	txnRows, err := t.Cache.Table(table).RowsByCondition(where)
 	if err != nil {
 		return nil, fmt.Errorf("failed getting rows for table %s from transaction cache: %v", table, err)
