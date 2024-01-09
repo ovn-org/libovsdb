@@ -15,6 +15,7 @@ type Database interface {
 	CheckIndexes(database string, table string, m model.Model) error
 	List(database, table string, conditions ...ovsdb.Condition) (map[string]model.Model, error)
 	Get(database, table string, uuid string) (model.Model, error)
+	GetReferences(database, table, row string) (References, error)
 }
 
 // Transaction abstracts a database transaction that can generate database
@@ -28,4 +29,5 @@ type Update interface {
 	GetUpdatedTables() []string
 	ForEachModelUpdate(table string, do func(uuid string, old, new model.Model) error) error
 	ForEachRowUpdate(table string, do func(uuid string, row ovsdb.RowUpdate2) error) error
+	ForReferenceUpdates(do func(references References) error) error
 }

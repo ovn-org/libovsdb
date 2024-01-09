@@ -19,6 +19,7 @@ import (
 type inMemoryDatabase struct {
 	databases  map[string]*cache.TableCache
 	models     map[string]model.ClientDBModel
+	references map[string]dbase.References
 	logger     *logr.Logger
 	mutex      sync.RWMutex
 }
@@ -28,6 +29,7 @@ func NewDatabase(models map[string]model.ClientDBModel) dbase.Database {
 	return &inMemoryDatabase{
 		databases:  make(map[string]*cache.TableCache),
 		models:     models,
+		references: make(map[string]dbase.References),
 		mutex:      sync.RWMutex{},
 		logger:     &logger,
 	}
@@ -61,6 +63,7 @@ func (db *inMemoryDatabase) CreateDatabase(name string, schema ovsdb.DatabaseSch
 		return err
 	}
 	db.databases[name] = database
+	db.references[name] = make(dbase.References)
 	return nil
 }
 
@@ -79,7 +82,15 @@ func (db *inMemoryDatabase) Commit(database string, id uuid.UUID, update dbase.U
 	targetDb := db.databases[database]
 	db.mutex.RUnlock()
 
-	return targetDb.ApplyCacheUpdate(update)
+	err := targetDb.ApplyCacheUpdate(update)
+	if err != nil {
+		return err
+	}
+
+	return update.ForReferenceUpdates(func(references dbase.References) error {
+		db.references[database].UpdateReferences(references)
+		return nil
+	})
 }
 
 func (db *inMemoryDatabase) CheckIndexes(database string, table string, m model.Model) error {
@@ -122,4 +133,13 @@ func (db *inMemoryDatabase) Get(database, table string, uuid string) (model.Mode
 		return nil, fmt.Errorf("table does not exist")
 	}
 	return targetTable.Row(uuid), nil
+}
+
+func (db *inMemoryDatabase) GetReferences(database, table, row string) (dbase.References, error) {
+	if !db.Exists(database) {
+		return nil, fmt.Errorf("db does not exist")
+	}
+	db.mutex.RLock()
+	defer db.mutex.RUnlock()
+	return db.references[database].GetReferences(table, row), nil
 }

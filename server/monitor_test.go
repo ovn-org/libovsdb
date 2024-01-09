@@ -90,7 +90,7 @@ func TestMonitorFilter(t *testing.T) {
 					assert.NoError(t, err)
 				}
 			}
-			tu := monitor.filter2(update)
+			tu := monitor.filter2(updates.NewDatabaseUpdate(update, nil))
 			assert.Equal(t, tt.expected, tu)
 		})
 	}
@@ -175,7 +175,7 @@ func TestMonitorFilter2(t *testing.T) {
 					assert.NoError(t, err)
 				}
 			}
-			tu := monitor.filter2(update)
+			tu := monitor.filter2(updates.NewDatabaseUpdate(update, nil))
 			assert.Equal(t, tt.expected, tu)
 		})
 	}

@@ -47,14 +47,14 @@ func (t *Transaction) Transact(operations ...ovsdb.Operation) ([]*ovsdb.Operatio
 	if !t.Database.Exists(t.DbName) {
 		r := ovsdb.ResultFromError(fmt.Errorf("database does not exist"))
 		results[0] = &r
-		return results, nil
+		return results, updates.NewDatabaseUpdate(update, nil)
 	}
 
 	err := t.initializeCache()
 	if err != nil {
 		r := ovsdb.ResultFromError(err)
 		results[0] = &r
-		return results, nil
+		return results, updates.NewDatabaseUpdate(update, nil)
 	}
 
 	// Every Insert operation must have a UUID
@@ -70,7 +70,7 @@ func (t *Transaction) Transact(operations ...ovsdb.Operation) ([]*ovsdb.Operatio
 	if err != nil {
 		r := ovsdb.ResultFromError(err)
 		results[0] = &r
-		return results, nil
+		return results, updates.NewDatabaseUpdate(update, nil)
 	}
 
 	var r ovsdb.OperationResult
@@ -124,12 +124,29 @@ func (t *Transaction) Transact(operations ...ovsdb.Operation) ([]*ovsdb.Operatio
 
 	// if an operation failed, no need to do any further validation
 	if r.Error != "" {
-		return results, update
+		return results, updates.NewDatabaseUpdate(update, nil)
 	}
 
 	// if there is no updates, no need to do any further validation
 	if len(update.GetUpdatedTables()) == 0 {
-		return results, update
+		return results, updates.NewDatabaseUpdate(update, nil)
+	}
+
+	// check & update references
+	update, refUpdates, refs, err := updates.ProcessReferences(t.Model, t.Database, update)
+	if err != nil {
+		r = ovsdb.ResultFromError(err)
+		results = append(results, &r)
+		return results, updates.NewDatabaseUpdate(update, refs)
+	}
+
+	// apply updates resulting from referential integrity to the transaction
+	// caches so they are accounted for when checking index constraints
+	err = t.applyReferenceUpdates(refUpdates)
+	if err != nil {
+		r = ovsdb.ResultFromError(err)
+		results = append(results, &r)
+		return results, updates.NewDatabaseUpdate(update, refs)
 	}
 
 	// check index constraints
@@ -142,9 +159,41 @@ func (t *Transaction) Transact(operations ...ovsdb.Operation) ([]*ovsdb.Operatio
 			r := ovsdb.ResultFromError(err)
 			results = append(results, &r)
 		}
+
+		return results, updates.NewDatabaseUpdate(update, refs)
 	}
 
-	return results, update
+	return results, updates.NewDatabaseUpdate(update, refs)
+}
+
+func (t *Transaction) applyReferenceUpdates(update updates.ModelUpdates) error {
+	tables := update.GetUpdatedTables()
+	for _, table := range tables {
+		err := update.ForEachModelUpdate(table, func(uuid string, old, new model.Model) error {
+			// track deleted rows due to reference updates
+			if old != nil && new == nil {
+				t.DeletedRows[uuid] = struct{}{}
+			}
+			// warm the cache with updated and deleted rows due to reference
+			// updates
+			if old != nil && !t.Cache.Table(table).HasRow(uuid) {
+				row, err := t.Database.Get(t.DbName, table, uuid)
+				if err != nil {
+					return err
+				}
+				err = t.Cache.Table(table).Create(uuid, row, false)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+	// apply reference updates to the cache
+	return t.Cache.ApplyCacheUpdate(update)
 }
 
 func (t *Transaction) initializeCache() error {

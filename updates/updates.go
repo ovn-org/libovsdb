@@ -71,8 +71,10 @@ func (u ModelUpdates) GetModel(table, uuid string) model.Model {
 	if u.updates == nil {
 		return nil
 	}
-	if table, found := u.updates[table]; found {
-		return table[uuid].new
+	if t, found := u.updates[table]; found {
+		if update, found := t[uuid]; found {
+			return update.new
+		}
 	}
 	return nil
 }
@@ -83,8 +85,10 @@ func (u ModelUpdates) GetRow(table, uuid string) *ovsdb.Row {
 	if u.updates == nil {
 		return nil
 	}
-	if table, found := u.updates[table]; found {
-		return table[uuid].rowUpdate2.New
+	if t, found := u.updates[table]; found {
+		if update, found := t[uuid]; found {
+			return update.rowUpdate2.New
+		}
 	}
 	return nil
 }
