@@ -455,6 +455,11 @@ func TestProcessReferences(t *testing.T) {
 			wantErr:  true,
 		},
 		{
+			// testing behavior with multiple combinations of references
+			name:     "multiple strong and weak reference changes",
+			testData: multipleReferencesTestData(),
+		},
+		{
 			// corner case
 			// inserting a row in a table that is not part of the root set and
 			// is not strongly referenced is a noop
@@ -2044,6 +2049,146 @@ func sameRowStrongAndWeakReferenceTestData() testData {
 				FromColumn: "weak_atomic_optional_reference",
 			}: database.Reference{
 				"grandchild": nil,
+			},
+		},
+	}
+}
+
+func multipleReferencesTestData() testData {
+	// testing behavior with multiple combinations of references
+	return testData{
+		existingModels: []model.Model{
+			&Parent{
+				UUID:                          "parent",
+				StrongSetReference:            []string{"child"},
+				StrongAtomicOptionalReference: ptr("child"),
+				WeakMapValueReference:         map[string]string{"key1": "yetAnotherChild", "key2": "otherChild"},
+			},
+			&Parent{
+				UUID:                          "otherParent",
+				StrongAtomicOptionalReference: ptr("child"),
+				StrongSetReference:            []string{"otherChild"},
+				WeakSetReference:              []string{"otherChild", "child", "yetAnotherChild"},
+			},
+			&Child{
+				UUID: "child",
+			},
+			&Child{
+				UUID: "otherChild",
+			},
+			&Child{
+				UUID: "yetAnotherChild",
+			},
+		},
+		// all strong references to child except one are removed
+		// single strong reference to otherChild is removed
+		updatedModels: []model.Model{
+			&Parent{
+				UUID:                          "parent",
+				StrongAtomicOptionalReference: ptr("child"),
+				WeakMapValueReference:         map[string]string{"key1": "yetAnotherChild", "key2": "otherChild"},
+			},
+			&Parent{
+				UUID:             "otherParent",
+				WeakSetReference: []string{"otherChild", "child", "yetAnotherChild"},
+			},
+			&Child{
+				UUID: "child",
+			},
+			&Child{
+				UUID: "otherChild",
+			},
+			&Child{
+				UUID: "yetAnotherChild",
+			},
+		},
+		// otherChild is garbage collected and all weak references to it removed
+		finalModels: []model.Model{
+			&Parent{
+				UUID:                          "parent",
+				StrongAtomicOptionalReference: ptr("child"),
+				WeakMapValueReference:         map[string]string{"key1": "yetAnotherChild"},
+			},
+			&Parent{
+				UUID:             "otherParent",
+				WeakSetReference: []string{"child", "yetAnotherChild"},
+			},
+			&Child{
+				UUID: "child",
+			},
+			&Child{
+				UUID: "yetAnotherChild",
+			},
+		},
+		existingReferences: database.References{
+			database.ReferenceSpec{
+				ToTable:    "Child",
+				FromTable:  "Parent",
+				FromColumn: "strong_set_reference",
+			}: database.Reference{
+				"child":      []string{"parent"},
+				"otherChild": []string{"otherParent"},
+			},
+			database.ReferenceSpec{
+				ToTable:    "Child",
+				FromTable:  "Parent",
+				FromColumn: "strong_atomic_optional_reference",
+			}: database.Reference{
+				"child": []string{"parent", "otherParent"},
+			},
+			database.ReferenceSpec{
+				ToTable:    "Child",
+				FromTable:  "Parent",
+				FromColumn: "weak_map_value_reference",
+				FromValue:  true,
+			}: database.Reference{
+				"yetAnotherChild": []string{"parent"},
+				"otherChild":      []string{"parent"},
+			},
+			database.ReferenceSpec{
+				ToTable:    "Child",
+				FromTable:  "Parent",
+				FromColumn: "weak_set_reference",
+			}: database.Reference{
+				"otherChild":      []string{"otherParent"},
+				"child":           []string{"otherParent"},
+				"yetAnotherChild": []string{"otherParent"},
+			},
+		},
+		// all strong references to child except one are removed
+		// all references to otherChild are removed
+		// references to yetAnotherChild are unchanged
+		wantUpdatedReferences: database.References{
+			database.ReferenceSpec{
+				ToTable:    "Child",
+				FromTable:  "Parent",
+				FromColumn: "strong_set_reference",
+			}: database.Reference{
+				"child":      nil,
+				"otherChild": nil,
+			},
+			database.ReferenceSpec{
+				ToTable:    "Child",
+				FromTable:  "Parent",
+				FromColumn: "strong_atomic_optional_reference",
+			}: database.Reference{
+				"child": []string{"parent"},
+			},
+			database.ReferenceSpec{
+				ToTable:    "Child",
+				FromTable:  "Parent",
+				FromColumn: "weak_map_value_reference",
+				FromValue:  true,
+			}: database.Reference{
+				"otherChild": nil,
+			},
+			database.ReferenceSpec{
+				ToTable:    "Child",
+				FromTable:  "Parent",
+				FromColumn: "weak_set_reference",
+			}: database.Reference{
+				"child":      []string{"otherParent"}, // this reference is read by the reference tracker, but not changed
+				"otherChild": nil,
 			},
 		},
 	}
