@@ -37,13 +37,16 @@ func (schema DatabaseSchema) IsRoot(tableName string) (bool, error) {
 	if t == nil {
 		return false, fmt.Errorf("Table %s not in schame", tableName)
 	}
+	if t.IsRoot {
+		return true, nil
+	}
+	// As per RFC7047, for compatibility with schemas created before
+	// "isRoot" was introduced, if "isRoot" is omitted or false in every
+	// <table-schema> in a given <database-schema>, then every table is part
+	// of the root set.
 	if schema.allTablesRoot == nil {
 		allTablesRoot := true
 		for _, tSchema := range schema.Tables {
-			// As per RFC7047, for compatibility with schemas created before
-			// "isRoot" was introduced, if "isRoot" is omitted or false in every
-			// <table-schema> in a given <database-schema>, then every table is part
-			// of the root set.
 			if tSchema.IsRoot {
 				allTablesRoot = false
 				break
@@ -51,7 +54,7 @@ func (schema DatabaseSchema) IsRoot(tableName string) (bool, error) {
 		}
 		schema.allTablesRoot = &allTablesRoot
 	}
-	return *schema.allTablesRoot || t.IsRoot, nil
+	return *schema.allTablesRoot, nil
 }
 
 // Print will print the contents of the DatabaseSchema
