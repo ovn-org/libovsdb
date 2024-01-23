@@ -2,7 +2,6 @@ package updates
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/ovn-org/libovsdb/database"
 	"github.com/ovn-org/libovsdb/model"
@@ -424,13 +423,13 @@ func (rt *referenceTracker) processWeakReferences() (ModelUpdates, error) {
 	return updates, nil
 }
 
-func copyMapKeyValues(from, to map[interface{}]interface{}, isKey bool, keyValue interface{}) map[interface{}]interface{} {
+func copyMapKeyValues(from, to map[interface{}]interface{}, isKey bool, keyValue ovsdb.UUID) map[interface{}]interface{} {
 	if isKey {
 		to[keyValue] = from[keyValue]
 		return to
 	}
 	for key, value := range from {
-		if reflect.DeepEqual(value, keyValue) {
+		if value.(ovsdb.UUID) == keyValue {
 			to[key] = from[key]
 		}
 	}
