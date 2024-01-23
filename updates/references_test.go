@@ -31,7 +31,7 @@ const referencesTestSchema = `
                         "max": 1
                     }
                 },
-				"strong_atomic_optional_reference": {
+                "strong_atomic_optional_reference": {
                     "type": {
                         "key": {
                             "type": "uuid",
@@ -41,7 +41,7 @@ const referencesTestSchema = `
                         "max": 1
                     }
                 },
-				"strong_set_reference": {
+                "strong_set_reference": {
                     "type": {
                         "key": {
                             "type": "uuid",
@@ -51,25 +51,25 @@ const referencesTestSchema = `
                         "max": "unlimited"
                     }
                 },
-				"strong_map_key_reference": {
+                "strong_map_key_reference": {
                     "type": {
                         "key": {
                             "type": "uuid",
-							"refTable": "Child"
+                            "refTable": "Child"
                         },
-						"value": {
+                        "value": {
                             "type": "string"
                         },
                         "min": 0,
                         "max": "unlimited"
                     }
                 },
-				"strong_map_value_reference": {
+                "strong_map_value_reference": {
                     "type": {
                         "key": {
                             "type": "string"
                         },
-						"value": {
+                        "value": {
                             "type": "uuid",
                             "refTable": "Child"
                         },
@@ -77,78 +77,78 @@ const referencesTestSchema = `
                         "max": "unlimited"
                     }
                 },
-				"weak_atomic_required_reference": {
+                "weak_atomic_required_reference": {
                     "type": {
                         "key": {
                             "type": "uuid",
                             "refTable": "Child",
-							"refType": "weak"
+                            "refType": "weak"
                         },
                         "min": 1,
                         "max": 1
                     }
                 },
-				"weak_atomic_optional_reference": {
+                "weak_atomic_optional_reference": {
                     "type": {
                         "key": {
                             "type": "uuid",
                             "refTable": "Child",
-							"refType": "weak"
+                            "refType": "weak"
                         },
                         "min": 0,
                         "max": 1
                     }
                 },
-				"weak_set_reference": {
+                "weak_set_reference": {
                     "type": {
                         "key": {
                             "type": "uuid",
                             "refTable": "Child",
-							"refType": "weak"
+                            "refType": "weak"
                         },
                         "min": 2,
                         "max": "unlimited"
                     }
                 },
-				"weak_map_key_reference": {
+                "weak_map_key_reference": {
                     "type": {
                         "key": {
-							"type": "uuid",
+                            "type": "uuid",
                             "refTable": "Child",
-							"refType": "weak"
+                            "refType": "weak"
                         },
-						"value": {
-							"type": "string"
+                        "value": {
+                            "type": "string"
                         },
                         "min": 1,
                         "max": "unlimited"
                     }
                 },
-				"weak_map_value_reference": {
+                "weak_map_value_reference": {
                     "type": {
                         "key": {
                             "type": "string"
                         },
-						"value": {
+                        "value": {
                             "type": "uuid",
                             "refTable": "Child",
-							"refType": "weak"
+                            "refType": "weak"
                         },
                         "min": 1,
                         "max": "unlimited"
                     }
                 },
-				"map_key_value_reference": {
+                "map_key_value_reference": {
                     "type": {
                         "key": {
                             "type": "uuid",
-							"refTable": "Child",
-							"refType": "weak"
+                            "refTable": "Child",
+                            "refType": "weak"
                         },
-						"value": {
+                        "value": {
                             "type": "uuid",
                             "refTable": "Child",
-							"refType": "strong"
+                            "refType": "strong"
                         },
                         "min": 0,
                         "max": "unlimited"
@@ -163,7 +163,7 @@ const referencesTestSchema = `
                     "type": "string",
                     "mutable": false
                 },
-				"strong_atomic_optional_reference": {
+                "strong_atomic_optional_reference": {
                     "type": {
                         "key": {
                             "type": "uuid",
@@ -173,12 +173,12 @@ const referencesTestSchema = `
                         "max": 1
                     }
                 },
-				"weak_atomic_optional_reference": {
+                "weak_atomic_optional_reference": {
                     "type": {
                         "key": {
                             "type": "uuid",
                             "refTable": "Grandchild",
-							"refType": "weak"
+                            "refType": "weak"
                         },
                         "min": 0,
                         "max": 1
@@ -191,7 +191,7 @@ const referencesTestSchema = `
                 ]
             ]
         },
-		"Grandchild": {
+        "Grandchild": {
             "columns": {
                 "name": {
                     "type": "string",
