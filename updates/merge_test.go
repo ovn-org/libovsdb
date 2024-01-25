@@ -829,6 +829,53 @@ func Test_merge(t *testing.T) {
 			},
 		},
 		{
+			name: "update optional field to original empty value after update results in no op",
+			args: args{
+				a: modelUpdate{
+					old: &test.BridgeType{
+						Name: "bridge",
+					},
+					new: &test.BridgeType{
+						Name:       "bridge",
+						DatapathID: &newDatapathID,
+					},
+					rowUpdate2: &ovsdb.RowUpdate2{
+						Old: &ovsdb.Row{
+							"name": "bridge",
+						},
+						New: &ovsdb.Row{
+							"name":        "bridge",
+							"datapath_id": ovsdb.OvsSet{GoSet: []interface{}{newDatapathID}},
+						},
+						Modify: &ovsdb.Row{
+							"datapath_id": ovsdb.OvsSet{GoSet: []interface{}{newDatapathID}},
+						},
+					},
+				},
+				b: modelUpdate{
+					old: &test.BridgeType{
+						Name:       "bridge",
+						DatapathID: &newDatapathID,
+					},
+					new: &test.BridgeType{
+						Name: "bridge",
+					},
+					rowUpdate2: &ovsdb.RowUpdate2{
+						Old: &ovsdb.Row{
+							"name":        "bridge",
+							"datapath_id": ovsdb.OvsSet{GoSet: []interface{}{newDatapathID}},
+						},
+						New: &ovsdb.Row{
+							"name": "bridge",
+						},
+						Modify: &ovsdb.Row{
+							"datapath_id": ovsdb.OvsSet{GoSet: []interface{}{}},
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "update optional field to empty value after update",
 			args: args{
 				a: modelUpdate{

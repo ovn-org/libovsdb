@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/ovn-org/libovsdb/client"
-	"github.com/ovn-org/libovsdb/database"
+	"github.com/ovn-org/libovsdb/database/inmemory"
 	"github.com/ovn-org/libovsdb/example/vswitchd"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
@@ -58,7 +58,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ovsDB := database.NewInMemoryDatabase(map[string]model.ClientDBModel{
+	ovsDB := inmemory.NewDatabase(map[string]model.ClientDBModel{
 		schema.Name: clientDBModel,
 	})
 

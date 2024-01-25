@@ -8,6 +8,8 @@ import (
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
+// Note that this schema is not strictly a subset of the real OVS schema. It has
+// some small variations that allow to effectively test some OVSDB RFC features
 const schema = `
 {
     "name": "Open_vSwitch",
@@ -15,11 +17,20 @@ const schema = `
     "tables": {
         "Open_vSwitch": {
             "columns": {
-                "bridges": {
+                "manager_options": {
                     "type": {
                         "key": {
                             "type": "uuid",
-                            "refTable": "Bridge"
+                            "refTable": "Manager"
+                        },
+                        "min": 0,
+                        "max": "unlimited"
+                    }
+                },
+                "bridges": {
+                    "type": {
+                        "key": {
+                            "type": "uuid"
                         },
                         "min": 0,
                         "max": "unlimited"
@@ -49,8 +60,17 @@ const schema = `
                 "ports": {
                     "type": {
                         "key": {
+                            "type": "uuid"
+                        },
+                        "min": 0,
+                        "max": "unlimited"
+                    }
+                },
+                "mirrors": {
+                    "type": {
+                        "key": {
                             "type": "uuid",
-                            "refTable": "Port"
+                            "refTable": "Mirror"
                         },
                         "min": 0,
                         "max": "unlimited"
@@ -82,6 +102,7 @@ const schema = `
                     }
                 }
             },
+            "isRoot": true,
             "indexes": [
                 [
                     "name"
@@ -104,8 +125,7 @@ const schema = `
                 "bridge": {
                     "type": {
                         "key": {
-                            "type": "uuid",
-                            "refTable": "Bridge"
+                            "type": "uuid"
                         },
                         "min": 1,
                         "max": 1
@@ -127,6 +147,42 @@ const schema = `
                     "bridge"
                 ]
             ]
+        },
+        "Manager": {
+            "columns": {
+                "target": {
+                    "type": "string"
+                }
+            },
+            "indexes": [["target"]]
+        },
+        "Mirror": {
+            "columns": {
+                "name": {
+                    "type": "string"
+                },
+                "select_src_port": {
+                    "type": {
+                        "key": {
+                            "type": "uuid",
+                            "refTable": "Port",
+                            "refType": "weak"
+                        },
+                        "min": 1,
+                        "max": "unlimited"
+                    }
+                }
+            }
+        },
+        "Port": {
+            "columns": {
+                "name": {
+                    "type": "string",
+                    "mutable": false
+                }
+            },
+            "isRoot": true,
+            "indexes": [["name"]]
         }
     }
 }
@@ -142,12 +198,14 @@ type BridgeType struct {
 	ExternalIds  map[string]string `ovsdb:"external_ids"`
 	Ports        []string          `ovsdb:"ports"`
 	Status       map[string]string `ovsdb:"status"`
+	Mirrors      []string          `ovsdb:"mirrors"`
 }
 
 // OvsType is the simplified ORM model of the Bridge table
 type OvsType struct {
-	UUID    string   `ovsdb:"_uuid"`
-	Bridges []string `ovsdb:"bridges"`
+	UUID           string   `ovsdb:"_uuid"`
+	Bridges        []string `ovsdb:"bridges"`
+	ManagerOptions []string `ovsdb:"manager_options"`
 }
 
 type FlowSampleCollectorSetType struct {
@@ -158,6 +216,22 @@ type FlowSampleCollectorSetType struct {
 	IPFIX       *string           // `ovsdb:"ipfix"`
 }
 
+type ManagerType struct {
+	UUID   string `ovsdb:"_uuid"`
+	Target string `ovsdb:"target"`
+}
+
+type PortType struct {
+	UUID string `ovsdb:"_uuid"`
+	Name string `ovsdb:"name"`
+}
+
+type MirrorType struct {
+	UUID          string   `ovsdb:"_uuid"`
+	Name          string   `ovsdb:"name"`
+	SelectSrcPort []string `ovsdb:"select_src_port"`
+}
+
 func GetModel() (model.DatabaseModel, error) {
 	client, err := model.NewClientDBModel(
 		"Open_vSwitch",
@@ -165,6 +239,9 @@ func GetModel() (model.DatabaseModel, error) {
 			"Open_vSwitch":              &OvsType{},
 			"Bridge":                    &BridgeType{},
 			"Flow_Sample_Collector_Set": &FlowSampleCollectorSetType{},
+			"Manager":                   &ManagerType{},
+			"Mirror":                    &MirrorType{},
+			"Port":                      &PortType{},
 		},
 	)
 	if err != nil {

@@ -1,4 +1,4 @@
-package database
+package inmemory
 
 import (
 	"testing"
@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ovn-org/libovsdb/database"
 	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
@@ -18,7 +19,7 @@ import (
 func TestWaitOpEquals(t *testing.T) {
 	dbModel, err := GetModel()
 	require.NoError(t, err)
-	db := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": dbModel.Client()})
+	db := NewDatabase(map[string]model.ClientDBModel{"Open_vSwitch": dbModel.Client()})
 	err = db.CreateDatabase("Open_vSwitch", dbModel.Schema)
 	require.NoError(t, err)
 	m := mapper.NewMapper(dbModel.Schema)
@@ -45,57 +46,57 @@ func TestWaitOpEquals(t *testing.T) {
 	bridgeRow, err := m.NewRow(bridgeInfo)
 	require.Nil(t, err)
 
-	transaction := NewTransaction(dbModel, "Open_vSwitch", db, nil)
+	transaction := db.NewTransaction("Open_vSwitch")
 
-	operation := ovsdb.Operation{
-		Op:    ovsdb.OperationInsert,
-		Table: "Open_vSwitch",
-		UUID:  ovsUUID,
-		Row:   ovsRow,
+	operations := []ovsdb.Operation{
+		{
+			Op:       ovsdb.OperationInsert,
+			Table:    "Open_vSwitch",
+			UUIDName: ovsUUID,
+			Row:      ovsRow,
+		},
+		{
+			Op:       ovsdb.OperationInsert,
+			Table:    "Bridge",
+			UUIDName: bridgeUUID,
+			Row:      bridgeRow,
+		},
 	}
-	res, updates := transaction.Insert(&operation)
-	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
-	require.Nil(t, err)
-
-	operation = ovsdb.Operation{
-		Op:    ovsdb.OperationInsert,
-		Table: "Bridge",
-		UUID:  bridgeUUID,
-		Row:   bridgeRow,
-	}
-	res, update2 := transaction.Insert(&operation)
-	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
-	require.Nil(t, err)
-
-	err = updates.Merge(dbModel, *update2)
+	res, updates := transaction.Transact(operations...)
+	_, err = checkOperationResults(res, operations...)
 	require.NoError(t, err)
-	err = db.Commit("Open_vSwitch", uuid.New(), *updates)
+
+	err = db.Commit("Open_vSwitch", uuid.New(), updates)
 	require.NoError(t, err)
 
 	timeout := 0
 	// Attempt to wait for row with name foo to appear
-	gotResult := transaction.Wait(
-		"Bridge",
-		&timeout,
-		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
-		[]string{"name"},
-		"==",
-		[]ovsdb.Row{{"name": "foo"}},
-	)
-	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{gotResult}, []ovsdb.Operation{{Op: "wait"}})
-	require.Nil(t, err)
+	operation := ovsdb.Operation{
+		Op:      ovsdb.OperationWait,
+		Table:   "Bridge",
+		Timeout: &timeout,
+		Where:   []ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
+		Columns: []string{"name"},
+		Until:   "==",
+		Rows:    []ovsdb.Row{{"name": "foo"}},
+	}
+	res, _ = transaction.Transact(operation)
+	_, err = checkOperationResults(res, operation)
+	require.NoError(t, err)
 
 	// Attempt to wait for 2 rows, where one does not exist
-	gotResult = transaction.Wait(
-		"Bridge",
-		&timeout,
-		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
-		[]string{"name"},
-		"==",
-		[]ovsdb.Row{{"name": "foo"}, {"name": "blah"}},
-	)
-	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{gotResult}, []ovsdb.Operation{{Op: "wait"}})
-	require.NotNil(t, err)
+	operation = ovsdb.Operation{
+		Op:      ovsdb.OperationWait,
+		Table:   "Bridge",
+		Timeout: &timeout,
+		Where:   []ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
+		Columns: []string{"name"},
+		Until:   "==",
+		Rows:    []ovsdb.Row{{"name": "foo"}, {"name": "blah"}},
+	}
+	res, _ = transaction.Transact(operation)
+	_, err = checkOperationResults(res, operation)
+	require.Error(t, err)
 
 	extIDs, err := ovsdb.NewOvsMap(map[string]string{
 		"foo":   "bar",
@@ -104,48 +105,53 @@ func TestWaitOpEquals(t *testing.T) {
 	})
 	require.Nil(t, err)
 	// Attempt to wait for a row, with multiple columns specified
-	gotResult = transaction.Wait(
-		"Bridge",
-		&timeout,
-		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
-		[]string{"name", "external_ids"},
-		"==",
-		[]ovsdb.Row{{"name": "foo", "external_ids": extIDs}},
-	)
-	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{gotResult}, []ovsdb.Operation{{Op: "wait"}})
-	require.Nil(t, err)
+	operation = ovsdb.Operation{
+		Op:      ovsdb.OperationWait,
+		Table:   "Bridge",
+		Timeout: &timeout,
+		Where:   []ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
+		Columns: []string{"name", "external_ids"},
+		Until:   "==",
+		Rows:    []ovsdb.Row{{"name": "foo", "external_ids": extIDs}},
+	}
+	res, _ = transaction.Transact(operation)
+	_, err = checkOperationResults(res, operation)
+	require.NoError(t, err)
 
 	// Attempt to wait for a row, with multiple columns, but not specified in row filtering
-	gotResult = transaction.Wait(
-		"Bridge",
-		&timeout,
-		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
-		[]string{"name", "external_ids"},
-		"==",
-		[]ovsdb.Row{{"name": "foo"}},
-	)
-	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{gotResult}, []ovsdb.Operation{{Op: "wait"}})
-	require.Nil(t, err)
+	operation = ovsdb.Operation{
+		Op:      ovsdb.OperationWait,
+		Table:   "Bridge",
+		Timeout: &timeout,
+		Where:   []ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
+		Columns: []string{"name", "external_ids"},
+		Until:   "==",
+		Rows:    []ovsdb.Row{{"name": "foo"}},
+	}
+	res, _ = transaction.Transact(operation)
+	_, err = checkOperationResults(res, operation)
+	require.NoError(t, err)
 
 	// Attempt to get something with a non-zero timeout that will fail
 	timeout = 400
-	gotResult = transaction.Wait(
-		"Bridge",
-		&timeout,
-		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
-		[]string{"name", "external_ids"},
-		"==",
-		[]ovsdb.Row{{"name": "doesNotExist"}},
-	)
-	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{gotResult}, []ovsdb.Operation{{Op: "wait"}})
-	require.NotNil(t, err)
-
+	operation = ovsdb.Operation{
+		Op:      ovsdb.OperationWait,
+		Table:   "Bridge",
+		Timeout: &timeout,
+		Where:   []ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
+		Columns: []string{"name", "external_ids"},
+		Until:   "==",
+		Rows:    []ovsdb.Row{{"name": "doesNotExist"}},
+	}
+	res, _ = transaction.Transact(operation)
+	_, err = checkOperationResults(res, operation)
+	require.Error(t, err)
 }
 
 func TestWaitOpNotEquals(t *testing.T) {
 	dbModel, err := GetModel()
 	require.NoError(t, err)
-	db := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": dbModel.Client()})
+	db := NewDatabase(map[string]model.ClientDBModel{"Open_vSwitch": dbModel.Client()})
 	err = db.CreateDatabase("Open_vSwitch", dbModel.Schema)
 	require.NoError(t, err)
 	m := mapper.NewMapper(dbModel.Schema)
@@ -172,57 +178,57 @@ func TestWaitOpNotEquals(t *testing.T) {
 	bridgeRow, err := m.NewRow(bridgeInfo)
 	require.Nil(t, err)
 
-	transaction := NewTransaction(dbModel, "Open_vSwitch", db, nil)
+	transaction := db.NewTransaction("Open_vSwitch")
 
-	operation := ovsdb.Operation{
-		Op:    ovsdb.OperationInsert,
-		Table: "Open_vSwitch",
-		UUID:  ovsUUID,
-		Row:   ovsRow,
+	operations := []ovsdb.Operation{
+		{
+			Op:       ovsdb.OperationInsert,
+			Table:    "Open_vSwitch",
+			UUIDName: ovsUUID,
+			Row:      ovsRow,
+		},
+		{
+			Op:       ovsdb.OperationInsert,
+			Table:    "Bridge",
+			UUIDName: bridgeUUID,
+			Row:      bridgeRow,
+		},
 	}
-	res, updates := transaction.Insert(&operation)
-	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
-	require.Nil(t, err)
-
-	operation = ovsdb.Operation{
-		Op:    ovsdb.OperationInsert,
-		Table: "Bridge",
-		UUID:  bridgeUUID,
-		Row:   bridgeRow,
-	}
-	res, update2 := transaction.Insert(&operation)
-	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
-	require.Nil(t, err)
-
-	err = updates.Merge(dbModel, *update2)
+	res, updates := transaction.Transact(operations...)
+	_, err = checkOperationResults(res, operations...)
 	require.NoError(t, err)
-	err = db.Commit("Open_vSwitch", uuid.New(), *updates)
+
+	err = db.Commit("Open_vSwitch", uuid.New(), updates)
 	require.NoError(t, err)
 
 	timeout := 0
 	// Attempt a wait where no entry with name blah should exist
-	gotResult := transaction.Wait(
-		"Bridge",
-		&timeout,
-		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
-		[]string{"name"},
-		"!=",
-		[]ovsdb.Row{{"name": "blah"}},
-	)
-	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{gotResult}, []ovsdb.Operation{{Op: "wait"}})
-	require.Nil(t, err)
+	operation := ovsdb.Operation{
+		Op:      ovsdb.OperationWait,
+		Table:   "Bridge",
+		Timeout: &timeout,
+		Where:   []ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
+		Columns: []string{"name"},
+		Until:   "!=",
+		Rows:    []ovsdb.Row{{"name": "blah"}},
+	}
+	res, _ = transaction.Transact(operation)
+	_, err = checkOperationResults(res, operation)
+	require.NoError(t, err)
 
 	// Attempt another wait with multiple rows specified, one that would match, and one that doesn't
-	gotResult = transaction.Wait(
-		"Bridge",
-		&timeout,
-		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
-		[]string{"name"},
-		"!=",
-		[]ovsdb.Row{{"name": "blah"}, {"name": "foo"}},
-	)
-	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{gotResult}, []ovsdb.Operation{{Op: "wait"}})
-	require.Nil(t, err)
+	operation = ovsdb.Operation{
+		Op:      ovsdb.OperationWait,
+		Table:   "Bridge",
+		Timeout: &timeout,
+		Where:   []ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
+		Columns: []string{"name"},
+		Until:   "!=",
+		Rows:    []ovsdb.Row{{"name": "blah"}, {"name": "foo"}},
+	}
+	res, _ = transaction.Transact(operation)
+	_, err = checkOperationResults(res, operation)
+	require.NoError(t, err)
 
 	// Attempt another wait where name would match, but ext ids would not match
 	NoMatchExtIDs, err := ovsdb.NewOvsMap(map[string]string{
@@ -230,31 +236,38 @@ func TestWaitOpNotEquals(t *testing.T) {
 		"baz":   "quux",
 		"waldo": "is_different",
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
+
 	// Attempt to wait for a row, with multiple columns specified and one is not a match
-	gotResult = transaction.Wait(
-		"Bridge",
-		&timeout,
-		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
-		[]string{"name", "external_ids"},
-		"!=",
-		[]ovsdb.Row{{"name": "foo", "external_ids": NoMatchExtIDs}},
-	)
-	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{gotResult}, []ovsdb.Operation{{Op: "wait"}})
-	require.Nil(t, err)
+	operation = ovsdb.Operation{
+		Op:      ovsdb.OperationWait,
+		Table:   "Bridge",
+		Timeout: &timeout,
+		Where:   []ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
+		Columns: []string{"name", "external_ids"},
+		Until:   "!=",
+		Rows:    []ovsdb.Row{{"name": "foo", "external_ids": NoMatchExtIDs}},
+	}
+	res, _ = transaction.Transact(operation)
+	_, err = checkOperationResults(res, operation)
+	require.NoError(t, err)
 
 	// Check to see if a non match takes around the timeout
 	start := time.Now()
 	timeout = 200
-	gotResult = transaction.Wait(
-		"Bridge",
-		&timeout,
-		[]ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
-		[]string{"name"},
-		"!=",
-		[]ovsdb.Row{{"name": "foo"}},
-	)
-	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{gotResult}, []ovsdb.Operation{{Op: "wait"}})
+	operation = ovsdb.Operation{
+		Op:      ovsdb.OperationWait,
+		Table:   "Bridge",
+		Timeout: &timeout,
+		Where:   []ovsdb.Condition{ovsdb.NewCondition("name", ovsdb.ConditionEqual, "foo")},
+		Columns: []string{"name"},
+		Until:   "!=",
+		Rows:    []ovsdb.Row{{"name": "foo"}},
+	}
+	res, _ = transaction.Transact(operation)
+	_, err = checkOperationResults(res, operation)
+	require.Error(t, err)
+
 	ts := time.Since(start)
 	if ts < time.Duration(timeout)*time.Millisecond {
 		t.Fatalf("Should have taken at least %d milliseconds to return, but it took %d instead", timeout, ts)
@@ -265,12 +278,11 @@ func TestWaitOpNotEquals(t *testing.T) {
 func TestMutateOp(t *testing.T) {
 	dbModel, err := GetModel()
 	require.NoError(t, err)
-	db := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": dbModel.Client()})
+	db := NewDatabase(map[string]model.ClientDBModel{"Open_vSwitch": dbModel.Client()})
 	err = db.CreateDatabase("Open_vSwitch", dbModel.Schema)
 	require.NoError(t, err)
 	m := mapper.NewMapper(dbModel.Schema)
 
-	ovsUUID := uuid.NewString()
 	bridgeUUID := uuid.NewString()
 
 	ovs := OvsType{}
@@ -292,42 +304,41 @@ func TestMutateOp(t *testing.T) {
 	bridgeRow, err := m.NewRow(bridgeInfo)
 	require.Nil(t, err)
 
-	transaction := NewTransaction(dbModel, "Open_vSwitch", db, nil)
+	transaction := db.NewTransaction("Open_vSwitch")
 
+	operations := []ovsdb.Operation{
+		{
+			Op:    ovsdb.OperationInsert,
+			Table: "Open_vSwitch",
+			Row:   ovsRow,
+		},
+		{
+			Op:    ovsdb.OperationInsert,
+			Table: "Bridge",
+			UUID:  bridgeUUID,
+			Row:   bridgeRow,
+		},
+	}
+	res, updates := transaction.Transact(operations...)
+	_, err = checkOperationResults(res, operations...)
+	require.NoError(t, err)
+
+	err = db.Commit("Open_vSwitch", uuid.New(), updates)
+	require.NoError(t, err)
+
+	ovsUUID := res[0].UUID.GoUUID
 	operation := ovsdb.Operation{
-		Op:    ovsdb.OperationInsert,
-		Table: "Open_vSwitch",
-		UUID:  ovsUUID,
-		Row:   ovsRow,
-	}
-	res, updates := transaction.Insert(&operation)
-	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
-	require.Nil(t, err)
-
-	operation = ovsdb.Operation{
-		Op:    ovsdb.OperationInsert,
-		Table: "Bridge",
-		UUID:  bridgeUUID,
-		Row:   bridgeRow,
-	}
-	res, update2 := transaction.Insert(&operation)
-	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
-	require.Nil(t, err)
-
-	err = updates.Merge(dbModel, *update2)
-	require.NoError(t, err)
-	err = db.Commit("Open_vSwitch", uuid.New(), *updates)
-	require.NoError(t, err)
-
-	operation = ovsdb.Operation{
 		Op:        ovsdb.OperationMutate,
 		Table:     "Open_vSwitch",
 		Where:     []ovsdb.Condition{ovsdb.NewCondition("_uuid", ovsdb.ConditionEqual, ovsdb.UUID{GoUUID: ovsUUID})},
 		Mutations: []ovsdb.Mutation{*ovsdb.NewMutation("bridges", ovsdb.MutateOperationInsert, ovsdb.UUID{GoUUID: bridgeUUID})},
 	}
-	gotResult, gotUpdate := transaction.Mutate(&operation)
-	assert.Equal(t, ovsdb.OperationResult{Count: 1}, gotResult)
-	err = db.Commit("Open_vSwitch", uuid.New(), *gotUpdate)
+	res, updates = transaction.Transact(operation)
+	_, err = checkOperationResults(res, operation)
+	require.NoError(t, err)
+	assert.Equal(t, []*ovsdb.OperationResult{{Count: 1}}, res)
+
+	err = db.Commit("Open_vSwitch", uuid.New(), updates)
 	require.NoError(t, err)
 
 	bridgeSet, err := ovsdb.NewOvsSet([]ovsdb.UUID{{GoUUID: bridgeUUID}})
@@ -349,7 +360,7 @@ func TestMutateOp(t *testing.T) {
 				},
 			},
 		},
-	}, getTableUpdates(*gotUpdate))
+	}, getTableUpdates(updates))
 
 	keyDelete, err := ovsdb.NewOvsSet([]string{"foo"})
 	assert.Nil(t, err)
@@ -365,8 +376,10 @@ func TestMutateOp(t *testing.T) {
 			*ovsdb.NewMutation("external_ids", ovsdb.MutateOperationDelete, keyValueDelete),
 		},
 	}
-	gotResult, gotUpdate = transaction.Mutate(&operation)
-	assert.Equal(t, ovsdb.OperationResult{Count: 1}, gotResult)
+	res, updates = transaction.Transact(operation)
+	_, err = checkOperationResults(res, operation)
+	require.NoError(t, err)
+	assert.Equal(t, []*ovsdb.OperationResult{{Count: 1}}, res)
 
 	oldExternalIds, _ := ovsdb.NewOvsMap(bridge.ExternalIds)
 	newExternalIds, _ := ovsdb.NewOvsMap(map[string]string{"waldo": "fred"})
@@ -374,9 +387,9 @@ func TestMutateOp(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	gotModify := *getTableUpdates(*gotUpdate)["Bridge"][bridgeUUID].Modify
-	gotOld := *getTableUpdates(*gotUpdate)["Bridge"][bridgeUUID].Old
-	gotNew := *getTableUpdates(*gotUpdate)["Bridge"][bridgeUUID].New
+	gotModify := *getTableUpdates(updates)["Bridge"][bridgeUUID].Modify
+	gotOld := *getTableUpdates(updates)["Bridge"][bridgeUUID].Old
+	gotNew := *getTableUpdates(updates)["Bridge"][bridgeUUID].New
 	assert.Equal(t, diffExternalIds, gotModify["external_ids"])
 	assert.Equal(t, oldExternalIds, gotOld["external_ids"])
 	assert.Equal(t, newExternalIds, gotNew["external_ids"])
@@ -386,7 +399,7 @@ func TestOvsdbServerInsert(t *testing.T) {
 	t.Skip("need a helper for comparing rows as map elements aren't in same order")
 	dbModel, err := GetModel()
 	require.NoError(t, err)
-	db := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": dbModel.Client()})
+	db := NewDatabase(map[string]model.ClientDBModel{"Open_vSwitch": dbModel.Client()})
 	err = db.CreateDatabase("Open_vSwitch", dbModel.Schema)
 	require.NoError(t, err)
 	m := mapper.NewMapper(dbModel.Schema)
@@ -408,7 +421,7 @@ func TestOvsdbServerInsert(t *testing.T) {
 	bridgeRow, err := m.NewRow(bridgeInfo)
 	require.Nil(t, err)
 
-	transaction := NewTransaction(dbModel, "Open_vSwitch", db, nil)
+	transaction := db.NewTransaction("Open_vSwitch")
 
 	operation := ovsdb.Operation{
 		Op:    ovsdb.OperationInsert,
@@ -416,11 +429,11 @@ func TestOvsdbServerInsert(t *testing.T) {
 		UUID:  bridgeUUID,
 		Row:   bridgeRow,
 	}
-	res, updates := transaction.Insert(&operation)
-	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
+	res, updates := transaction.Transact(operation)
+	_, err = checkOperationResults(res, operation)
 	require.NoError(t, err)
 
-	err = db.Commit("Open_vSwitch", uuid.New(), *updates)
+	err = db.Commit("Open_vSwitch", uuid.New(), updates)
 	assert.NoError(t, err)
 
 	bridge.UUID = bridgeUUID
@@ -440,7 +453,7 @@ func TestOvsdbServerInsert(t *testing.T) {
 func TestOvsdbServerUpdate(t *testing.T) {
 	dbModel, err := GetModel()
 	require.NoError(t, err)
-	db := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": dbModel.Client()})
+	db := NewDatabase(map[string]model.ClientDBModel{"Open_vSwitch": dbModel.Client()})
 	err = db.CreateDatabase("Open_vSwitch", dbModel.Schema)
 	require.NoError(t, err)
 	m := mapper.NewMapper(dbModel.Schema)
@@ -461,7 +474,7 @@ func TestOvsdbServerUpdate(t *testing.T) {
 	bridgeRow, err := m.NewRow(bridgeInfo)
 	require.Nil(t, err)
 
-	transaction := NewTransaction(dbModel, "Open_vSwitch", db, nil)
+	transaction := db.NewTransaction("Open_vSwitch")
 
 	operation := ovsdb.Operation{
 		Op:    ovsdb.OperationInsert,
@@ -469,11 +482,11 @@ func TestOvsdbServerUpdate(t *testing.T) {
 		UUID:  bridgeUUID,
 		Row:   bridgeRow,
 	}
-	res, updates := transaction.Insert(&operation)
-	_, err = ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "insert"}})
+	res, updates := transaction.Transact(operation)
+	_, err = checkOperationResults(res, operation)
 	require.NoError(t, err)
 
-	err = db.Commit("Open_vSwitch", uuid.New(), *updates)
+	err = db.Commit("Open_vSwitch", uuid.New(), updates)
 	assert.NoError(t, err)
 
 	halloween, _ := ovsdb.NewOvsSet([]string{"halloween"})
@@ -522,6 +535,7 @@ func TestOvsdbServerUpdate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			transaction := db.NewTransaction("Open_vSwitch")
 			op := ovsdb.Operation{
 				Op:    ovsdb.OperationUpdate,
 				Table: "Bridge",
@@ -530,8 +544,8 @@ func TestOvsdbServerUpdate(t *testing.T) {
 				}},
 				Row: tt.row,
 			}
-			res, updates := transaction.Update(&op)
-			errs, err := ovsdb.CheckOperationResults([]ovsdb.OperationResult{res}, []ovsdb.Operation{{Op: "update"}})
+			res, updates := transaction.Transact(op)
+			errs, err := checkOperationResults(res, op)
 			require.NoErrorf(t, err, "%+v", errs)
 
 			bridge.UUID = bridgeUUID
@@ -539,7 +553,7 @@ func TestOvsdbServerUpdate(t *testing.T) {
 			assert.NoError(t, err)
 			br := row.(*BridgeType)
 			assert.NotEqual(t, br, bridgeRow)
-			assert.Equal(t, tt.expected.Modify, getTableUpdates(*updates)["Bridge"][bridgeUUID].Modify)
+			assert.Equal(t, tt.expected.Modify, getTableUpdates(updates)["Bridge"][bridgeUUID].Modify)
 		})
 	}
 }
@@ -547,7 +561,7 @@ func TestOvsdbServerUpdate(t *testing.T) {
 func TestMultipleOps(t *testing.T) {
 	dbModel, err := GetModel()
 	require.NoError(t, err)
-	db := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": dbModel.Client()})
+	db := NewDatabase(map[string]model.ClientDBModel{"Open_vSwitch": dbModel.Client()})
 	err = db.CreateDatabase("Open_vSwitch", dbModel.Schema)
 	require.NoError(t, err)
 
@@ -578,8 +592,8 @@ func TestMultipleOps(t *testing.T) {
 	}
 	ops = append(ops, op)
 
-	transaction := NewTransaction(dbModel, "Open_vSwitch", db, nil)
-	results, _ := transaction.Transact(ops)
+	transaction := db.NewTransaction("Open_vSwitch")
+	results, _ := transaction.Transact(ops...)
 	assert.Len(t, results, len(ops))
 	assert.NotNil(t, results[0])
 	assert.Empty(t, results[0].Error)
@@ -616,7 +630,7 @@ func TestMultipleOps(t *testing.T) {
 	}
 	ops = append(ops, op2)
 
-	results, updates := transaction.Transact(ops)
+	results, updates := transaction.Transact(ops...)
 	require.Len(t, results, len(ops))
 	for _, result := range results {
 		assert.Empty(t, result.Error)
@@ -659,11 +673,9 @@ func TestOvsdbServerDbDoesNotExist(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
+	db := NewDatabase(map[string]model.ClientDBModel{"Open_vSwitch": defDB})
 	err = db.CreateDatabase("Open_vSwitch", schema)
 	require.NoError(t, err)
-	dbModel, errs := model.NewDatabaseModel(schema, defDB)
-	require.Empty(t, errs)
 
 	ops := []ovsdb.Operation{
 		{
@@ -690,8 +702,8 @@ func TestOvsdbServerDbDoesNotExist(t *testing.T) {
 		},
 	}
 
-	transaction := NewTransaction(dbModel, "nonexsitent_db", db, nil)
-	res, _ := transaction.Transact(ops)
+	transaction := db.NewTransaction("nonexsitent_db")
+	res, _ := transaction.Transact(ops...)
 	assert.Len(t, res, len(ops))
 	assert.Equal(t, "database does not exist", res[0].Error)
 	assert.Nil(t, res[1])
@@ -700,7 +712,7 @@ func TestOvsdbServerDbDoesNotExist(t *testing.T) {
 func TestCheckIndexes(t *testing.T) {
 	dbModel, err := GetModel()
 	require.NoError(t, err)
-	db := NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": dbModel.Client()})
+	db := NewDatabase(map[string]model.ClientDBModel{"Open_vSwitch": dbModel.Client()})
 	err = db.CreateDatabase("Open_vSwitch", dbModel.Schema)
 	require.NoError(t, err)
 
@@ -737,8 +749,8 @@ func TestCheckIndexes(t *testing.T) {
 		},
 	}
 
-	transaction := NewTransaction(dbModel, "Open_vSwitch", db, nil)
-	results, updates := transaction.Transact(ops)
+	transaction := db.NewTransaction("Open_vSwitch")
+	results, updates := transaction.Transact(ops...)
 	require.Len(t, results, len(ops))
 	for _, result := range results {
 		assert.Equal(t, "", result.Error)
@@ -871,9 +883,9 @@ func TestCheckIndexes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			transaction := NewTransaction(dbModel, "Open_vSwitch", db, nil)
+			transaction := db.NewTransaction("Open_vSwitch")
 			ops := tt.ops()
-			results, _ := transaction.Transact(ops)
+			results, _ := transaction.Transact(ops...)
 			var err string
 			for _, result := range results {
 				if result.Error != "" {
@@ -891,7 +903,7 @@ func TestCheckIndexes(t *testing.T) {
 	}
 }
 
-func getTableUpdates(update Update) ovsdb.TableUpdates2 {
+func getTableUpdates(update database.Update) ovsdb.TableUpdates2 {
 	tus := ovsdb.TableUpdates2{}
 	tables := update.GetUpdatedTables()
 	for _, table := range tables {
@@ -903,4 +915,131 @@ func getTableUpdates(update Update) ovsdb.TableUpdates2 {
 		tus[table] = tu
 	}
 	return tus
+}
+
+func checkOperationResults(result []*ovsdb.OperationResult, ops ...ovsdb.Operation) ([]ovsdb.OperationError, error) {
+	r := make([]ovsdb.OperationResult, len(result))
+	for i := range result {
+		r[i] = *result[i]
+	}
+	return ovsdb.CheckOperationResults(r, ops)
+}
+
+func TestCheckIndexesWithReferentialIntegrity(t *testing.T) {
+	dbModel, err := GetModel()
+	require.NoError(t, err)
+	db := NewDatabase(map[string]model.ClientDBModel{"Open_vSwitch": dbModel.Client()})
+	err = db.CreateDatabase("Open_vSwitch", dbModel.Schema)
+	require.NoError(t, err)
+
+	ovsUUID := uuid.NewString()
+	managerUUID := uuid.NewString()
+	managerUUID2 := uuid.NewString()
+	ops := []ovsdb.Operation{
+		{
+			Table: "Open_vSwitch",
+			Op:    ovsdb.OperationInsert,
+			UUID:  ovsUUID,
+			Row: ovsdb.Row{
+				"manager_options": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: managerUUID}}},
+			},
+		},
+		{
+			Table: "Manager",
+			Op:    ovsdb.OperationInsert,
+			UUID:  managerUUID,
+			Row: ovsdb.Row{
+				"target": "target",
+			},
+		},
+	}
+
+	transaction := db.NewTransaction("Open_vSwitch")
+	results, updates := transaction.Transact(ops...)
+	require.Len(t, results, len(ops))
+	for _, result := range results {
+		assert.Equal(t, "", result.Error)
+	}
+	err = db.Commit("Open_vSwitch", uuid.New(), updates)
+	require.NoError(t, err)
+
+	tests := []struct {
+		desc        string
+		ops         func() []ovsdb.Operation
+		wantUpdates int
+	}{
+		{
+			// As a row is deleted due to garbage collection, that row's index
+			// should be available for use by a different row
+			desc: "Replacing a strong reference should garbage collect and account for indexes",
+			ops: func() []ovsdb.Operation {
+				return []ovsdb.Operation{
+					{
+						Table: "Open_vSwitch",
+						Op:    ovsdb.OperationUpdate,
+						Row: ovsdb.Row{
+							"manager_options": ovsdb.OvsSet{GoSet: []interface{}{ovsdb.UUID{GoUUID: managerUUID2}}},
+						},
+						Where: []ovsdb.Condition{
+							ovsdb.NewCondition("_uuid", ovsdb.ConditionEqual, ovsdb.UUID{GoUUID: ovsUUID}),
+						},
+					},
+					{
+						Table: "Manager",
+						Op:    ovsdb.OperationInsert,
+						UUID:  managerUUID2,
+						Row: ovsdb.Row{
+							"target": "target",
+						},
+					},
+				}
+			},
+			// the update and insert above plus the delete from the garbage
+			// collection
+			wantUpdates: 3,
+		},
+		{
+			desc: "A row that is not root and not strongly referenced should not cause index collisions",
+			ops: func() []ovsdb.Operation {
+				return []ovsdb.Operation{
+					{
+						Table: "Manager",
+						Op:    ovsdb.OperationInsert,
+						UUID:  managerUUID2,
+						Row: ovsdb.Row{
+							"target": "target",
+						},
+					},
+				}
+			},
+			// no updates as the row is not strongly referenced
+			wantUpdates: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			transaction := db.NewTransaction("Open_vSwitch")
+			ops := tt.ops()
+			results, update := transaction.Transact(ops...)
+			var err string
+			for _, result := range results {
+				if result.Error != "" {
+					err = result.Error
+					break
+				}
+			}
+			require.Empty(t, err, "got an unexpected error")
+
+			tables := update.GetUpdatedTables()
+			var gotUpdates int
+			for _, table := range tables {
+				_ = update.ForEachRowUpdate(table, func(uuid string, row ovsdb.RowUpdate2) error {
+					gotUpdates++
+					return nil
+				})
+			}
+			assert.Equal(t, tt.wantUpdates, gotUpdates, "got a different number of updates than expected")
+		})
+	}
 }

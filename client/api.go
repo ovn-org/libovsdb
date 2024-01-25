@@ -51,9 +51,9 @@ type API interface {
 	Get(context.Context, model.Model) error
 
 	// Create returns the operation needed to add the model(s) to the Database
-	// Only fields with non-default values will be added to the transaction
-	// If the field associated with column "_uuid" has some content, it will be
-	// treated as named-uuid
+	// Only fields with non-default values will be added to the transaction. If
+	// the field associated with column "_uuid" has some content other than a
+	// UUID, it will be treated as named-uuid
 	Create(...model.Model) ([]ovsdb.Operation, error)
 }
 

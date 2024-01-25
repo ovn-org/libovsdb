@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/ovn-org/libovsdb/database"
+	"github.com/ovn-org/libovsdb/database/inmemory"
 	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
@@ -17,7 +17,7 @@ import (
 func TestOvsdbServerMonitor(t *testing.T) {
 	dbModel, err := GetModel()
 	require.NoError(t, err)
-	ovsDB := database.NewInMemoryDatabase(map[string]model.ClientDBModel{"Open_vSwitch": dbModel.Client()})
+	ovsDB := inmemory.NewDatabase(map[string]model.ClientDBModel{"Open_vSwitch": dbModel.Client()})
 	schema := dbModel.Schema
 
 	o, err := NewOvsdbServer(ovsDB, dbModel)
@@ -65,8 +65,8 @@ func TestOvsdbServerMonitor(t *testing.T) {
 			Row:   ovsdb.Row{"name": "quux"},
 		},
 	}
-	transaction := database.NewTransaction(dbModel, "Open_vSwitch", o.db, &o.logger)
-	_, updates := transaction.Transact(operations)
+	transaction := ovsDB.NewTransaction("Open_vSwitch")
+	_, updates := transaction.Transact(operations...)
 	err = o.db.Commit("Open_vSwitch", uuid.New(), updates)
 	require.NoError(t, err)
 
