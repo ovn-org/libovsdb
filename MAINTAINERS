@@ -11,7 +11,8 @@
 		people = [
 			"amorenoz",
 			"dave-tucker",
-			"hzhou8"
+			"hzhou8",
+			"jcaamano"
 		]
 	[Org.Alumni]
 		people = [
@@ -38,6 +39,10 @@
 	[people.hzhou8]
 	Name = "Han Zhou"
 	GitHub = "hzhou8"
+
+	[people.jcaamano]
+	Name = "Jaime Caamaño"
+	GitHub = "jcaamano"
 
 	[people.mavenugo]
 	Name = "Madhu Venugopal"
