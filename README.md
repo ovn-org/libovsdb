@@ -90,8 +90,9 @@ The table is inferred from the type that the function accepts as only argument.
 The client will track schema indexes and use them when appropriate in `Get`, `Where`, and `WhereAll` as explained above.
 
 Additional indexes can be specified for a client instance to track. Just as schema indexes, client indexes are specified in sets per table.
-where each set consists of the columns that compose the index. Unlike schema indexes, a key within a column can be addressed if the column
-type is a map.
+where each set consists of the columns that compose the index. However, unlike schema indexes, client indexes:
+- can be used with columns that are maps, where specific map keys can be indexed (see example below).
+- can be used with columns that are optional, where no-value columns are indexed as well.
 
 Client indexes are leveraged through `Where`, and `WhereAll`. Since client indexes value uniqueness is not enforced as it happens with schema indexes,
 conditions based on them can match multiple rows.
