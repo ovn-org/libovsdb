@@ -120,6 +120,26 @@ can now be improved with:
     // quick indexed result
     ovn.Where(lb).List(ctx, &results)
 
+Client indexes support using pointer Columns, for example if a column "optional_string" has Model type `*string`,
+it can be used in a client index.
+
+    dbModel, err := nbdb.FullDatabaseModel()
+    dbModel.SetIndexes(map[string][]model.ClientIndex{
+        "Load_Balancer": {{Columns: []model.ColumnKey{{Column: "optional_string"}}}},
+    })
+
+    // connect ....
+
+    optionalStringValue := "myOptionalValue"
+    lb := &LoadBalancer{
+        OptionalString: &optionalStringValue,
+    }
+    // quick indexed result
+    ovn.Where(lb).List(ctx, &results)
+
+The indexing will happen based on dereferenced value, but `nil` will be considered a valid value.
+
+
 ## Documentation
 
 This package is divided into several sub-packages. Documentation for each sub-package is available at [pkg.go.dev][doc]:

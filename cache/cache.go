@@ -1261,7 +1261,11 @@ func valueFromColumnKey(info *mapper.Info, columnKey model.ColumnKey) (interface
 			return "", fmt.Errorf("can't get key value from map: %v", err)
 		}
 	}
-	return val, err
+	v := reflect.ValueOf(val)
+	if v.Kind() == reflect.Ptr && !v.IsNil() {
+		v = v.Elem()
+	}
+	return v.Interface(), err
 }
 
 func valueFromMap(aMap interface{}, key interface{}) (interface{}, error) {
