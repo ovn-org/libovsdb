@@ -280,6 +280,96 @@ func TestRowCacheCreateClientIndex(t *testing.T) {
 	}
 }
 
+func getStringPtr(s string) *string {
+	return &s
+}
+
+var nilString *string
+
+func TestRowCacheCreateOptionalColumnClientIndex(t *testing.T) {
+	var schema ovsdb.DatabaseSchema
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	db.SetIndexes(map[string][]model.ClientIndex{
+		"Open_vSwitch": {
+			{
+				Columns: []model.ColumnKey{
+					{
+						Column: "datapath",
+					},
+				},
+			},
+		},
+	})
+	require.Nil(t, err)
+	err = json.Unmarshal(getTestSchema(""), &schema)
+	require.Nil(t, err)
+	testData := Data{
+		"Open_vSwitch": map[string]model.Model{"bar": &testModel{Datapath: getStringPtr("bar")}},
+	}
+
+	dbModel, errs := model.NewDatabaseModel(schema, db)
+	require.Empty(t, errs)
+
+	tests := []struct {
+		name     string
+		uuid     string
+		model    *testModel
+		wantErr  bool
+		expected valueToUUIDs
+	}{
+		{
+			name:    "inserts a new row",
+			uuid:    "foo",
+			model:   &testModel{Datapath: getStringPtr("foo")},
+			wantErr: false,
+			expected: valueToUUIDs{
+				"foo": newUUIDSet("foo"),
+				"bar": newUUIDSet("bar"),
+			},
+		},
+		{
+			name:    "error duplicate uuid",
+			uuid:    "bar",
+			model:   &testModel{Datapath: getStringPtr("foo")},
+			wantErr: true,
+		},
+		{
+			name:    "inserts duplicate index",
+			uuid:    "baz",
+			model:   &testModel{Datapath: getStringPtr("bar")},
+			wantErr: false,
+			expected: valueToUUIDs{
+				"bar": newUUIDSet("bar", "baz"),
+			},
+		},
+		{
+			name:    "inserts nil index",
+			uuid:    "nil",
+			model:   &testModel{Datapath: nil},
+			wantErr: false,
+			expected: valueToUUIDs{
+				"bar":     newUUIDSet("bar"),
+				nilString: newUUIDSet("nil"),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc, err := NewTableCache(dbModel, testData, nil)
+			require.Nil(t, err)
+			rc := tc.Table("Open_vSwitch")
+			require.NotNil(t, rc)
+			err = rc.Create(tt.uuid, tt.model, true)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.Nil(t, err)
+				require.Equal(t, tt.expected, rc.indexes["datapath"])
+			}
+		})
+	}
+}
+
 func TestRowCacheCreateMultiIndex(t *testing.T) {
 	var schema ovsdb.DatabaseSchema
 	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
@@ -704,6 +794,129 @@ func TestRowCacheUpdateClientIndex(t *testing.T) {
 			} else {
 				require.Nil(t, err)
 				require.Equal(t, tt.expected, rc.indexes["foo"])
+			}
+		})
+	}
+}
+
+func TestRowCacheUpdateOptionalColumnClientIndex(t *testing.T) {
+	var schema ovsdb.DatabaseSchema
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	require.Nil(t, err)
+	db.SetIndexes(map[string][]model.ClientIndex{
+		"Open_vSwitch": {
+			{
+				Columns: []model.ColumnKey{
+					{
+						Column: "datapath",
+					},
+				},
+			},
+		},
+	})
+	err = json.Unmarshal(getTestSchema(""), &schema)
+	require.Nil(t, err)
+	testData := Data{
+		"Open_vSwitch": map[string]model.Model{
+			"foo":    &testModel{Datapath: getStringPtr("foo"), Bar: "foo"},
+			"bar":    &testModel{Datapath: getStringPtr("bar"), Bar: "bar"},
+			"foobar": &testModel{Datapath: getStringPtr("bar"), Bar: "foobar"},
+			"nil":    &testModel{Datapath: nilString, Bar: "nil"},
+		},
+	}
+	dbModel, errs := model.NewDatabaseModel(schema, db)
+	require.Empty(t, errs)
+
+	tests := []struct {
+		name     string
+		uuid     string
+		model    *testModel
+		wantErr  bool
+		expected valueToUUIDs
+	}{
+		{
+			name:    "error if row does not exist",
+			uuid:    "baz",
+			model:   &testModel{Datapath: getStringPtr("baz")},
+			wantErr: true,
+		},
+		{
+			name:    "update non-index",
+			uuid:    "foo",
+			model:   &testModel{Datapath: getStringPtr("foo"), Bar: "bar"},
+			wantErr: false,
+			expected: valueToUUIDs{
+				"foo":     newUUIDSet("foo"),
+				"bar":     newUUIDSet("bar", "foobar"),
+				nilString: newUUIDSet("nil"),
+			},
+		},
+		{
+			name:    "update unique index to new index",
+			uuid:    "foo",
+			model:   &testModel{Datapath: getStringPtr("baz")},
+			wantErr: false,
+			expected: valueToUUIDs{
+				"baz":     newUUIDSet("foo"),
+				"bar":     newUUIDSet("bar", "foobar"),
+				nilString: newUUIDSet("nil"),
+			},
+		},
+		{
+			name:    "update unique index to existing index",
+			uuid:    "foo",
+			model:   &testModel{Datapath: getStringPtr("bar")},
+			wantErr: false,
+			expected: valueToUUIDs{
+				"bar":     newUUIDSet("foo", "bar", "foobar"),
+				nilString: newUUIDSet("nil"),
+			},
+		},
+		{
+			name:    "update multi index to different index",
+			uuid:    "foobar",
+			model:   &testModel{Datapath: getStringPtr("foo")},
+			wantErr: false,
+			expected: valueToUUIDs{
+				"foo":     newUUIDSet("foo", "foobar"),
+				"bar":     newUUIDSet("bar"),
+				nilString: newUUIDSet("nil"),
+			},
+		},
+		{
+			name:    "update nil index to new index",
+			uuid:    "nil",
+			model:   &testModel{Datapath: getStringPtr("foo")},
+			wantErr: false,
+			expected: valueToUUIDs{
+				"foo": newUUIDSet("nil", "foo"),
+				"bar": newUUIDSet("bar", "foobar"),
+			},
+		},
+		{
+			name:    "update multi index to nil index",
+			uuid:    "foobar",
+			model:   &testModel{Datapath: nilString},
+			wantErr: false,
+			expected: valueToUUIDs{
+				"foo":     newUUIDSet("foo"),
+				"bar":     newUUIDSet("bar"),
+				nilString: newUUIDSet("nil", "foobar"),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc, err := NewTableCache(dbModel, testData, nil)
+			require.Nil(t, err)
+			rc := tc.Table("Open_vSwitch")
+			require.NotNil(t, rc)
+			_, err = rc.Update(tt.uuid, tt.model, true)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.Nil(t, err)
+				require.Equal(t, tt.expected, rc.indexes["datapath"])
 			}
 		})
 	}
@@ -1163,6 +1376,98 @@ func TestRowCacheDeleteClientIndex(t *testing.T) {
 					require.Nil(t, err)
 					require.Equal(t, expected.uuids, rc.indexes[index][h], expected.index)
 				}
+			}
+		})
+	}
+}
+
+func TestRowCacheDeleteOptionalColumnClientIndex(t *testing.T) {
+	var schema ovsdb.DatabaseSchema
+	db, err := model.NewClientDBModel("Open_vSwitch", map[string]model.Model{"Open_vSwitch": &testModel{}})
+	require.Nil(t, err)
+
+	db.SetIndexes(map[string][]model.ClientIndex{
+		"Open_vSwitch": {
+			{
+				Columns: []model.ColumnKey{
+					{
+						Column: "datapath",
+					},
+				},
+			},
+		},
+	})
+	err = json.Unmarshal(getTestSchema(""), &schema)
+	require.Nil(t, err)
+
+	testData := Data{
+		"Open_vSwitch": map[string]model.Model{
+			"foo":    &testModel{Datapath: getStringPtr("foo"), Bar: "foo"},
+			"bar":    &testModel{Datapath: getStringPtr("bar"), Bar: "bar"},
+			"foobar": &testModel{Datapath: getStringPtr("bar"), Bar: "foobar"},
+			"nil":    &testModel{Datapath: nilString, Bar: "nil"},
+		},
+	}
+	dbModel, errs := model.NewDatabaseModel(schema, db)
+	require.Empty(t, errs)
+
+	tests := []struct {
+		name     string
+		uuid     string
+		model    *testModel
+		wantErr  bool
+		expected valueToUUIDs
+	}{
+		{
+			name:    "error if row does not exist",
+			uuid:    "baz",
+			model:   &testModel{Datapath: getStringPtr("baz")},
+			wantErr: true,
+		},
+		{
+			name:    "delete a row with unique index",
+			uuid:    "foo",
+			model:   &testModel{Datapath: getStringPtr("foo"), Bar: "foo"},
+			wantErr: false,
+			expected: valueToUUIDs{
+				"bar":     newUUIDSet("bar", "foobar"),
+				nilString: newUUIDSet("nil"),
+			},
+		},
+		{
+			name:    "delete a row with duplicated index",
+			uuid:    "bar",
+			model:   &testModel{Datapath: getStringPtr("bar"), Bar: "bar"},
+			wantErr: false,
+			expected: valueToUUIDs{
+				"foo":     newUUIDSet("foo"),
+				"bar":     newUUIDSet("foobar"),
+				nilString: newUUIDSet("nil"),
+			},
+		},
+		{
+			name:    "delete a row with nil index",
+			uuid:    "nil",
+			model:   &testModel{Datapath: nilString, Bar: "nil"},
+			wantErr: false,
+			expected: valueToUUIDs{
+				"foo": newUUIDSet("foo"),
+				"bar": newUUIDSet("bar", "foobar"),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc, err := NewTableCache(dbModel, testData, nil)
+			require.Nil(t, err)
+			rc := tc.Table("Open_vSwitch")
+			require.NotNil(t, rc)
+			err = rc.Delete(tt.uuid)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.Nil(t, err)
+				require.Equal(t, tt.expected, rc.indexes["datapath"])
 			}
 		})
 	}
